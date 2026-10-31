@@ -129,7 +129,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3). Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
