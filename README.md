@@ -133,12 +133,24 @@ song-wizard ui
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de olvidarlas.
 
 La página solo funciona mientras la terminal donde la abriste siga abierta; Ctrl+C la cierra. Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
+
+#### Practicar
+
+Con "Todos" separado, el reproductor tiene las cinco pistas (voz, batería, bajo, guitarra y otros); si separaste un instrumento solo, ese instrumento y el resto del tema (y si separaste varios por separado, elegís cuál arriba); sin stems, el tema original, que igual sirve para practicar más lento o repetir un tramo.
+
+- Cada pista tiene su volumen, **M** para silenciarla y **S** para escuchar solo esa (se pueden sumar varias en solo).
+- La velocidad cambia mientras suena y el tono no cambia. Para guardar una versión más lenta como archivo, está [Cambiar la velocidad](#cambiar-la-velocidad).
+- Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y la marca se ve sobre la barra.
+- Con el teclado: espacio reproduce y pausa, `[` y `]` marcan A y B, `L` repite, las flechas saltan 5 segundos, `-` y `+` cambian la velocidad, y `1` a `5` silencian una pista. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos).
+
+Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
 
 Todo lo que hace la interfaz se puede hacer también con los comandos de abajo, que son los que la interfaz usa por detrás.
 
@@ -418,6 +430,9 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `report` | Real (WSL) | ✅ Guarda el archivo con `setup` y el final del log; la carpeta personal (`/home/…`, `/mnt/c/Users/…`, `C:\Users\…`) aparece como `~`; el link al formulario de GitHub entra en 2000 caracteres con las últimas líneas del log |
 | `report`: abrir el formulario en el navegador desde la terminal | **No probado** | En WSL se abre con `cmd.exe start` escapando los `&` (verificado que `cmd` recibe el link entero); falta ver que el navegador lo abra |
 | `ui`: "reportar un problema" | Real | ✅ Muestra el reporte entero antes de mandarlo, con el link a GitHub y el botón para mostrar el archivo |
+| `ui`: practicar con 5 pistas de 5:41 (Edge, sin sonido) | Real | ✅ Las pistas no se separan más de 3 ms al arrancar, al saltar al minuto 2 y al 75 % (el tiempo avanza a 0.749, tono preservado); el tramo A-B se repite sin pasarse de B; silencio y solo dan los volúmenes correctos; detecta "Todos", un instrumento con su resto, o el tema solo |
+| `ui`: practicar escuchando, en el navegador de todos los días | **Falta** | Lo anterior se midió con el sonido apagado; falta escucharlo con stems reales |
+| `ui`: practicar en Mac (Safari) | **No probado** | Safari tiene `preservesPitch`; falta ver que reproduzca los WAV de 32 bits float de los stems |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
