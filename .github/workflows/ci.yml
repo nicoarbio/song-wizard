@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            os: ubuntu-latest
+          # Apple Silicon. Essentia's Mac wheels need macOS 15 or newer; Intel Macs aren't supported.
+          - name: macos
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          # Keep downloaded wheels too (PyTorch is most of the install time).
+          prune-cache: false
+
+      - name: System dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg rubberband-cli build-essential python3-dev
+
+      - name: System dependencies (Mac)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg rubberband
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Tests
+        run: uv run pytest -v
+
+      # The real install, as the README tells users to do it (without the lock file and
+      # without [tool.uv]); it also compiles diffq.
+      - name: Install as a tool
+        run: |
+          uv tool install .
+          bin="$(uv tool dir --bin)"
+          "$bin/song-wizard" --version
+          "$bin/song-wizard" --help

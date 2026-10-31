@@ -1,5 +1,7 @@
 # song-wizard
 
+[![CI](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml)
+
 Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales (ver [Aviso legal](#aviso-legal)).
 
 - **download**: baja audio de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
@@ -320,6 +322,25 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 - [PyTorch](https://pytorch.org) y [uv](https://docs.astral.sh/uv/).
 
 ## Anexo: pruebas
+
+### Pruebas automáticas
+
+En cada cambio que se sube a GitHub corren las pruebas automáticas, en Linux (Ubuntu) y en una Mac con chip M (macOS 15): el resultado se ve en el ícono de arriba de todo. Además de las pruebas, instalan song-wizard igual que en [Instalación](#instalación), para verificar que se instala bien en los dos sistemas.
+
+Usan audio sintético generado en la misma prueba (tonos, acordes y una batería simple), nunca temas reales, y no se conectan a internet. Cubren:
+
+- Que cada comando de la terminal llegue a lo que tiene que hacer.
+- `key`: una progresión de acordes en Sol mayor, La menor, Mi bemol mayor y Fa sostenido menor da la tonalidad correcta con 4/4.
+- `bpm`: una batería a 90, 120 y 137 BPM da el tempo exacto (±0.5) y "estable".
+- `click`: cada golpe a menos de 0.1 ms de su posición teórica durante 10 minutos, también con tempos con decimales; acentos y subdivisiones en su lugar; la duración redondea a compases enteros.
+- `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
+- `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
+- `key.txt` y `bpm.txt`, la configuración, la carpeta de música y los registros de `archives`.
+- `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
+
+`separate` no corre en las pruebas automáticas porque necesita bajar los modelos (1.3 GB); se puede probar a mano con `uv run pytest -m slow`, que verifica que instrumento + resto sumen el original. Para correr las pruebas en tu computadora, desde la carpeta del proyecto: `uv run pytest`.
+
+### Pruebas a mano
 
 Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 
