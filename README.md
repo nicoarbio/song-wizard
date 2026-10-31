@@ -130,7 +130,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3). Con ▶ se escucha cualquiera.
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
-- **Acciones** sobre los temas elegidos: tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
+- **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con su avance en vivo; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de olvidarlas.
 
@@ -379,6 +379,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `click` a 120 BPM 4/4, 96 BPM 3/4, 105.6 BPM durante 10 minutos, con tresillos y `--like` | Real | ✅ Cada golpe a 0.03 ms de su posición teórica (redondeo a la muestra), también a los 10 minutos; cantidad de golpes, acentos y subdivisiones correctos; `--like` cubre todo el tema |
 | `ui`: seguridad | Real | ✅ Sin clave, con clave incorrecta o con otro dominio responde 403; rutas fuera de la carpeta de música, rechazadas; acciones que no existen, rechazadas |
 | `ui`: todos los trabajos desde la API (tonalidad, tempo, transponer, separar, convertir, click, bajar, olvidar registros) | Real | ✅ Todos terminan bien; el avance de la separación se ve en vivo; cancelar a mitad de una separación la detiene |
+| `ui`: elegir un archivo suelto (un stem o una versión con otra velocidad) | Real | ✅ Las acciones corren solo sobre ese archivo y el resultado queda agrupado bajo su tema; el click toma el tempo de lo elegido (al 80 %, el del tema × 0.8); los stems muestran su propia tonalidad y tempo si se analizaron |
+| `ui`: acciones que no corresponden a lo elegido | Real | ✅ Separar solo se habilita con temas originales; cambiar el tono o la velocidad, con temas y stems pero no con versiones ya transpuestas o con otra velocidad; debajo de la acción se explica por qué |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

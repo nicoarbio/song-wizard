@@ -103,6 +103,7 @@ def test_library_groups_files_under_their_song(server):
     for name in names:
         (show / name).write_bytes(b"x")
     (show / "key.txt").write_text("# header\n001 - Song.opus\tG    G major\n")
+    (show / "bpm.txt").write_text("# header\n001 - Song (drums).wav\t120.0 BPM  steady\n")
     (root / "Loose.mp3").write_bytes(b"x")
     library = get_json(port, "/api/library")
     assert library["root"] == str(root)
@@ -113,6 +114,8 @@ def test_library_groups_files_under_their_song(server):
     assert song["name"] == "001 - Song.opus" and song["key"] == "G    G major" and song["bpm"] is None
     assert sorted(f["name"] for f in song["files"]) == sorted(
         ["001 - Song.wav", "001 - Song.mp3", "001 - Song (drums).wav", "001 - Song (no drums).wav", "001 - Song (+2).wav"])
+    drums = next(f for f in song["files"] if f["name"] == "001 - Song (drums).wav")
+    assert drums["bpm"] == "120.0 BPM  steady" and drums["key"] is None
     assert other["name"] == "002 - Other (Live).opus" and other["files"] == []
     assert [e["name"] for e in folder["extras"]] == ["Click 120 BPM 4-4.wav"]
 
@@ -172,6 +175,18 @@ def test_speed_job(server):
     song = get_json(port, "/api/library")["folders"][0]["songs"][0]
     assert song["name"] == "tone.wav"
     assert [f["name"] for f in song["files"]] == ["tone (80%, -2).wav"]
+
+
+def test_job_on_a_single_stem(server):
+    port, root = server
+    synth.write(root / "tone.wav", synth.sine(440, 2))
+    synth.write(root / "tone (drums).wav", synth.sine(220, 2))
+    response, content = request(port, "POST", "/api/jobs", {"action": "speed", "percent": 50, "paths": ["tone (drums).wav"]})
+    status, lines = wait_for(port, json.loads(content)["id"])
+    assert status == "done", lines
+    (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
+    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).wav", "tone (drums).wav"]
+    assert sf.info(root / "tone (drums) (50%).wav").duration == pytest.approx(4)
 
 
 def test_failed_job(server):

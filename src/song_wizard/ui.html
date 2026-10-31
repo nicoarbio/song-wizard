@@ -59,8 +59,10 @@
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
   .badge.warn { color: var(--warn); }
   .files { list-style: none; margin: 4px 0 0 26px; padding: 0; font-size: 13px; }
-  .files li { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
-  .files .fname { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+  .why { color: var(--warn); }
+  .why:empty { display: none; }
+  .files li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 1px 0; }
+  .files .fname { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
   .play { width: 26px; height: 22px; padding: 0; }
   .selection { font-size: 13px; margin-bottom: 10px; }
   .action { border-top: 1px solid var(--line); padding: 10px 0; }
@@ -136,8 +138,9 @@
         </div>
         <div class="row" style="margin-top:8px">
           <label class="muted"><input type="checkbox" id="cpu"> usar el procesador</label>
-          <button data-needs="songs" class="primary" id="do-separate">Separar</button>
+          <button data-needs="songs" data-only="songs" class="primary" id="do-separate">Separar</button>
         </div>
+        <p class="hint why" data-why="do-separate"></p>
         <p class="hint">Cada instrumento da dos archivos: el instrumento solo y el resto del tema. "Todos" da los 4 más "other", sin los "no X".</p>
       </div>
 
@@ -145,8 +148,9 @@
         <h3>Cambiar el tono</h3>
         <div class="row">
           <label>Semitonos <input type="number" id="semitones" value="-1" step="0.5" min="-24" max="24"></label>
-          <button data-needs="songs" id="do-transpose">Transponer</button>
+          <button data-needs="songs" data-only="no-versions" id="do-transpose">Transponer</button>
         </div>
+        <p class="hint why" data-why="do-transpose"></p>
         <p class="hint">+1 = medio tono arriba, +2 = un tono. El tempo no cambia.</p>
       </div>
 
@@ -155,8 +159,9 @@
         <div class="row">
           <label>Velocidad <input type="number" id="speed-percent" value="80" step="5" min="25" max="200"> %</label>
           <label>y semitonos <input type="number" id="speed-semitones" value="0" step="0.5" min="-24" max="24"></label>
-          <button data-needs="songs" id="do-speed">Cambiar</button>
+          <button data-needs="songs" data-only="no-versions" id="do-speed">Cambiar</button>
         </div>
+        <p class="hint why" data-why="do-speed"></p>
         <p class="hint">80 % = más lento, 120 % = más rápido. El tono no cambia, salvo que pongas semitonos.</p>
       </div>
 
@@ -166,7 +171,7 @@
           <select id="format"><option value="mp3">MP3</option><option value="m4a">M4A</option></select>
           <button data-needs="songs" id="do-convert">Convertir los elegidos</button>
         </div>
-        <p class="hint">Para un stem u otra versión de un tema, usá el botón MP3 al lado de cada archivo.</p>
+        <p class="hint">Para un solo archivo, también está el botón MP3 al lado de cada uno.</p>
       </div>
 
       <div class="action">
@@ -184,7 +189,7 @@
         <div class="row" style="margin-top:8px">
           <button id="do-click">Generar click</button>
         </div>
-        <p class="hint">Si el tema elegido ya tiene tempo detectado, se usa ese BPM. Se guarda en la carpeta del tema.</p>
+        <p class="hint">Si lo elegido ya tiene tempo detectado, se usa ese BPM (en una versión con otra velocidad, ajustado). Se guarda en la carpeta del tema.</p>
       </div>
     </section>
 
@@ -246,9 +251,65 @@ function play(file) {
   audio.play().catch(() => toast("El navegador no pudo reproducir ese formato."));
 }
 
-function songByPath(path) {
-  for (const f of state.folders) for (const s of f.songs) if (s.path === path) return { song: s, folder: f };
+// What a selected path is: a song, one of its files (a stem, a transposed version...) or a
+// click track (no song).
+function findPath(path) {
+  for (const folder of state.folders) {
+    for (const song of folder.songs) {
+      if (song.path === path) return { item: song, song, folder };
+      const file = song.files.find((f) => f.path === path);
+      if (file) return { item: file, song, folder };
+    }
+    const extra = folder.extras.find((f) => f.path === path);
+    if (extra) return { item: extra, song: null, folder };
+  }
   return null;
+}
+
+// Tempo of a selection for the click: its own if it was analyzed, else its song's; for a
+// version at another speed, "Title (80%).wav", the song's scaled by that much.
+function tempoOf(found) {
+  const own = bpmNumber(found.item.bpm);
+  if (own || !found.song || found.item === found.song) return own;
+  const songBpm = bpmNumber(found.song.bpm);
+  // Every speed in the name counts: "(80%) (90%)" is 72% of the song.
+  const factor = [...found.item.name.matchAll(/\((\d+(?:\.\d+)?)%/g)].reduce((f, m) => f * parseFloat(m[1]) / 100, 1);
+  return songBpm ? Math.round(songBpm * factor * 10) / 10 : null;
+}
+
+// "song", "copy" (the song in another format: "Title.mp3"), "stem", "version" (transposed or
+// at another speed, stems included: "Title (drums) (80%).wav") or "click".
+const VERSION = /\((?:[+-]\d+(?:\.\d+)?|\d+(?:\.\d+)?%(?:, [+-]\d+(?:\.\d+)?)?)\)/;
+function kindOf(found) {
+  if (!found.song) return "click";
+  if (found.item === found.song) return "song";
+  const base = found.song.name.replace(/\.[^.]+$/, "");
+  const rest = found.item.name.replace(/\.[^.]+$/, "").slice(base.length);
+  if (!rest) return "copy";
+  return VERSION.test(rest) ? "version" : "stem";
+}
+
+// Actions that only make sense on some files, and why they're off otherwise. The command line
+// still accepts any file named on purpose; this keeps the interface from doing odd things.
+const ONLY = {
+  "songs": { ok: (k) => k === "song",
+             why: "Separar funciona sobre el tema original, no sobre stems, versiones ni otras copias." },
+  "no-versions": { ok: (k) => k !== "version",
+                   why: "Sobre una versión ya transpuesta o con otra velocidad no: hacelo desde el original (con velocidad y semitonos juntos si hace falta), que suena mejor." },
+};
+
+function toggle(path) {
+  return (e) => {
+    e.target.checked ? state.selected.add(path) : state.selected.delete(path);
+    renderSelection(); renderLibrary();
+  };
+}
+
+function badgesFor(item) {
+  const badges = [];
+  if (item.key) badges.push(el("span", { class: "badge" + (item.key.includes("uncertain") ? " warn" : ""), title: item.key }, item.key.split(/\s+/)[0]));
+  if (item.bpm) badges.push(el("span", { class: "badge" + (/uncertain|varies/.test(item.bpm) ? " warn" : ""), title: item.bpm }, `${bpmNumber(item.bpm)} BPM`));
+  return badges;
 }
 
 function bpmNumber(text) {
@@ -290,14 +351,9 @@ function renderLibrary() {
 }
 
 function renderSong(song) {
-  const check = el("input", { type: "checkbox", onchange: (e) => {
-    e.target.checked ? state.selected.add(song.path) : state.selected.delete(song.path);
-    renderSelection(); renderLibrary();
-  }});
+  const check = el("input", { type: "checkbox", onchange: toggle(song.path) });
   check.checked = state.selected.has(song.path);
-  const badges = [];
-  if (song.key) badges.push(el("span", { class: "badge" + (song.key.includes("uncertain") ? " warn" : ""), title: song.key }, song.key.split(/\s+/)[0]));
-  if (song.bpm) badges.push(el("span", { class: "badge" + (/uncertain|varies/.test(song.bpm) ? " warn" : ""), title: song.bpm }, `${bpmNumber(song.bpm)} BPM`));
+  const badges = badgesFor(song);
   const li = el("li", { class: "song" },
     el("div", { class: "head" }, check,
       el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
@@ -308,9 +364,11 @@ function renderSong(song) {
 
 function renderFile(file) {
   const lossless = /\.(wav|flac|aiff?)$/i.test(file.name);
-  return el("li", {},
+  const check = el("input", { type: "checkbox", title: "Elegir solo este archivo", onchange: toggle(file.path) });
+  check.checked = state.selected.has(file.path);
+  return el("li", {}, check,
     el("button", { class: "play small", title: "Escuchar", onclick: () => play(file) }, "▶"),
-    el("span", { class: "fname" }, file.name),
+    el("span", { class: "fname" }, file.name), badgesFor(file),
     el("span", { class: "count" }, `${(file.size / 1e6).toFixed(1)} MB`),
     lossless ? el("button", { class: "small", title: "Convertir a MP3 para compartir",
       onclick: () => start({ action: "convert", format: $("format").value, paths: [file.path] }) }, "MP3") : null);
@@ -318,14 +376,27 @@ function renderFile(file) {
 
 function renderSelection() {
   const n = state.selected.size;
+  const found = [...state.selected].map(findPath).filter(Boolean);
+  const songs = found.filter((f) => f.item === f.song).length;
+  const files = found.length - songs;
+  const parts = [];
+  if (songs) parts.push(`${songs} tema${songs === 1 ? "" : "s"}`);
+  if (files) parts.push(`${files} archivo${files === 1 ? "" : "s"}`);
   const box = $("selection");
   box.replaceChildren(n
-    ? el("span", {}, `${n} tema${n === 1 ? "" : "s"} elegido${n === 1 ? "" : "s"} `, el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar"))
-    : el("span", { class: "muted" }, "Elegí temas en la biblioteca (o todos los de una carpeta con su casilla)."));
-  for (const b of document.querySelectorAll("[data-needs=songs]")) b.disabled = !n;
-  const first = n ? songByPath([...state.selected][0]) : null;
-  const detected = first ? bpmNumber(first.song.bpm) : null;
-  if (detected && n === 1) $("click-bpm").value = detected;
+    ? el("span", {}, `${parts.join(" y ")} elegido${n === 1 ? "" : "s"} `, el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar"))
+    : el("span", { class: "muted" }, "Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas."));
+  const kinds = found.map(kindOf);
+  for (const b of document.querySelectorAll("[data-needs=songs]")) {
+    const rule = ONLY[b.dataset.only];
+    const blocked = rule && kinds.some((k) => !rule.ok(k));
+    b.disabled = !n || blocked;
+    b.title = blocked ? rule.why : "";
+    const why = document.querySelector(`[data-why="${b.id}"]`);
+    if (why) why.textContent = blocked ? rule.why : "";
+  }
+  const tempo = found.length === 1 ? tempoOf(found[0]) : null;
+  if (tempo) $("click-bpm").value = tempo;
 }
 
 function renderArchives(rows) {
@@ -393,7 +464,8 @@ async function refresh() {
     const lib = await api("/api/library");
     $("root").textContent = `Carpeta de música: ${lib.root}`;
     state.folders = lib.folders;
-    const existing = new Set(lib.folders.flatMap((f) => f.songs.map((s) => s.path)));
+    const existing = new Set(lib.folders.flatMap((f) => [
+      ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
     for (const p of [...state.selected]) if (!existing.has(p)) state.selected.delete(p);
     renderLibrary(); renderSelection();
     renderArchives(await api("/api/archives"));
@@ -447,7 +519,7 @@ $("do-convert").onclick = () => start({ action: "convert", format: $("format").v
 $("do-click").onclick = () => {
   const mode = document.querySelector("input[name=click-len]:checked").value;
   const first = selectedPaths()[0];
-  const where = first ? songByPath(first) : null;
+  const where = first ? findPath(first) : null;
   const request = { action: "click", bpm: parseFloat($("click-bpm").value), meter: $("click-meter").value,
                     subdivide: parseInt($("click-sub").value, 10), folder: where ? where.folder.path : "" };
   if (mode === "like") {

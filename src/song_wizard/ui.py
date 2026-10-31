@@ -177,21 +177,24 @@ def library(root):
             originals = [n for n in members
                          if os.path.splitext(n)[0] == base and not GENERATED.search(base)]
             if not originals:  # click tracks: generated, but not from a song
-                extras += [file_entry(root, folder / n) for n in members]
+                extras += [file_entry(root, folder / n, keys, bpms) for n in members]
                 continue
             main = min(originals, key=lambda n: MAIN_FORMATS.index(os.path.splitext(n)[1].lower())
                        if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
             songs.append({"name": main, "path": rel(root, folder / main),
                           "key": keys.get(main), "bpm": bpms.get(main),
-                          "files": [file_entry(root, folder / n) for n in members if n != main]})
+                          "files": [file_entry(root, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
                             "path": rel(root, folder), "songs": songs, "extras": extras})
     return folders
 
 
-def file_entry(root, path):
-    return {"name": path.name, "path": rel(root, path), "size": path.stat().st_size}
+def file_entry(root, path, keys, bpms):
+    """A generated file. Stems can be analyzed too ("bpm" on the drums alone is often more
+    reliable), so they carry their own results."""
+    return {"name": path.name, "path": rel(root, path), "size": path.stat().st_size,
+            "key": keys.get(path.name), "bpm": bpms.get(path.name)}
 
 
 def rel(root, path):
