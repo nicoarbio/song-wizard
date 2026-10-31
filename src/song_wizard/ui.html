@@ -431,7 +431,9 @@ function renderLibrary() {
     const n = folder.songs.length;
     const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
       el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`),
-        el("button", { class: "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
+        folder.playlist ? el("button", { class: "small open", title: `Mira la playlist "${folder.playlist.title}" en YouTube y baja solo los temas que se agregaron`,
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
+        el("button", { class: folder.playlist ? "small" : "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
     const list = el("ul", { class: "songs" });
@@ -527,10 +529,19 @@ function renderArchives(rows) {
   const table = el("table", {}, el("tr", {}, el("th", {}, "Playlist"), el("th", {}, "Temas"), el("th", {}, "Última"), el("th", {})));
   for (const r of rows) {
     table.append(el("tr", {}, el("td", {}, r.title), el("td", {}, r.songs), el("td", { class: "muted" }, r.changed),
-      el("td", {}, el("button", { class: "small", title: "La próxima vez se baja entera de nuevo. Los temas no se borran.",
-        onclick: () => confirmForget([r.number], r.title) }, "olvidar"))));
+      el("td", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
+        r.url ? el("button", { class: "small", title: "Baja solo los temas que se agregaron a la playlist",
+          onclick: () => updatePlaylist(r) }, "buscar nuevos") : null,
+        el("button", { class: "small", title: "La próxima vez se baja entera de nuevo. Los temas no se borran.",
+          onclick: () => confirmForget([r.number], r.title) }, "olvidar"))));
   }
   box.append(table, el("p", { class: "hint" }, "Olvidar una playlist hace que la próxima vez se baje entera de nuevo. Nunca borra los temas."));
+}
+
+// Download the playlist again: its archive makes yt-dlp skip what's already here, so only songs
+// added since come down, numbered by their place in the playlist.
+function updatePlaylist(playlist) {
+  start({ action: "download", url: playlist.url, wav: playlist.wav, title: playlist.title });
 }
 
 function confirmForget(numbers, title) {

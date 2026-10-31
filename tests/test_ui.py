@@ -204,6 +204,28 @@ def test_rename_job(server):
     assert request(port, "POST", "/api/jobs", two)[0].status == 400
 
 
+def test_playlist_update(server, monkeypatch):
+    from song_wizard import archives
+    port, root = server
+    ran = []
+    monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
+    (root / "Show").mkdir()
+    (root / "Show" / "001 - A.opus").write_bytes(b"x")
+    archives.ARCHIVE_DIR.mkdir(parents=True)
+    (archives.ARCHIVE_DIR / "PLx.txt").write_text("youtube a\n")
+    url = "https://www.youtube.com/playlist?list=PLx"
+    archives.remember("PLx", url, "Show", folder=str(root / "Show"), wav=True)
+    folder = get_json(port, "/api/library")["folders"][-1]
+    assert folder["playlist"] == {"title": "Show", "url": url, "wav": True}
+    (row,) = get_json(port, "/api/archives")
+    assert row["url"] == url and row["wav"] is True
+    response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": url, "wav": True, "title": "Show"})
+    job = json.loads(content)
+    assert job["title"] == "Buscar temas nuevos: Show"
+    wait_for(port, job["id"])
+    assert ran == [["download", "--wav", url]]
+
+
 def test_failed_job(server):
     port, root = server
     (root / "broken.wav").write_bytes(b"not audio")

@@ -155,6 +155,7 @@ def library(root):
     if not root.exists():
         return []
     folders = []
+    known = archives.playlists()
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
     for folder in [root, *subfolders]:
@@ -180,8 +181,10 @@ def library(root):
                           "key": keys.get(main), "bpm": bpms.get(main),
                           "files": [file_entry(root, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
+            playlist = archives.playlist_for(folder, known) if folder != root else None
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
-                            "path": rel(root, folder), "songs": songs, "extras": extras})
+                            "path": rel(root, folder), "songs": songs, "extras": extras,
+                            "playlist": {k: playlist[k] for k in ("title", "url", "wav")} if playlist else None})
     return folders
 
 
@@ -245,8 +248,10 @@ def make_handler(token, root, runner, port):
             if url.path == "/api/library":
                 return self.json({"root": str(root), "folders": library(root), "fileManager": system.file_manager_name()})
             if url.path == "/api/archives":
-                return self.json([{"number": i, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}"}
-                                  for i, (_, t, n, c) in enumerate(archives.entries(), 1)])
+                meta = {p["id"]: p for p in archives.playlists()}
+                return self.json([{"number": i, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}",
+                                   "url": meta.get(a, {}).get("url"), "wav": meta.get(a, {}).get("wav", False)}
+                                  for i, (a, t, n, c) in enumerate(archives.entries(), 1)])
             if url.path == "/api/jobs":
                 since = int(query.get("since", ["0"])[0] or 0)
                 with runner.lock:
@@ -358,7 +363,8 @@ def make_handler(token, root, runner, port):
                 url = str(body["url"]).strip()
                 if not re.match(r"https?://", url):
                     raise ValueError("la URL tiene que empezar con http:// o https://")
-                return f"Bajar {url}", ["download", *(["--wav"] if body.get("wav") else []), url]
+                title = f"Buscar temas nuevos: {body['title']}" if body.get("title") else f"Bajar {url}"
+                return title, ["download", *(["--wav"] if body.get("wav") else []), url]
             if not paths and action not in ("click", "archives-delete"):
                 raise ValueError("no hay archivos elegidos")
             if action == "key":

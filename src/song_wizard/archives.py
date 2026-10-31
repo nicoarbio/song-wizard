@@ -4,20 +4,57 @@ import datetime
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from .paths import ARCHIVE_DIR
 
 SINGLES = "singles"
 
 
-def remember(archive_id, url, title):
-    """Store the playlist's URL and name next to its archive (the archive only has video IDs)."""
+def remember(archive_id, url, title, folder=None, wav=None):
+    """Store the playlist's URL, name and folder next to its archive (the archive only has video
+    IDs), and whether it was downloaded with --wav, to look for new songs the same way."""
     meta_path = ARCHIVE_DIR / f"{archive_id}.json"
     meta = read_meta(archive_id)
     meta["url"] = url if archive_id != SINGLES else None
     if title:
         meta["title"] = title
+    if folder:
+        meta["folder"] = folder
+    if wav is not None:
+        meta["wav"] = wav
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+
+
+def simple(name):
+    """Only letters and digits, lowercase: yt-dlp changes some characters of a playlist's name
+    when it makes its folder ("A: B" -> "A： B")."""
+    return "".join(c for c in name.lower() if c.isalnum())
+
+
+def playlists():
+    """[{id, title, url, folder, wav}] of the playlists downloaded so far (not single videos)."""
+    found = []
+    for path in sorted(ARCHIVE_DIR.glob("*.json")) if ARCHIVE_DIR.exists() else []:
+        meta = read_meta(path.stem)
+        if path.stem != SINGLES and meta.get("url"):
+            found.append({"id": path.stem, "title": meta.get("title"), "url": meta["url"],
+                          "folder": meta.get("folder"), "wav": bool(meta.get("wav"))})
+    return found
+
+
+def playlist_for(folder, known=None):
+    """The playlist downloaded into this folder: the one that recorded it, or, for archives made
+    before folders were recorded, the one whose name matches the folder's."""
+    known = playlists() if known is None else known
+    folder = Path(folder).resolve()
+    for p in known:
+        if p["folder"] and Path(p["folder"]).resolve() == folder:
+            return p
+    for p in known:
+        if not p["folder"] and p["title"] and simple(p["title"]) == simple(folder.name):
+            return p
+    return None
 
 
 def read_meta(archive_id):

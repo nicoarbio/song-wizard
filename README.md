@@ -137,7 +137,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
-- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de olvidarlas.
+- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos o de olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
 La página solo funciona mientras la terminal donde la abriste siga abierta; Ctrl+C la cierra. Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
 
@@ -162,7 +162,7 @@ song-wizard download "https://www.youtube.com/watch?v=..."
 ```
 
 - Las playlists se guardan en `Música/<nombre de la playlist>/001 - Título.opus`, numeradas en orden. Los videos sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
-- Si volvés a correr la misma playlist, solo baja los temas nuevos.
+- Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
 - Para guardar en otra carpeta: `SONG_WIZARD_DIR=~/Ensayos song-wizard download "URL"`.
@@ -433,6 +433,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui`: practicar con 5 pistas de 5:41 (Edge, sin sonido) | Real | ✅ Las pistas no se separan más de 3 ms al arrancar, al saltar al minuto 2 y al 75 % (el tiempo avanza a 0.749, tono preservado); el tramo A-B se repite sin pasarse de B; silencio y solo dan los volúmenes correctos; detecta "Todos", un instrumento con su resto, o el tema solo |
 | `ui`: practicar escuchando, en el navegador de todos los días | **Falta** | Lo anterior se midió con el sonido apagado; falta escucharlo con stems reales |
 | `ui`: practicar en Mac (Safari) | **No probado** | Safari tiene `preservesPitch`; falta ver que reproduzca los WAV de 32 bits float de los stems |
+| "buscar temas nuevos" de una playlist | Real (sobre una copia, sin tocar la carpeta real) | ✅ Con el registro de una playlist de 18 temas que tenía 10, bajó solo los 8 que faltaban, numerados 011 a 018; guarda la carpeta en el registro; los registros anteriores se reconocen por el nombre de la carpeta |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

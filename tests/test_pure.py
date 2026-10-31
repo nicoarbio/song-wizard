@@ -229,3 +229,22 @@ def test_progress_line(capsys):
     assert parts[2].strip() == "75%  (2/2) b.wav"
     assert parts[3].strip() == "" and parts[-1] == ""
     assert ui.percent_of(parts[2]) == 75
+
+
+def test_archives_remember_folder_and_wav(tmp_path):
+    make_archive("PLa", "Alpha", 1)
+    archives.remember("PLa", "https://www.youtube.com/playlist?list=PLa", None, folder=str(tmp_path / "Alpha"), wav=True)
+    archives.remember("PLa", "https://www.youtube.com/playlist?list=PLa", None)  # a later run keeps them
+    assert archives.playlists() == [{"id": "PLa", "title": "Alpha", "url": "https://www.youtube.com/playlist?list=PLa",
+                                     "folder": str(tmp_path / "Alpha"), "wav": True}]
+
+
+def test_playlist_for(tmp_path):
+    make_archive("PLa", "Show: dic 2026", 1)  # an older archive, without folder: matched by name
+    make_archive("PLb", "Other", 1)
+    archives.remember("PLb", "https://www.youtube.com/playlist?list=PLb", None, folder=str(tmp_path / "Renamed"))
+    make_archive(archives.SINGLES, None, 1)
+    assert archives.playlist_for(tmp_path / "Show： dic 2026")["id"] == "PLa"
+    assert archives.playlist_for(tmp_path / "Renamed")["id"] == "PLb"
+    assert archives.playlist_for(tmp_path / "Other") is None  # PLb has its folder: no guessing
+    assert archives.playlist_for(tmp_path / "Singles") is None
