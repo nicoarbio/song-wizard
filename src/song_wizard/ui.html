@@ -58,6 +58,7 @@
   .song:last-child { border-bottom: 0; }
   .song .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .song .title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+  .song .fold { color: var(--muted); }
   .song .rename-box { flex: 1 1 200px; display: flex; gap: 6px; min-width: 0; }
   .song .rename-box input { flex: 1; min-width: 0; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
@@ -145,7 +146,11 @@
     <section>
       <div class="section-head">
         <h2>Biblioteca</h2>
-        <button class="small" id="reload" title="Volver a leer la carpeta de música (también se hace solo al volver a esta pestaña)">↻ actualizar</button>
+        <span class="row" style="gap:6px">
+          <button class="small" id="expand-all" title="Mostrar los stems y versiones de todos los temas">desplegar todo</button>
+          <button class="small" id="collapse-all" title="Ocultar los stems y versiones de todos los temas">plegar todo</button>
+          <button class="small" id="reload" title="Volver a leer la carpeta de música (también se hace solo al volver a esta pestaña)">↻ actualizar</button>
+        </span>
       </div>
       <input type="text" class="filter" id="filter" placeholder="Filtrar temas…">
       <div id="library"><p class="empty">Cargando…</p></div>
@@ -458,7 +463,15 @@ function renderSong(song) {
       el("button", { class: "small", title: "Practicar: mezclar los stems, bajar la velocidad y repetir un tramo", onclick: () => openPractice(song) }, "practicar"),
       state.renaming === song.path ? null : el("button", { class: "small", title: "Renombrar el tema (y sus stems, versiones y resultados)",
         onclick: () => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); } }, "✎")));
-  if (song.files.length) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
+  if (song.files.length) {
+    const open = songOpen(song);
+    const n = song.files.length;
+    li.querySelector(".head").insertBefore(
+      el("button", { class: "small fold", "aria-expanded": String(open), title: open ? "Ocultar sus archivos" : "Mostrar sus stems y versiones",
+        onclick: () => { setSongOpen(song, !open); renderLibrary(); } }, `${open ? "▾" : "▸"} ${n} archivo${n === 1 ? "" : "s"}`),
+      li.querySelector(".head .badge, .head button[title^=Practicar]"));
+    if (open) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
+  }
   return li;
 }
 
@@ -486,6 +499,25 @@ function renameBox(song) {
   return el("span", { class: "rename-box" }, input,
     el("button", { class: "small primary", onclick: save }, "guardar"),
     el("button", { class: "small", onclick: cancel }, "cancelar"));
+}
+
+// A song's files (stems, versions...) are folded by default: with every song separated the list
+// gets long. Open ones are remembered in this browser; a song with a picked file stays open so
+// nothing picked is hidden.
+const OPEN_SONGS_KEY = "song-wizard:open-songs";
+state.openSongs = new Set((() => { try { return JSON.parse(localStorage.getItem(OPEN_SONGS_KEY)) || []; } catch { return []; } })());
+function songOpen(song) {
+  return state.openSongs.has(song.path) || song.files.some((f) => state.selected.has(f.path));
+}
+function setSongOpen(song, open) {
+  open ? state.openSongs.add(song.path) : state.openSongs.delete(song.path);
+  if (!open) for (const f of song.files) state.selected.delete(f.path);
+  try { localStorage.setItem(OPEN_SONGS_KEY, JSON.stringify([...state.openSongs])); } catch {}
+  renderSelection();
+}
+function setAllOpen(open) {
+  for (const folder of state.folders) for (const song of folder.songs) if (song.files.length) setSongOpen(song, open);
+  renderLibrary();
 }
 
 function renderFile(file) {
@@ -936,6 +968,8 @@ $("download").addEventListener("submit", (e) => {
   $("url").value = "";
 });
 $("filter").addEventListener("input", renderLibrary);
+$("expand-all").onclick = () => setAllOpen(true);
+$("collapse-all").onclick = () => setAllOpen(false);
 $("reload").onclick = () => refresh().then(() => toast("Biblioteca actualizada."));
 $("open-root").onclick = () => openFolder("");
 $("report-open").onclick = openReport;
