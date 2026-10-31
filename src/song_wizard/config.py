@@ -10,7 +10,6 @@ CONFIG_PATH = Path(user_config_dir("song-wizard", appauthor=False)) / "config.to
 
 DEFAULTS = {
     "download": {"music_dir": None},
-    "click": {"meter": "4/4", "count_in": 1},
 }
 
 TEMPLATE = """\
@@ -21,12 +20,6 @@ TEMPLATE = """\
 # Where downloads go (default: your Music folder, the Windows one on WSL).
 # The SONG_WIZARD_DIR environment variable wins over this.
 # music_dir = "~/Ensayos"
-
-[click]
-# Time signature: the top number is how many clicks per bar, the first one accented.
-# meter = "4/4"
-# Bars of count-in before the song starts.
-# count_in = 1
 """
 
 
