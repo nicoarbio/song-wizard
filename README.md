@@ -1,13 +1,15 @@
 # song-wizard
 
-Herramienta de terminal para preparar temas para ensayar con la banda:
+Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales (ver [Aviso legal](#aviso-legal)).
 
-- **download**: baja temas o playlists de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
+- **download**: baja audio de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
 - **key**: detecta la tonalidad.
 - **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
 - **click** *(experimental)*: genera una pista de click con count-in, alineada al tema.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
+
+Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
 
 Funciona en **Mac con chip M** (M1 a M5, con macOS 15 o más nuevo), **Linux** y **Windows con WSL**. No funciona en Mac con procesador Intel.
 
@@ -139,7 +141,7 @@ song-wizard archives
 
 ```
    #  Playlist                 Songs  Last download
-   1  Showww dic-2026             11  2026-10-31 18:44
+   1  Ensayo diciembre            11  2026-10-31 18:44
    2  Singles (single videos)      1  2026-10-31 18:44
 ```
 
@@ -153,8 +155,8 @@ song-wizard key "tema.opus"
 ```
 
 ```
-  A    A major   relative F#m   4/4  001 - Aerosmith - Cryin' (HQ).opus
-  Em   E minor   relative G     2/4  004 - Bon Jovi - Livin' On A Prayer.opus  uncertain, also: G
+  A    A major   relative F#m   4/4  01 - Tema uno.opus
+  Em   E minor   relative G     2/4  02 - Tema dos.opus  uncertain, also: G
 ```
 
 Los resultados también quedan en `key.txt`, en la carpeta de los temas; si después analizás un solo tema, se actualiza solo su línea. En una carpeta se analizan solo los temas originales, no los stems ni los clicks generados.
@@ -169,9 +171,9 @@ song-wizard bpm "tema.opus"
 ```
 
 ```
-   103.1 BPM  003 - Rascal Flatts - Life is a Highway (Audio).opus  steady
-   123.1 BPM  004 - Bon Jovi - Livin' On A Prayer.opus  varies 121-125, probably played without a click
-   178.2 BPM  006 - Camila - Bésame (Audio).opus  uncertain, check by ear (could be 89.1)
+   103.1 BPM  01 - Tema uno.opus  steady
+   123.1 BPM  02 - Tema dos.opus  varies 121-125, probably played without a click
+   178.2 BPM  03 - Tema tres.opus  uncertain, check by ear (could be 89.1)
 ```
 
 Los resultados también quedan en `bpm.txt`, en la carpeta de los temas, igual que con `key`.
@@ -260,6 +262,33 @@ Separar es lo único pesado. song-wizard elige solo dónde correrlo, y anda en c
 
 Los archivos son WAV de 32 bits float a 44.1 kHz: no se recortan los picos y REAPER, Ableton, Logic o cualquier DAW los abre directo.
 
+## Aviso legal
+
+song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
+
+- **Sos responsable de lo que bajás y procesás.** Usalo solo con audio sobre el que tengas derechos o permiso de uso, y respetá los derechos de autor y los [Términos de servicio de YouTube](https://www.youtube.com/t/terms), que no permiten descargar contenido salvo con las funciones de la propia plataforma. No compartas ni publiques los temas, stems o pistas que generes a partir de material ajeno.
+- **No apto para uso comercial.** Aunque el código de song-wizard es libre (ver [Licencia](#licencia)), algunas piezas que usa no lo permiten o no tienen una licencia clara: [diffq](https://github.com/facebookresearch/diffq) (una dependencia de audio-separator) tiene licencia CC BY-NC 4.0, que prohíbe el uso comercial; y los modelos de separación (Demucs, el Mel-Band Roformer de voz y los modelos de UVR) no indican la licencia de sus pesos entrenados. Cualquier uso comercial requiere revisar esas licencias por separado.
+- **Sin afiliación.** song-wizard no está afiliado ni respaldado por YouTube, Google, Meta, UVR ni ninguno de los proyectos o servicios mencionados. Todas las marcas pertenecen a sus dueños.
+- **Sin garantías.** Se ofrece tal cual, sin garantía de ningún tipo, como establece su licencia.
+
+## Licencia
+
+El código de song-wizard se distribuye bajo la [GNU Affero General Public License v3.0 o posterior](LICENSE) (AGPL-3.0-or-later): podés usarlo, estudiarlo, modificarlo y compartirlo, siempre que lo que compartas mantenga la misma licencia y su código fuente. Es la licencia que corresponde porque song-wizard usa [Essentia](https://essentia.upf.edu), que se distribuye bajo AGPL-3.0.
+
+## Créditos
+
+song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
+
+- [Ultimate Vocal Remover (UVR)](https://github.com/Anjok07/ultimatevocalremovergui), de Anjok07 y aufr33, y su colección de modelos de separación.
+- [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), que permite usar los modelos de UVR desde Python.
+- [Demucs](https://github.com/facebookresearch/demucs), de Meta: los modelos `htdemucs_ft` y `htdemucs_6s`.
+- [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, entrenado con el código de ZFTurbo.
+- [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
+- [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
+- [ffmpeg](https://ffmpeg.org): lectura y conversión de audio.
+- [PyTorch](https://pytorch.org) y [uv](https://docs.astral.sh/uv/).
+
 ## Anexo: pruebas
 
 Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
@@ -274,8 +303,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Instalar desde GitHub con `uv tool install` | Real | ✅ `setup` en verde |
 | `download` de una playlist de 11 temas, y volver a correrla | Real | ✅ La segunda vez reconoce los 11 y no baja nada |
 | `download` de un video suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
-| `key` sobre los 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
-| `bpm` sobre los 11 temas | Real | ✅ 8 estables, 2 con tempo variable (121-125 y 144-147) y 1 dudoso que sugiere la mitad |
+| `key` sobre 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
+| `bpm` sobre 11 temas | Real | ✅ 8 estables, 2 con tempo variable (121-125 y 144-147) y 1 dudoso que sugiere la mitad |
 | `key` y `bpm` guardan `key.txt` / `bpm.txt`; volver a analizar un tema solo cambia su línea | Real | ✅ |
 | `click` sobre 3 temas sintéticos (120 estable, 118 a 126 acelerando, vals en 3/4) | Real, con los tiempos exactos conocidos | ✅ Clicks a 3 ms en promedio y 5 ms como máximo del golpe real; el "1" en el lugar correcto en el 100% de los compases; count-in y relleno exactos |
 | `click` sobre 4 temas reales | Real | ✅ Entre el 92% y el 99% de los clicks a menos de 10 ms de un golpe del tema. El lugar del "1" no se verificó de oído |
