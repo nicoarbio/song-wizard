@@ -5,6 +5,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **download**: baja audio de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
 - **key**: detecta la tonalidad.
 - **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
+- **click**: genera una pista de click fija, con el tempo, el compás y la duración que quieras.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
@@ -178,6 +179,26 @@ Los resultados también quedan en `bpm.txt`, en la carpeta de los temas, igual q
 - `varies`: el tempo cambia a lo largo del tema (muchos temas de los 80 y 90 se grabaron sin click). Se muestra el rango en el que se mueve; un click fijo se va a ir desfasando.
 - `uncertain`: la detección no es confiable. Lo más común es que el detector marque el doble o la mitad del tempo real, por eso se sugiere la alternativa.
 
+### Pista de click
+
+Genera un click fijo, con el primer tiempo de cada compás acentuado:
+
+```bash
+song-wizard click 120                            # 120 BPM, 4/4, 1 minuto
+song-wizard click 96 --meter 3/4 --bars 32       # 32 compases de 3/4
+song-wizard click 123 --duration 4:30            # 4 minutos y medio
+song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema
+song-wizard click 90 --subdivide 2               # con corcheas
+```
+
+- Genera `Click 120 BPM 4-4.wav` en la carpeta donde lo corrés; `-o` elige otro archivo o carpeta.
+- Acepta tempos con decimales, así podés usar el número exacto que da `song-wizard bpm`.
+- La duración se redondea hacia arriba a compases completos. Sin `--duration`, `--bars` ni `--like`, dura un minuto.
+- `--subdivide` agrega clicks más suaves entre tiempo y tiempo: `2` = corcheas, `3` = tresillos, `4` = semicorcheas.
+- El compás: el número de arriba es la cantidad de clicks por compás (`4/4` = 4, `3/4` = 3, `6/8` = 6).
+- Es un click de tempo fijo: sirve para ensayar sin la grabación o a otro tempo. Si el tema original se grabó sin click (`bpm` dice `varies`), un click fijo se va a ir desfasando de la grabación.
+- Para mandarlo por WhatsApp: `song-wizard convert "Click 120 BPM 4-4.wav"`.
+
 ### Cambiar el tono
 
 ```bash
@@ -301,6 +322,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `archives` con un registro anterior, sin nombre guardado | Real | ✅ Busca el nombre en YouTube una vez y lo guarda |
 | `archives --delete` con número inexistente, texto inválido o sin confirmar | Real | ✅ No borra nada y explica por qué |
 | `archives --delete all --yes` | Real | ✅ Borra los registros; los temas bajados quedan intactos |
+| `click` a 120 BPM 4/4, 96 BPM 3/4, 105.6 BPM durante 10 minutos, con tresillos y `--like` | Real | ✅ Cada golpe a 0.03 ms de su posición teórica (redondeo a la muestra), también a los 10 minutos; cantidad de golpes, acentos y subdivisiones correctos; `--like` cubre todo el tema |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |
 | `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |

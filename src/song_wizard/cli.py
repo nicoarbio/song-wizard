@@ -5,13 +5,15 @@ import sys
 
 from . import __version__
 
-DESCRIPTION = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
+DESCRIPTION = ("Prepare songs for band practice: download, key and tempo detection, click tracks, "
+               "transposition and stem separation.")
 
 EPILOG = """\
 examples:
   song-wizard download "https://www.youtube.com/playlist?list=..."
   song-wizard key ~/Music/Show
   song-wizard bpm ~/Music/Show
+  song-wizard click 120 --duration 4:30
   song-wizard transpose -2 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
@@ -50,6 +52,22 @@ def main():
                                    "a click drift, so a range is shown instead. Like any tempo detector it can "
                                    "land on half or double the real tempo; uncertain results say so.")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+
+    p = sub.add_parser("click", help="make a steady click track at a given tempo, meter and length",
+                       description='Writes "Click 120 BPM 4-4.wav" in the current folder (or where -o says), '
+                                   "with the first beat of each bar accented. The length is rounded up to whole "
+                                   "bars. Clicks are placed from the tempo alone, so there is no drift however "
+                                   "long it is.")
+    p.add_argument("bpm", type=float, help="tempo, decimals allowed (e.g. the number from song-wizard bpm)")
+    p.add_argument("--meter", default="4/4",
+                   help="time signature; the top number is the clicks per bar (default: 4/4)")
+    length = p.add_mutually_exclusive_group()
+    length.add_argument("--duration", metavar="M:SS", help="length, e.g. 4:30 or 270 seconds (default: 1:00)")
+    length.add_argument("--bars", type=int, help="length in bars")
+    length.add_argument("--like", metavar="FILE", help="as long as this song")
+    p.add_argument("--subdivide", type=int, default=1, metavar="N",
+                   help="softer clicks between beats: 2 = eighths, 3 = triplets, 4 = sixteenths")
+    p.add_argument("-o", "--output", metavar="PATH", help="output file or folder")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
@@ -109,6 +127,10 @@ def main():
     elif args.command == "config":
         from . import config
         config.show()
+    elif args.command == "click":
+        from . import click
+        click.run(args.bpm, meter=args.meter, duration=args.duration, bars=args.bars, like=args.like,
+                  subdivide=args.subdivide, output=args.output)
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)
