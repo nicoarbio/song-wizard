@@ -8,6 +8,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **click** *(experimental)*: genera una pista de click con count-in, alineada al tema.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
+- **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
 
 Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
 
@@ -262,6 +263,22 @@ Separar es lo único pesado. song-wizard elige solo dónde correrlo, y anda en c
 
 Los archivos son WAV de 32 bits float a 44.1 kHz: no se recortan los picos y REAPER, Ableton, Logic o cualquier DAW los abre directo.
 
+### Convertir para compartir (WhatsApp, mail…)
+
+Los WAV de 32 bits que genera song-wizard son ideales para trabajar, pero pesan mucho (unos 20 MB por minuto). Para mandarlos por WhatsApp:
+
+```bash
+song-wizard convert "tema (no drums).wav"         # un archivo
+song-wizard convert "Música/Show"                 # todos los WAV de la carpeta
+song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
+```
+
+- Genera `Título.mp3` al lado del original: MP3 a ~190 kbps, que cualquier teléfono reproduce. Un tema de 5 minutos queda en unos 7 MB. M4A ocupa lo mismo y suena apenas mejor; MP3 es el más compatible.
+- Con una carpeta convierte solo los archivos sin pérdida (WAV, FLAC, AIFF), para no recomprimir los `.opus` bajados. Si nombrás un archivo, convierte cualquier formato.
+- Si el archivo tiene picos por encima de 0 dB (pasa con los stems), baja el volumen lo justo para que no se recorten, y avisa cuánto.
+- No pisa archivos que ya existen; `--overwrite` los reemplaza.
+- Para trabajar en un DAW seguí usando los WAV: el MP3 pierde algo de calidad y agrega unos milisegundos de silencio al principio, así que no queda perfectamente alineado con el click ni con los otros stems.
+
 ## Aviso legal
 
 song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
@@ -322,6 +339,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Instrumento + resto contra el original | Real | ✅ Diferencia de 0.0000001 (redondeo de float) |
 | Batería contra la de UVR (`htdemucs`) | Real | ✅ Correlación 0.994, sin desfase |
 | `separate --stem all` (tema de 5 min) | Real | ✅ 2 min 18 s; los 5 stems suman el original (diferencia de 0.0000002) |
+| `convert` de un WAV float con picos por encima de 0 dB, un WAV de 16 bits y un `.opus` | Real | ✅ Baja el volumen solo donde hace falta (pico final −1.2 dB); en una carpeta saltea el `.opus`; no pisa archivos existentes salvo con `--overwrite` |
+| `convert --format m4a` | Real | ✅ AAC a 192 kbps, mismo tamaño que el MP3 |
 | `separate --cpu` (30 s, 2 instrumentos) | Real | ✅ 124 s, contra 24 s en placa; mismo resultado |
 | Placa NVIDIA muy vieja (GTX 1080) | Simulada | ✅ Avisa y usa el procesador |
 | Placa NVIDIA con driver viejo | Simulada | ✅ Avisa que actualice el driver y usa el procesador |

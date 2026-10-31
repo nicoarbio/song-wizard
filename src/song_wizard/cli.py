@@ -18,6 +18,7 @@ examples:
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
   song-wizard separate --stem all "song.opus"
+  song-wizard convert "song (no drums).wav"
 
 run "song-wizard COMMAND --help" for the options of each command.
 """
@@ -91,6 +92,17 @@ def main():
                    help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    from .convert import FORMATS
+    p = sub.add_parser("convert", help="convert to MP3 (or M4A) to share, e.g. over WhatsApp",
+                       description="Converts to a small format any phone plays: MP3 at ~190 kbps by default "
+                                   '(about 7 MB for 5 minutes), or M4A (AAC). Writes "Title.mp3" next to each '
+                                   "file. Given a folder, only lossless files (WAV, FLAC, AIFF) are converted; "
+                                   "files named explicitly are converted whatever their format. Files whose "
+                                   "peaks go above 0 dB are turned down just enough not to clip.")
+    p.add_argument("--format", choices=list(FORMATS), default="mp3", help="output format (default: mp3)")
+    p.add_argument("--overwrite", action="store_true", help="replace files that already exist")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+
     p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
                        description="Lists each playlist downloaded so far and how many songs. --delete forgets "
                                    "some of them (by the numbers in the list) or all, so downloading them "
@@ -120,6 +132,9 @@ def main():
                   meter=args.meter or settings["meter"],
                   count_in=args.count_in if args.count_in is not None else int(settings["count_in"]),
                   steady=args.steady, shift=args.shift)
+    elif args.command == "convert":
+        from . import convert
+        convert.run(args.paths, fmt=args.format, overwrite=args.overwrite)
     elif args.command == "archives":
         from . import archives
         if args.delete:
