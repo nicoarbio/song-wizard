@@ -77,6 +77,22 @@
   .status { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); white-space: nowrap; }
   .status.running { color: var(--accent); } .status.failed { color: var(--bad); } .status.queued, .status.cancelled { color: var(--muted); }
   .progress { font: 12px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+  .elapsed { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .status.running::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 5px; vertical-align: -1px;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+  .bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 6px; }
+  .bar > div { height: 100%; background: var(--accent); border-radius: 99px; transition: width .6s ease; }
+  /* Unknown length: a stripe going back and forth. */
+  .bar.unknown > div { width: 30%; animation: sweep 1.4s ease-in-out infinite alternate; }
+  /* The jobs list is redrawn every second: --t (the clock, in ms) keeps the animations going
+     from where they were instead of restarting. */
+  .job { --t: 0; }
+  .status.running::before, .bar.unknown > div { animation-delay: calc(var(--t) * -1ms); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes sweep { from { margin-left: 0; } to { margin-left: 70%; } }
+  @media (prefers-reduced-motion: reduce) {
+    .status.running::before, .bar.unknown > div { animation: none; }
+  }
   pre.log { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
   .empty { color: var(--muted); padding: 6px 0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -439,13 +455,20 @@ function renderJobs(jobs) {
   const names = { queued: "en espera", running: "corriendo", done: "listo", failed: "falló", cancelled: "cancelado" };
   for (const job of [...jobs].reverse()) {
     const open = state.openJob === job.id;
-    const div = el("div", { class: "job" },
+    const div = el("div", { class: "job", style: `--t:${Date.now() % 1e6}` },
       el("div", { class: "head" },
         el("span", { class: `status ${job.status}` }, names[job.status] || job.status),
         el("span", { class: "title" }, job.title),
+        job.started ? el("span", { class: "elapsed" }, clock((job.ended || job.now) - job.started)) : null,
         ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, "cancelar") : null,
         el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
-    if (job.progress) div.append(el("div", { class: "progress" }, job.progress));
+    if (job.status === "running") {
+      const known = job.percent !== null && job.percent !== undefined;
+      div.append(el("div", { class: "bar" + (known ? "" : " unknown") },
+        el("div", { style: known ? `width:${job.percent}%` : null })));
+      const text = progressText(job);
+      if (text) div.append(el("div", { class: "progress" }, text));
+    }
     if (open) {
       const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || "(sin salida todavía)");
       div.append(pre);
@@ -453,6 +476,20 @@ function renderJobs(jobs) {
     }
     box.append(div);
   }
+}
+
+function clock(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// What a running job is doing. song-wizard's own progress lines say it all ("45%  (2/5)
+// Title"); others (the separation models, yt-dlp) go with the last thing the job printed,
+// e.g. which model is running, and lose their text-drawn bar now that there is a real one.
+function progressText(job) {
+  const progress = (job.progress || "").replace(/\|[^|]*\|/, " ").replace(/\s+/g, " ").trim();
+  if (/^\d+%\s/.test(progress) && /\S\.\w+$/.test(progress)) return progress;
+  return [job.step, progress].filter(Boolean).join(" · ");
 }
 
 async function start(request) {

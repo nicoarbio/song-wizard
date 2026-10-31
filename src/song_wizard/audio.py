@@ -78,3 +78,27 @@ def save(path, audio, sr):
 def output_path(src, suffix):
     """'dir/Title.opus' + 'drums' -> 'dir/Title (drums).wav'"""
     return f"{os.path.splitext(src)[0]} ({suffix}).wav"
+
+
+class Progress:
+    """A line rewritten in place with \\r: "  45%  (2/5) Title.opus". The interface turns the
+    percentage into a progress bar. clear() before printing anything else."""
+
+    def __init__(self, total):
+        self.total = total
+        self.width = 0
+        self.shown = None
+
+    def update(self, index, fraction, name):
+        percent = int(100 * (index + min(max(fraction, 0), 1)) / self.total)
+        text = f"  {percent:3d}%  " + (f"({index + 1}/{self.total}) " if self.total > 1 else "") + name
+        if text == self.shown:
+            return
+        self.shown = text
+        print("\r" + text.ljust(self.width), end="", flush=True)
+        self.width = max(self.width, len(text))
+
+    def clear(self):
+        if self.width:
+            print("\r" + " " * self.width + "\r", end="", flush=True)
+        self.width, self.shown = 0, None

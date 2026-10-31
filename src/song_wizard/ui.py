@@ -48,8 +48,16 @@ class Job:
 
     def summary(self, since=0):
         return {"id": self.id, "title": self.title, "status": self.status, "progress": self.progress,
+                "percent": percent_of(self.progress), "step": self.lines[-1] if self.lines else "",
                 "lines": self.lines[since:], "total": len(self.lines),
-                "started": self.started, "ended": self.ended}
+                "started": self.started, "ended": self.ended, "now": time.time()}
+
+
+def percent_of(progress):
+    """The percentage in a progress line, from song-wizard ("  45%  (2/5) Title"), the
+    separation models (" 45%|████▌     | 9/20") or yt-dlp ("[download]  45.3% of 3.40MiB")."""
+    match = re.search(r"(\d+(?:\.\d+)?)%", progress)
+    return min(float(match.group(1)), 100.0) if match else None
 
 
 class Runner:

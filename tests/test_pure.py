@@ -207,3 +207,25 @@ def test_archives_delete_needs_confirmation_without_terminal(monkeypatch):
     with pytest.raises(SystemExit):
         archives.delete(["all"])
     assert len(archives.entries()) == 1
+
+
+@pytest.mark.parametrize("line, percent", [
+    ("   45%  (2/5) Song.opus", 45), (" 43%|████▎     | 3/7 [00:00<00:00,  7.69it/s]", 43),
+    ("[download]  45.3% of    3.40MiB at  1.20MiB/s ETA 00:02", 45.3), ("Running on CPU", None), ("", None),
+])
+def test_percent_of(line, percent):
+    assert ui.percent_of(line) == percent
+
+
+def test_progress_line(capsys):
+    progress = audio.Progress(2)
+    progress.update(0, 0, "a.wav")
+    progress.update(0, 0.001, "a.wav")  # same text: not printed again
+    progress.update(1, 0.5, "b.wav")
+    progress.clear()
+    out = capsys.readouterr().out
+    parts = out.split("\r")
+    assert parts[1].strip() == "0%  (1/2) a.wav"
+    assert parts[2].strip() == "75%  (2/2) b.wav"
+    assert parts[3].strip() == "" and parts[-1] == ""
+    assert ui.percent_of(parts[2]) == 75
