@@ -1,0 +1,81 @@
+"""Every subcommand must reach its module: none may fall through to the help text."""
+
+import importlib
+
+import pytest
+
+from song_wizard import cli
+
+# command -> (arguments, module, function that must be called)
+DISPATCH = {
+    "download": (["https://example.com/watch?v=x"], "download", "run"),
+    "key": (["song.opus"], "key", "run"),
+    "bpm": (["song.opus"], "bpm", "run"),
+    "click": (["120"], "click", "run"),
+    "transpose": (["--", "-2", "song.opus"], "transpose", "run"),
+    "separate": (["--stem", "drums", "song.opus"], "separate", "run"),
+    "convert": (["song.wav"], "convert", "run"),
+    "archives": ([], "archives", "show"),
+    "ui": (["--no-browser"], "ui", "run"),
+    "config": ([], "config", "show"),
+    "setup": ([], "setup", "run"),
+}
+
+
+def subcommands():
+    parser = cli.build_parser()
+    sub = next(a for a in parser._actions if a.dest == "command")
+    return set(sub.choices)
+
+
+def test_every_subcommand_is_covered():
+    assert subcommands() == set(DISPATCH) | {"upgrade"}
+
+
+@pytest.mark.parametrize("command", sorted(DISPATCH))
+def test_dispatch(command, monkeypatch):
+    args, module_name, function = DISPATCH[command]
+    module = importlib.import_module(f"song_wizard.{module_name}")
+    calls = []
+    monkeypatch.setattr(module, function, lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(cli.argparse.ArgumentParser, "print_help",
+                        lambda *a, **k: pytest.fail("fell through to print_help"))
+    cli.main([command, *args])
+    assert len(calls) == 1
+
+
+def test_transpose_negative_semitones(monkeypatch):
+    from song_wizard import transpose
+    calls = []
+    monkeypatch.setattr(transpose, "run", lambda *a: calls.append(a))
+    cli.main(["transpose", "--", "-2", "song.opus"])
+    assert calls == [(-2.0, ["song.opus"])]
+
+
+def test_archives_delete(monkeypatch):
+    from song_wizard import archives
+    calls = []
+    monkeypatch.setattr(archives, "delete", lambda which, yes: calls.append((which, yes)))
+    cli.main(["archives", "--delete", "1", "3", "--yes"])
+    assert calls == [(["1", "3"], True)]
+
+
+def test_upgrade(monkeypatch):
+    calls = []
+
+    class Done:
+        returncode = 0
+
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/uv")
+    monkeypatch.setattr(cli.subprocess, "run", lambda cmd: calls.append(cmd) or Done())
+    with pytest.raises(SystemExit) as e:
+        cli.main(["upgrade"])
+    assert e.value.code == 0
+    assert calls == [["uv", "tool", "upgrade", "song-wizard"]]
+
+
+def test_no_command_shows_help(capsys):
+    with pytest.raises(SystemExit) as e:
+        cli.main([])
+    assert e.value.code == 1
+    assert "usage: song-wizard" in capsys.readouterr().out

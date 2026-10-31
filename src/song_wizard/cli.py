@@ -25,7 +25,7 @@ run "song-wizard COMMAND --help" for the options of each command.
 """
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(prog="song-wizard", description=DESCRIPTION, epilog=EPILOG,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -120,8 +120,12 @@ def main():
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
     sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     if args.command == "download":
         from . import download
