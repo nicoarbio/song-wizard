@@ -13,6 +13,7 @@ from collections import defaultdict
 import numpy as np
 import soundfile as sf
 
+from . import log
 from .audio import expand, load, output_path, save
 from .device import pick
 from .paths import MODELS_DIR
@@ -42,8 +43,10 @@ def run(stems, paths, force_cpu=False):
 
     device, desc, warning = pick(force_cpu)
     print(f"Running on {desc}")
+    log.info("separating on %s", desc)
     if warning:
         print(f"Warning: {warning}")
+        log.info("warning: %s", warning)
 
     # With all stems, the "no X" files would be redundant: muting a track gives the same.
     every = ALL in stems

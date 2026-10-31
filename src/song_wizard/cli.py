@@ -2,6 +2,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+import time
 
 from . import __version__
 
@@ -22,6 +23,7 @@ examples:
   song-wizard convert "song (no drums).wav"
   song-wizard rename "001 - Song (Official Video).opus" "Song"
   song-wizard ui
+  song-wizard report
 
 run "song-wizard COMMAND --help" for the options of each command.
 """
@@ -136,6 +138,13 @@ def build_parser():
     p.add_argument("--port", type=int, default=8765, help="local port (default: 8765, or the next free one)")
     p.add_argument("--no-browser", action="store_true", help="don't open the browser, just print the link")
 
+    p = sub.add_parser("report", help="put together a report to ask for help when something fails",
+                       description="Writes a text file with this computer's setup and the last lines of "
+                                   "song-wizard's log (your home folder shows as ~), and opens a GitHub issue "
+                                   "already filled in to attach it to. Without a GitHub account, send the file "
+                                   "to whoever helps you with song-wizard.")
+    p.add_argument("--yes", action="store_true", help="open the folder and the GitHub form without asking")
+
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
     sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
@@ -143,6 +152,26 @@ def build_parser():
 
 
 def main(argv=None):
+    from . import log
+
+    log.start(sys.argv[1:] if argv is None else argv)
+    started = time.monotonic()
+    try:
+        dispatch(argv)
+    except SystemExit as e:
+        log.finished(e.code, started)
+        raise
+    except KeyboardInterrupt:
+        log.info("interrupted after %.1f s", time.monotonic() - started)
+        raise
+    except BaseException:
+        log.crashed(started)
+        raise
+    else:
+        log.finished(0, started)
+
+
+def dispatch(argv):
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -170,6 +199,9 @@ def main(argv=None):
     elif args.command == "ui":
         from . import ui
         ui.run(port=args.port, open_page=not args.no_browser)
+    elif args.command == "report":
+        from . import report
+        report.run(yes=args.yes)
     elif args.command == "config":
         from . import config
         config.show()

@@ -29,6 +29,9 @@ def base_of(name):
 
 
 def die(msg):
+    from . import log
+
+    log.error("%s", msg)
     print(msg, file=sys.stderr)
     sys.exit(1)
 

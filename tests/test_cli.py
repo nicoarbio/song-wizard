@@ -20,6 +20,7 @@ DISPATCH = {
     "archives": ([], "archives", "show"),
     "ui": (["--no-browser"], "ui", "run"),
     "config": ([], "config", "show"),
+    "report": ([], "report", "run"),
     "setup": ([], "setup", "run"),
 }
 

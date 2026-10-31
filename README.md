@@ -13,6 +13,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
 - **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
+- **report**: si algo falla, arma un reporte para pedir ayuda.
 - **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
 
 Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
@@ -105,6 +106,8 @@ Conviene hacerlo seguido: YouTube cambia a menudo y las descargas pueden dejar d
 | song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
 | Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~1.3 GB si usás los cuatro instrumentos; se bajan la primera vez que se usa cada uno |
 | Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
+| Log (qué comandos corrieron y los errores, para resolver problemas) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB como máximo: lo más viejo se borra solo |
+| Reportes de `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | unos pocos KB cada uno; se pueden borrar |
 | Tus temas | La carpeta Música (o la que elijas) | lo que bajes |
 
 Los modelos se bajan de fuentes públicas: los de Demucs, de los servidores de Meta (que lo creó), y los demás, de los repositorios públicos en GitHub del proyecto [UVR](https://github.com/Anjok07/ultimatevocalremovergui) y de audio-separator.
@@ -320,6 +323,18 @@ La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya 
 
 Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué video se bajó, no el nombre del archivo.
 
+### Si algo falla
+
+```bash
+song-wizard report
+```
+
+Arma un archivo de texto con el estado de tu computadora (lo mismo que muestra `song-wizard setup`) y lo último que hizo song-wizard, incluido el error completo. Te muestra dónde quedó, y si querés abre la carpeta y el formulario para reportar el problema en GitHub, ya completado: ahí contás qué pasó y arrastrás el archivo. ¿Sin cuenta de GitHub? Mandale el archivo por WhatsApp o mail a quien te ayude con song-wizard.
+
+En la interfaz es el botón "reportar un problema", arriba de los trabajos; los que fallan tienen también su botón "reportar".
+
+El reporte no incluye audio. Tu carpeta personal aparece como `~` (por ejemplo `~/Music/...` en vez de `/home/tu-usuario/Music/...`), pero los nombres de temas y carpetas quedan: si no querés que se vean, revisá el archivo antes de mandarlo. Sale de un log que song-wizard guarda siempre (ver [Qué se guarda en tu computadora](#qué-se-guarda-en-tu-computadora)) y que nunca se manda solo a ningún lado.
+
 ## Aviso legal
 
 song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
@@ -399,6 +414,10 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `rename` en una carpeta de `C:` (disco de Windows) | Real | ✅ Renombra el tema y su versión al 80 % y actualiza `key.txt`; mantiene el `001 - `; un cambio solo de mayúsculas (`song` → `Song`) funciona; rechaza `:` y no toca nada |
 | `rename`: nombre ocupado o falla a mitad de camino | Simulada | ✅ No renombra nada, o deshace lo que ya había renombrado |
 | `ui`: renombrar con ✎ | Real | ✅ Enter guarda y Escape cancela; lo escrito no se pierde si la biblioteca se actualiza mientras tanto; el tema y su stem quedan con el nombre nuevo |
+| Log: cada comando, cómo terminó y sus errores | Real | ✅ Un trabajo de la interfaz que falla deja su comando, el error y el código de salida; un error inesperado deja el detalle completo, con lo que dijo el programa externo (ffmpeg, Rubber Band) |
+| `report` | Real (WSL) | ✅ Guarda el archivo con `setup` y el final del log; la carpeta personal (`/home/…`, `/mnt/c/Users/…`, `C:\Users\…`) aparece como `~`; el link al formulario de GitHub entra en 2000 caracteres con las últimas líneas del log |
+| `report`: abrir el formulario en el navegador desde la terminal | **No probado** | En WSL se abre con `cmd.exe start` escapando los `&` (verificado que `cmd` recibe el link entero); falta ver que el navegador lo abra |
+| `ui`: "reportar un problema" | Real | ✅ Muestra el reporte entero antes de mandarlo, con el link a GitHub y el botón para mostrar el archivo |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

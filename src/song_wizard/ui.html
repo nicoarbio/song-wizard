@@ -105,6 +105,11 @@
   .player audio { flex: 1; min-width: 0; }
   .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
   .toast.show { opacity: .92; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); max-width: min(720px, calc(100vw - 32px)); width: 100%; padding: 18px 20px; }
+  dialog::backdrop { background: rgb(0 0 0 / .35); }
+  dialog h3 { margin: 0 0 8px; }
+  dialog ol { padding-left: 20px; } dialog li { margin: 6px 0; }
+  dialog a { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -217,7 +222,10 @@
     </section>
 
     <section>
-      <h2>Trabajos</h2>
+      <div class="section-head">
+        <h2>Trabajos</h2>
+        <button class="small" id="report-open" title="Arma un archivo con el estado de esta computadora y lo último que pasó, para pedir ayuda">reportar un problema</button>
+      </div>
       <div id="jobs"><p class="empty">Todavía no corriste nada.</p></div>
     </section>
   </div>
@@ -228,6 +236,21 @@
   <audio id="audio" controls preload="none"></audio>
 </div>
 <div class="toast" id="toast"></div>
+
+<dialog id="report">
+  <h3>Reportar un problema</h3>
+  <p id="report-status">Armando el reporte (revisa la instalación, tarda unos segundos)…</p>
+  <div id="report-ready" hidden>
+    <p>Se guardó <b id="report-name"></b> con el estado de esta computadora y lo último que hizo song-wizard. Tu carpeta personal aparece como ~, pero los nombres de temas y carpetas quedan: revisalo antes de mandarlo.</p>
+    <pre class="log" id="report-text"></pre>
+    <ol>
+      <li><button class="small" id="report-folder">mostrar el archivo</button></li>
+      <li><a id="report-link" target="_blank" rel="noopener">Abrir el formulario en GitHub</a>, contar qué pasó y arrastrar el archivo.</li>
+    </ol>
+    <p class="hint">¿Sin cuenta de GitHub? Mandá el archivo por WhatsApp o mail a quien te ayuda con song-wizard.</p>
+  </div>
+  <div class="row" style="justify-content:flex-end"><button id="report-close">cerrar</button></div>
+</dialog>
 
 <script>
 const token = new URLSearchParams(location.search).get("t") || "";
@@ -489,6 +512,7 @@ function renderJobs(jobs) {
         el("span", { class: "title" }, job.title),
         job.started ? el("span", { class: "elapsed" }, clock((job.ended || job.now) - job.started)) : null,
         ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, "cancelar") : null,
+        job.status === "failed" ? el("button", { class: "small", title: "Armar un reporte para pedir ayuda", onclick: openReport }, "reportar") : null,
         el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
     if (job.status === "running") {
       const known = job.percent !== null && job.percent !== undefined;
@@ -528,6 +552,26 @@ async function start(request) {
     poll();
   } catch (e) {
     toast(e.message);
+  }
+}
+
+// The report is written by the server; the page shows it, then links to GitHub (this browser
+// opens it directly) and to the folder with the file to attach.
+async function openReport() {
+  const dialog = $("report");
+  $("report-status").hidden = false;
+  $("report-status").textContent = "Armando el reporte (revisa la instalación, tarda unos segundos)…";
+  $("report-ready").hidden = true;
+  dialog.showModal();
+  try {
+    const report = await api("/api/report", {});
+    $("report-name").textContent = report.name;
+    $("report-text").textContent = report.text;
+    $("report-link").href = report.url;
+    $("report-status").hidden = true;
+    $("report-ready").hidden = false;
+  } catch (e) {
+    $("report-status").textContent = `No se pudo armar el reporte: ${e.message}. Probá con "song-wizard report" en la terminal.`;
   }
 }
 
@@ -590,6 +634,9 @@ $("download").addEventListener("submit", (e) => {
 $("filter").addEventListener("input", renderLibrary);
 $("reload").onclick = () => refresh().then(() => toast("Biblioteca actualizada."));
 $("open-root").onclick = () => openFolder("");
+$("report-open").onclick = openReport;
+$("report-close").onclick = () => $("report").close();
+$("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(`No se pudo abrir: ${e.message}`));
 // Coming back from the file manager (files renamed, copied or deleted): read the folder again.
 // Both events usually fire together: one reload is enough.
 function refreshOnReturn() {

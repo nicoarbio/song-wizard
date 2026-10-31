@@ -11,7 +11,7 @@ import soundfile as sf
 
 import synth
 
-from song_wizard import ui
+from song_wizard import system, ui
 
 TOKEN = "test-token"
 
@@ -216,14 +216,14 @@ def test_failed_job(server):
 @pytest.fixture
 def launched(monkeypatch):
     calls = []
-    monkeypatch.setattr(ui.subprocess, "Popen", lambda cmd, **kwargs: calls.append(cmd))
+    monkeypatch.setattr(system, "launch", calls.append)
+    monkeypatch.setattr(system, "folder_command", lambda path: ["open", str(path)])
     return calls
 
 
-def test_open_folder(server, launched, monkeypatch):
+def test_open_folder(server, launched):
     port, root = server
     (root / "Show").mkdir()
-    monkeypatch.setattr(ui, "folder_command", lambda path: ["open", str(path)])
     response, content = request(port, "POST", "/api/open", {"path": "Show"})
     assert response.status == 200
     assert launched == [["open", str((root / "Show").resolve())]]
@@ -241,23 +241,15 @@ def test_open_folder_refuses(server, launched):
     assert launched == []
 
 
-def test_folder_command(monkeypatch, tmp_path):
-    monkeypatch.setattr(ui, "is_wsl", lambda: False)
-    monkeypatch.setattr(ui.sys, "platform", "darwin")
-    assert ui.folder_command(tmp_path) == ["open", str(tmp_path)]
-    monkeypatch.setattr(ui.sys, "platform", "linux")
-    monkeypatch.setattr(ui.shutil, "which", lambda name: f"/usr/bin/{name}")
-    assert ui.folder_command(tmp_path) == ["xdg-open", str(tmp_path)]
-    monkeypatch.setattr(ui.shutil, "which", lambda name: None)
-    assert ui.folder_command(tmp_path) is None
-
-
-def test_folder_command_wsl(monkeypatch, tmp_path):
-    monkeypatch.setattr(ui, "is_wsl", lambda: True)
-    monkeypatch.setattr(ui.shutil, "which", lambda name: f"/usr/bin/{name}")
-
-    class Done:
-        stdout = "C:\\Users\\me\\Music\\Show\n"
-
-    monkeypatch.setattr(ui.subprocess, "run", lambda cmd, **kwargs: Done() if cmd[:2] == ["wslpath", "-w"] else None)
-    assert ui.folder_command(tmp_path) == ["explorer.exe", "C:\\Users\\me\\Music\\Show"]
+def test_report(server, monkeypatch, launched):
+    from song_wizard import report
+    port, _ = server
+    monkeypatch.setattr(report, "setup_output", lambda: "Everything is ready.")
+    response, content = request(port, "POST", "/api/report", {})
+    assert response.status == 200
+    data = json.loads(content)
+    assert data["name"].startswith("song-wizard-report-") and "Everything is ready." in data["text"]
+    assert data["url"].startswith(report.ISSUES)
+    assert request(port, "POST", "/api/report/open", {})[0].status == 200
+    assert launched == [["open", str(report.REPORTS_DIR)]]
+    assert request(port, "POST", "/api/report", {}, token="wrong")[0].status == 403

@@ -12,21 +12,18 @@ import mimetypes
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
 import threading
 import time
-import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
-from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import archives
+from . import archives, log, system
 from .audio import AUDIO_EXTS, GENERATED, base_of
-from .paths import is_wsl, music_dir
+from .paths import music_dir
 
 PORT = 8765
 # Output of a job that is kept to show in the page.
@@ -199,34 +196,6 @@ def rel(root, path):
     return path.relative_to(root).as_posix() if path != root else ""
 
 
-def open_browser(url):
-    if is_wsl() and shutil.which("cmd.exe"):
-        # The Windows browser reaches WSL's localhost. Run from a Windows drive: from a Linux
-        # folder cmd.exe warns about UNC paths.
-        subprocess.Popen(["cmd.exe", "/c", "start", "", url], cwd="/mnt/c" if os.path.isdir("/mnt/c") else None,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        webbrowser.open(url)
-
-
-def folder_command(path):
-    """How to open a folder in this system's file manager: Explorer on WSL, Finder on a Mac."""
-    if is_wsl() and shutil.which("explorer.exe") and shutil.which("wslpath"):
-        windows = subprocess.run(["wslpath", "-w", str(path)], capture_output=True, text=True).stdout.strip()
-        return ["explorer.exe", windows]
-    if sys.platform == "darwin":
-        return ["open", str(path)]
-    if shutil.which("xdg-open"):
-        return ["xdg-open", str(path)]
-    return None
-
-
-def file_manager_name():
-    if is_wsl():
-        return "Explorador de archivos"
-    return "Finder" if sys.platform == "darwin" else "explorador de archivos"
-
-
 def make_handler(token, root, runner, port):
     page = resources.files("song_wizard").joinpath("ui.html").read_text(encoding="utf-8")
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
@@ -274,7 +243,7 @@ def make_handler(token, root, runner, port):
             if url.path == "/":
                 return self.send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
             if url.path == "/api/library":
-                return self.json({"root": str(root), "folders": library(root), "fileManager": file_manager_name()})
+                return self.json({"root": str(root), "folders": library(root), "fileManager": system.file_manager_name()})
             if url.path == "/api/archives":
                 return self.json([{"number": i, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}"}
                                   for i, (_, t, n, c) in enumerate(archives.entries(), 1)])
@@ -346,6 +315,15 @@ def make_handler(token, root, runner, port):
                 except (KeyError, ValueError, TypeError) as e:
                     return self.error(HTTPStatus.BAD_REQUEST, f"pedido inválido: {e}")
                 return self.json(runner.add(title, args).summary())
+            if url.path == "/api/report":
+                from . import report
+                path, text, link = report.build()
+                return self.json({"name": path.name, "text": text, "url": link})
+            if url.path == "/api/report/open":
+                from . import report
+                if not system.open_folder(report.REPORTS_DIR):
+                    return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
+                return self.json({})
             if url.path == "/api/open":
                 return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
@@ -364,12 +342,8 @@ def make_handler(token, root, runner, port):
                 return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
             if not path.is_dir():
                 return self.error(HTTPStatus.NOT_FOUND, "no existe esa carpeta")
-            command = folder_command(path)
-            if not command:
+            if not system.open_folder(path):
                 return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
-            # Run from a Windows drive on WSL: from a Linux folder, Windows programs warn about UNC paths.
-            subprocess.Popen(command, cwd="/mnt/c" if os.path.isdir("/mnt/c") else None,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
             return self.json({"opened": rel(root, path)})
 
         def command_for(self, body):
@@ -436,6 +410,12 @@ def make_handler(token, root, runner, port):
     return Handler
 
 
+class Server(ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        log.logger.exception("interface: error answering a request")
+        super().handle_error(request, client_address)
+
+
 def run(port=PORT, open_page=True):
     root = music_dir()
     root.mkdir(parents=True, exist_ok=True)
@@ -444,7 +424,7 @@ def run(port=PORT, open_page=True):
     server = None
     for candidate in [port, *range(port + 1, port + 20), 0]:
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", candidate), make_handler(token, root, runner, candidate))
+            server = Server(("127.0.0.1", candidate), make_handler(token, root, runner, candidate))
             break
         except OSError:
             continue
@@ -459,7 +439,7 @@ def run(port=PORT, open_page=True):
     print(f"Music folder: {root}", flush=True)
     print("Leave this terminal open while you use it; Ctrl+C closes it.", flush=True)
     if open_page:
-        open_browser(url)
+        system.open_url(url)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
