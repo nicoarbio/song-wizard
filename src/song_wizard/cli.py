@@ -124,6 +124,15 @@ def main():
     elif args.command == "bpm":
         from . import bpm
         bpm.run(args.paths)
+    elif args.command == "convert":
+        from . import convert
+        convert.run(args.paths, fmt=args.format, overwrite=args.overwrite)
+    elif args.command == "archives":
+        from . import archives
+        if args.delete:
+            archives.delete(args.delete, yes=args.yes)
+        else:
+            archives.show()
     elif args.command == "config":
         from . import config
         config.show()
