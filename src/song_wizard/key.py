@@ -4,6 +4,7 @@ import collections
 import os
 import subprocess
 
+from . import results
 from .audio import expand, load
 
 PROFILES = ["krumhansl", "edma", "bgate", "shaath"]
@@ -28,7 +29,8 @@ def run(paths):
     essentia.log.warningActive = False
     import essentia.standard as es
 
-    for f in expand(paths):
+    found = []
+    for f in expand(paths, skip_generated=True):
         try:
             audio, _ = load(f, sr=44100, mono=True)
         except subprocess.CalledProcessError:
@@ -46,5 +48,8 @@ def run(paths):
         doubt = ""
         if votes:
             doubt = "  uncertain, also: " + ", ".join(short(*k) for k, _ in votes.most_common())
-        print(f"  {short(key, scale):<4} {key + ' ' + scale:<9} {rel:<14} {n}/{len(PROFILES)}  "
-              f"{os.path.basename(f)}{doubt}")
+        result = f"{short(key, scale):<4} {key + ' ' + scale:<9} {rel:<14} {n}/{len(PROFILES)}"
+        print(f"  {result}  {os.path.basename(f)}{doubt}")
+        found.append((f, result + doubt))
+    for out in results.save("key", found):
+        print(f"Saved to {out}")

@@ -29,7 +29,9 @@ def require_ffmpeg():
 
 
 def expand(paths, skip_generated=False):
-    """Expand folders into the audio files they contain (non-recursive, sorted)."""
+    """Expand folders into the audio files they contain (non-recursive, sorted). With
+    skip_generated, files this tool wrote (stems, clicks...) are left out of folders; files
+    named explicitly are always kept."""
     for p in paths:
         if os.path.isdir(p):
             for name in sorted(os.listdir(p)):

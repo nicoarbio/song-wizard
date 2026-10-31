@@ -5,6 +5,7 @@ import subprocess
 
 import numpy as np
 
+from . import results
 from .audio import expand, load
 
 # Tempo is measured over sliding windows of this many beats.
@@ -44,7 +45,8 @@ def describe(bpm, low, high, confidence):
 
 
 def run(paths):
-    for f in expand(paths):
+    found = []
+    for f in expand(paths, skip_generated=True):
         try:
             audio, _ = load(f, sr=44100, mono=True)
         except subprocess.CalledProcessError:
@@ -53,3 +55,6 @@ def run(paths):
         bpm, _, low, high, confidence = analyze(audio[0])
         note, _ = describe(bpm, low, high, confidence)
         print(f"  {bpm:6.1f} BPM  {os.path.basename(f)}  {note}")
+        found.append((f, f"{bpm:.1f} BPM  {note}"))
+    for out in results.save("bpm", found):
+        print(f"Saved to {out}")
