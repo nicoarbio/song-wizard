@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml)
 
-Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales (ver [Aviso legal](#aviso-legal)).
+Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales.
 
 - **download**: baja audio de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
 - **key**: detecta la tonalidad.
@@ -380,5 +380,5 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Placa NVIDIA muy vieja (GTX 1080) | Simulada | ✅ Avisa y usa el procesador |
 | Placa NVIDIA con driver viejo | Simulada | ✅ Avisa que actualice el driver y usa el procesador |
 | Placa sin memoria suficiente | Simulada | ✅ Avisa, pasa al procesador y termina |
-| Mac con chip M | **No probado** | uv verifica que existan paquetes de todas las librerías para Mac con chip M; falta probarlo en una Mac real |
-| Linux sin WSL | **No probado** aparte | WSL corre el mismo Ubuntu, así que se espera que funcione igual |
+| Mac con chip M | Real (pruebas automáticas, macOS 15) | ✅ Se instala y pasan todas las pruebas automáticas. Falta probar en una Mac real la separación (con la placa de video del chip M) y la interfaz |
+| Linux sin WSL | Real (pruebas automáticas, Ubuntu) | ✅ Se instala y pasan todas las pruebas automáticas |
