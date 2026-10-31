@@ -1,0 +1,35 @@
+[project]
+name = "song-wizard"
+version = "0.1.0"
+description = "Prepare songs for band practice: download, key detection, transposition and stem separation."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "yt-dlp[default]",
+    "essentia>=2.1b6.dev1177",
+    "audio-separator[cpu]",
+    "numpy",
+    "soundfile",
+    "platformdirs",
+    # audio-separator imports it but no longer gets it through librosa.
+    "audioread",
+]
+
+[project.scripts]
+song-wizard = "song_wizard.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# Supported: Linux/WSL x86_64 and Apple Silicon Macs. Intel Macs are not supported
+# (PyTorch stopped at 2.2.2 there, too old for audio-separator).
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
