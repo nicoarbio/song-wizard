@@ -211,6 +211,24 @@ def open_browser(url):
         webbrowser.open(url)
 
 
+def folder_command(path):
+    """How to open a folder in this system's file manager: Explorer on WSL, Finder on a Mac."""
+    if is_wsl() and shutil.which("explorer.exe") and shutil.which("wslpath"):
+        windows = subprocess.run(["wslpath", "-w", str(path)], capture_output=True, text=True).stdout.strip()
+        return ["explorer.exe", windows]
+    if sys.platform == "darwin":
+        return ["open", str(path)]
+    if shutil.which("xdg-open"):
+        return ["xdg-open", str(path)]
+    return None
+
+
+def file_manager_name():
+    if is_wsl():
+        return "Explorador de archivos"
+    return "Finder" if sys.platform == "darwin" else "explorador de archivos"
+
+
 def make_handler(token, root, runner, port):
     page = resources.files("song_wizard").joinpath("ui.html").read_text(encoding="utf-8")
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
@@ -258,7 +276,7 @@ def make_handler(token, root, runner, port):
             if url.path == "/":
                 return self.send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
             if url.path == "/api/library":
-                return self.json({"root": str(root), "folders": library(root)})
+                return self.json({"root": str(root), "folders": library(root), "fileManager": file_manager_name()})
             if url.path == "/api/archives":
                 return self.json([{"number": i, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}"}
                                   for i, (_, t, n, c) in enumerate(archives.entries(), 1)])
@@ -330,6 +348,8 @@ def make_handler(token, root, runner, port):
                 except (KeyError, ValueError, TypeError) as e:
                     return self.error(HTTPStatus.BAD_REQUEST, f"pedido inválido: {e}")
                 return self.json(runner.add(title, args).summary())
+            if url.path == "/api/open":
+                return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
             if match:
                 job = runner.jobs.get(int(match.group(1)))
@@ -338,6 +358,21 @@ def make_handler(token, root, runner, port):
                 runner.cancel(job)
                 return self.json(job.summary(len(job.lines)))
             self.error(HTTPStatus.NOT_FOUND, "not found")
+
+        def open_folder(self, relative):
+            try:
+                path = self.resolve(str(relative))
+            except PermissionError:
+                return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+            if not path.is_dir():
+                return self.error(HTTPStatus.NOT_FOUND, "no existe esa carpeta")
+            command = folder_command(path)
+            if not command:
+                return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
+            # Run from a Windows drive on WSL: from a Linux folder, Windows programs warn about UNC paths.
+            subprocess.Popen(command, cwd="/mnt/c" if os.path.isdir("/mnt/c") else None,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+            return self.json({"opened": rel(root, path)})
 
         def command_for(self, body):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the

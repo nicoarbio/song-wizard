@@ -51,6 +51,8 @@
   details.folder > summary::before { content: "▸"; color: var(--muted); width: 10px; }
   details.folder[open] > summary::before { content: "▾"; }
   .count { color: var(--muted); font-size: 12px; }
+  .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  details.folder > summary .open { margin-left: auto; }
   .songs { list-style: none; margin: 6px 0 0; padding: 0 0 0 20px; }
   .song { padding: 6px 0; border-bottom: 1px dashed var(--line); }
   .song:last-child { border-bottom: 0; }
@@ -91,7 +93,7 @@
 <header>
   <div>
     <h1>song-wizard</h1>
-    <div class="root" id="root"></div>
+    <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden>abrir</button></div>
   </div>
   <form class="download" id="download">
     <input type="url" id="url" placeholder="Pegá la URL de un video o una playlist de YouTube" required>
@@ -103,7 +105,10 @@
 <main>
   <div>
     <section>
-      <h2>Biblioteca</h2>
+      <div class="section-head">
+        <h2>Biblioteca</h2>
+        <button class="small" id="reload" title="Volver a leer la carpeta de música (también se hace solo al volver a esta pestaña)">↻ actualizar</button>
+      </div>
       <input type="text" class="filter" id="filter" placeholder="Filtrar temas…">
       <div id="library"><p class="empty">Cargando…</p></div>
     </section>
@@ -338,7 +343,9 @@ function renderLibrary() {
     toggleAll.checked = !!allChecked;
     const n = folder.songs.length;
     const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
-      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`)));
+      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`),
+        el("button", { class: "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
@@ -459,10 +466,21 @@ async function start(request) {
   }
 }
 
+async function openFolder(path) {
+  try {
+    await api("/api/open", { path });
+  } catch (e) {
+    toast(`No se pudo abrir: ${e.message}`);
+  }
+}
+
 async function refresh() {
   try {
     const lib = await api("/api/library");
     $("root").textContent = `Carpeta de música: ${lib.root}`;
+    state.fileManager = lib.fileManager;
+    $("open-root").hidden = false;
+    $("open-root").title = `Abrir la carpeta de música en el ${lib.fileManager}`;
     state.folders = lib.folders;
     const existing = new Set(lib.folders.flatMap((f) => [
       ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
@@ -505,6 +523,17 @@ $("download").addEventListener("submit", (e) => {
   $("url").value = "";
 });
 $("filter").addEventListener("input", renderLibrary);
+$("reload").onclick = () => refresh().then(() => toast("Biblioteca actualizada."));
+$("open-root").onclick = () => openFolder("");
+// Coming back from the file manager (files renamed, copied or deleted): read the folder again.
+// Both events usually fire together: one reload is enough.
+function refreshOnReturn() {
+  if (Date.now() - (refreshOnReturn.last || 0) < 1000) return;
+  refreshOnReturn.last = Date.now();
+  refresh();
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshOnReturn(); });
+window.addEventListener("focus", refreshOnReturn);
 $("do-key").onclick = () => start({ action: "key", paths: selectedPaths() });
 $("do-bpm").onclick = () => start({ action: "bpm", paths: selectedPaths() });
 $("do-separate").onclick = () => {

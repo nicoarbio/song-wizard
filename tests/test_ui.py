@@ -196,3 +196,53 @@ def test_failed_job(server):
                                 {"action": "click", "bpm": 120, "like": "broken.wav", "folder": ""})
     status, _ = wait_for(port, json.loads(content)["id"])
     assert status == "failed"
+
+
+@pytest.fixture
+def launched(monkeypatch):
+    calls = []
+    monkeypatch.setattr(ui.subprocess, "Popen", lambda cmd, **kwargs: calls.append(cmd))
+    return calls
+
+
+def test_open_folder(server, launched, monkeypatch):
+    port, root = server
+    (root / "Show").mkdir()
+    monkeypatch.setattr(ui, "folder_command", lambda path: ["open", str(path)])
+    response, content = request(port, "POST", "/api/open", {"path": "Show"})
+    assert response.status == 200
+    assert launched == [["open", str((root / "Show").resolve())]]
+    assert request(port, "POST", "/api/open", {"path": ""})[0].status == 200
+    assert launched[-1] == ["open", str(root.resolve())]
+
+
+def test_open_folder_refuses(server, launched):
+    port, root = server
+    (root / "song.opus").write_bytes(b"x")
+    assert request(port, "POST", "/api/open", {"path": ".."})[0].status == 403
+    assert request(port, "POST", "/api/open", {"path": "missing"})[0].status == 404
+    assert request(port, "POST", "/api/open", {"path": "song.opus"})[0].status == 404
+    assert request(port, "POST", "/api/open", {"path": "Show"}, token="wrong")[0].status == 403
+    assert launched == []
+
+
+def test_folder_command(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui, "is_wsl", lambda: False)
+    monkeypatch.setattr(ui.sys, "platform", "darwin")
+    assert ui.folder_command(tmp_path) == ["open", str(tmp_path)]
+    monkeypatch.setattr(ui.sys, "platform", "linux")
+    monkeypatch.setattr(ui.shutil, "which", lambda name: f"/usr/bin/{name}")
+    assert ui.folder_command(tmp_path) == ["xdg-open", str(tmp_path)]
+    monkeypatch.setattr(ui.shutil, "which", lambda name: None)
+    assert ui.folder_command(tmp_path) is None
+
+
+def test_folder_command_wsl(monkeypatch, tmp_path):
+    monkeypatch.setattr(ui, "is_wsl", lambda: True)
+    monkeypatch.setattr(ui.shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    class Done:
+        stdout = "C:\\Users\\me\\Music\\Show\n"
+
+    monkeypatch.setattr(ui.subprocess, "run", lambda cmd, **kwargs: Done() if cmd[:2] == ["wslpath", "-w"] else None)
+    assert ui.folder_command(tmp_path) == ["explorer.exe", "C:\\Users\\me\\Music\\Show"]
