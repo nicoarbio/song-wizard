@@ -1,0 +1,49 @@
+"""Tempo detection with Essentia, plus how steady the tempo is across the song."""
+
+import os
+import subprocess
+
+import numpy as np
+
+from .audio import expand, load
+
+# Tempo is measured over sliding windows of this many beats.
+WINDOW = 8
+# Spread between the 10th and 90th percentile of the windowed tempo, relative to the tempo.
+STEADY = 0.02
+UNSTABLE = 0.10
+# RhythmExtractor2013's confidence goes from 0 to 5.32; below 1 Essentia calls it very low.
+LOW_CONFIDENCE = 1.0
+MIN_BPM, MAX_BPM = 50, 220
+
+
+def analyze(audio):
+    import essentia
+    essentia.log.infoActive = False
+    essentia.log.warningActive = False
+    import essentia.standard as es
+
+    bpm, beats, confidence, _, _ = es.RhythmExtractor2013(method="multifeature")(audio)
+    local = 60 / np.convolve(np.diff(beats), np.ones(WINDOW) / WINDOW, mode="valid")
+    low, high = np.percentile(local, [10, 90]) if len(local) else (bpm, bpm)
+    return bpm, low, high, confidence
+
+
+def run(paths):
+    for f in expand(paths):
+        try:
+            audio, _ = load(f, sr=44100, mono=True)
+        except subprocess.CalledProcessError:
+            print(f"  {'??':>6}      {os.path.basename(f)}  (could not read)")
+            continue
+        bpm, low, high, confidence = analyze(audio[0])
+        spread = (high - low) / bpm
+        if confidence < LOW_CONFIDENCE or spread > UNSTABLE:
+            # Detectors usually miss by a factor of two; only suggest tempos a song could have.
+            others = [f"{t:.1f}" for t in (bpm / 2, bpm * 2) if MIN_BPM <= t <= MAX_BPM]
+            note = "uncertain, check by ear" + (f" (could be {' or '.join(others)})" if others else "")
+        elif spread > STEADY:
+            note = f"varies {low:.0f}-{high:.0f}, probably played without a click"
+        else:
+            note = "steady"
+        print(f"  {bpm:6.1f} BPM  {os.path.basename(f)}  {note}")

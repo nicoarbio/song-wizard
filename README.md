@@ -4,6 +4,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda:
 
 - **download**: baja temas o playlists de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
 - **key**: detecta la tonalidad.
+- **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 
@@ -124,6 +125,8 @@ song-wizard download "https://www.youtube.com/watch?v=..."
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
 - Para guardar en otra carpeta: `SONG_WIZARD_DIR=~/Ensayos song-wizard download "URL"`.
+- Para volver a bajar temas que ya están en el registro: agregá `--no-download-archive` al final. Si
+  los archivos siguen en la carpeta, sumá también `--force-overwrites`, porque si no se saltean igual.
 
 ### Detectar la tonalidad
 
@@ -140,6 +143,25 @@ song-wizard key "tema.opus"
 `4/4` significa que los cuatro métodos de detección coinciden. Con menos, conviene confirmarlo de
 oído: lo más común es confundir una tonalidad con su relativa (Em y G usan las mismas notas), por
 eso siempre se muestra. Detecta la tonalidad predominante; si el tema modula, no lo indica.
+
+### Detectar el tempo
+
+```bash
+song-wizard bpm "Música/Show"
+song-wizard bpm "tema.opus"
+```
+
+```
+   103.1 BPM  003 - Rascal Flatts - Life is a Highway (Audio).opus  steady
+   123.1 BPM  004 - Bon Jovi - Livin' On A Prayer.opus  varies 121-125, probably played without a click
+   178.2 BPM  006 - Camila - Bésame (Audio).opus  uncertain, check by ear (could be 89.1)
+```
+
+- `steady`: el tempo se mantiene fijo, como cuando se graba con click.
+- `varies`: el tempo cambia a lo largo del tema (muchos temas de los 80 y 90 se grabaron sin
+  click). Se muestra el rango en el que se mueve; un click fijo se va a ir desfasando.
+- `uncertain`: la detección no es confiable. Lo más común es que el detector marque el doble o la
+  mitad del tempo real, por eso se sugiere la alternativa.
 
 ### Cambiar el tono
 
@@ -225,6 +247,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `download` de una playlist de 11 temas, y volver a correrla | Real | ✅ La segunda vez reconoce los 11 y no baja nada |
 | `download` de un video suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
 | `key` sobre los 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
+| `bpm` sobre los 11 temas | Real | ✅ 8 estables, 2 con tempo variable (121-125 y 144-147) y 1 dudoso que sugiere la mitad |
+| `download --no-download-archive` | Real (sin descargar) | ✅ Ignora el registro y no lo modifica |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |
 | `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |

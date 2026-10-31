@@ -5,12 +5,13 @@ import sys
 
 from . import __version__
 
-DESCRIPTION = "Prepare songs for band practice: download, key detection, transposition and stem separation."
+DESCRIPTION = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
 
 EPILOG = """\
 examples:
   song-wizard download "https://www.youtube.com/playlist?list=..."
   song-wizard key ~/Music/Show
+  song-wizard bpm ~/Music/Show
   song-wizard transpose -2 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
@@ -41,6 +42,12 @@ def main():
                        description="Detect the key of each song. 4/4 means all four detection methods agree; "
                                    "lower counts are worth checking by ear. The most common mix-up is with "
                                    "the relative key, which is always shown.")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+
+    p = sub.add_parser("bpm", help="detect the tempo of songs",
+                       description="Detect the tempo of each song and how steady it is. Songs recorded without "
+                                   "a click drift, so a range is shown instead. Like any tempo detector it can "
+                                   "land on half or double the real tempo; uncertain results say so.")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
@@ -76,6 +83,9 @@ def main():
     elif args.command == "key":
         from . import key
         key.run(args.paths)
+    elif args.command == "bpm":
+        from . import bpm
+        bpm.run(args.paths)
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)
