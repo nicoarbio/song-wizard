@@ -10,6 +10,35 @@ Herramienta de terminal para preparar temas para ensayar con la banda:
 Funciona en **Mac con chip M** (M1 a M5, con macOS 15 o más nuevo), **Linux** y **Windows con WSL**.
 No funciona en Mac con procesador Intel.
 
+## Requerimientos
+
+song-wizard está escrito en Python, pero usa algunos programas externos que hay que instalar aparte.
+Los comandos de [Instalación](#instalación) instalan todos; acá se explica para qué sirve cada uno.
+Todos son programas libres y de código abierto, y se instalan desde sus fuentes oficiales.
+
+| Programa | Por qué hace falta | Cómo lo usa song-wizard |
+|---|---|---|
+| [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
+| [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio del video (y para generar los `.wav` con `--wav`). |
+| [**deno**](https://deno.com) | YouTube exige resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo y con muy buena calidad. | `transpose` le pasa los semitonos y genera el archivo `Título (+2).wav`. |
+
+En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y
+`build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada.
+En Mac no hace falta, porque el compilador ya lo instala Homebrew.
+
+Las librerías de Python que hacen el trabajo pesado las instala uv automáticamente:
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) para las descargas,
+[Essentia](https://essentia.upf.edu) para la tonalidad, y
+[audio-separator](https://github.com/nomadkaraoke/python-audio-separator) y
+[PyTorch](https://pytorch.org) para separar instrumentos.
+
+Todo se procesa en tu computadora: song-wizard no manda tus archivos a ningún servidor. Solo se
+conecta a internet para bajar temas de YouTube, bajar los modelos de separación la primera vez y
+actualizarse.
+
+`song-wizard setup` revisa que estén todos instalados.
+
 ## Instalación
 
 ### Mac
@@ -55,6 +84,30 @@ song-wizard upgrade
 ```
 
 Conviene hacerlo seguido: YouTube cambia a menudo y las descargas pueden dejar de andar hasta actualizar.
+
+### Qué se guarda en tu computadora
+
+| Qué | Dónde | Tamaño |
+|---|---|---|
+| song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
+| Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~1.3 GB si usás los cuatro instrumentos; se bajan la primera vez que se usa cada uno |
+| Registro de temas ya bajados | La misma carpeta, en `archives` | unos pocos KB |
+| Tus temas | La carpeta Música (o la que elijas) | lo que bajes |
+
+Los modelos se bajan de fuentes públicas: los de Demucs, de los servidores de Meta (que lo creó),
+y los demás, de los repositorios públicos en GitHub del proyecto
+[UVR](https://github.com/Anjok07/ultimatevocalremovergui) y de audio-separator.
+
+### Desinstalar
+
+```bash
+uv tool uninstall song-wizard
+rm -rf ~/.local/share/song-wizard                    # Linux/WSL
+rm -rf ~/Library/Application\ Support/song-wizard    # Mac
+```
+
+Tus temas no se tocan. Si no usás ffmpeg, deno, rubberband ni uv para otra cosa, también podés
+desinstalarlos con `brew uninstall` (Mac) o `sudo apt remove` (Linux).
 
 ## Uso
 
@@ -122,9 +175,53 @@ song-wizard separate --stem drums --stem bass "Música/Show"
   Demucs `htdemucs_ft` para batería y bajo, Demucs `htdemucs_6s` para la guitarra.
 - Instrumento + resto suman **exactamente** el tema original, y todo queda alineado.
 - La primera vez descarga los modelos (unos 1.3 GB en total si usás todos).
-- Con placa de video (NVIDIA o Mac con chip M) un tema tarda alrededor de un minuto por modelo;
-  solo con el procesador, bastante más.
 - La guitarra es la separación menos precisa: suele mezclarse algo de teclados o de otras guitarras.
+
+#### ¿Dónde corre la separación?
+
+Separar es lo único pesado. song-wizard elige solo dónde correrlo, y anda en cualquier
+computadora; lo que cambia es cuánto tarda:
+
+| Tu computadora | Dónde corre | Un tema de 5 minutos, por instrumento |
+|---|---|---|
+| NVIDIA serie GTX 16, RTX 20 o más nueva | Placa de video | menos de 1 minuto (medido con una RTX 4060) |
+| Mac con chip M | Placa de video de Apple | rápido; varía según el modelo de Mac |
+| NVIDIA GTX 10 o más vieja, AMD, Intel o sin placa | Procesador | unos 10 minutos (medido con un Ryzen 5 de 6 núcleos) |
+
+- Si la placa no tiene memoria suficiente, song-wizard avisa y sigue con el procesador.
+- Si la placa es NVIDIA pero no se usa, suele alcanzar con actualizar el driver de NVIDIA.
+- `--cpu` fuerza el procesador, por si la placa da algún problema.
+- `song-wizard setup` muestra dónde va a correr en tu computadora.
+- Pedir batería y bajo juntos cuesta lo mismo que pedir uno solo: salen del mismo modelo.
 
 Los archivos son WAV de 32 bits float a 44.1 kHz: no se recortan los picos y REAPER, Ableton,
 Logic o cualquier DAW los abre directo.
+
+## Anexo: pruebas
+
+Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
+
+- Windows con WSL2 (Ubuntu 24.04.5)
+- AMD Ryzen 5 8500G (6 núcleos, 12 hilos), 11 GB de RAM disponibles en WSL
+- NVIDIA GeForce RTX 4060 de 8 GB, driver 610.88
+- Python 3.12.3, PyTorch 2.15.0 (CUDA 13.2), audio-separator 0.48.0, Essentia 2.1b6.dev1389,
+  yt-dlp 2026.10.26, Rubber Band 3.3.0, ffmpeg 6.1.1
+
+| Prueba | Tipo | Resultado |
+|---|---|---|
+| Instalar desde GitHub con `uv tool install` | Real | ✅ `setup` en verde |
+| `download` de una playlist de 11 temas, y volver a correrla | Real | ✅ La segunda vez reconoce los 11 y no baja nada |
+| `download` de un video suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
+| `key` sobre los 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
+| `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
+| `transpose 0` | Real | ✅ Idéntico al original |
+| `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |
+| `separate` de los 4 instrumentos en placa de video (tema de 5 min) | Real | ✅ 2 min 11 s en total |
+| Instrumento + resto contra el original | Real | ✅ Diferencia de 0.0000001 (redondeo de float) |
+| Batería contra la de UVR (`htdemucs`) | Real | ✅ Correlación 0.994, sin desfase |
+| `separate --cpu` (30 s, 2 instrumentos) | Real | ✅ 124 s, contra 24 s en placa; mismo resultado |
+| Placa NVIDIA muy vieja (GTX 1080) | Simulada | ✅ Avisa y usa el procesador |
+| Placa NVIDIA con driver viejo | Simulada | ✅ Avisa que actualice el driver y usa el procesador |
+| Placa sin memoria suficiente | Simulada | ✅ Avisa, pasa al procesador y termina |
+| Mac con chip M | **No probado** | uv verifica que existan paquetes de todas las librerías para Mac con chip M; falta probarlo en una Mac real |
+| Linux sin WSL | **No probado** aparte | WSL corre el mismo Ubuntu, así que se espera que funcione igual |

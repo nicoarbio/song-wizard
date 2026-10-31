@@ -54,9 +54,12 @@ def main():
                        description='For each --stem, writes "Title (drums).wav" (the instrument alone) and '
                                    '"Title (no drums).wav" (everything else) next to the original, as 44.1 kHz '
                                    "32-bit float WAV. The two always add up to the exact original. Models are "
-                                   "downloaded the first time they are used.")
+                                   "downloaded the first time they are used. Runs on an NVIDIA GPU (GTX 16 / "
+                                   "RTX 20 or newer) or an Apple Silicon GPU when available, else on the CPU.")
     p.add_argument("--stem", action="append", required=True, choices=STEMS,
                    help="instrument to separate; repeat for several")
+    p.add_argument("--cpu", action="store_true",
+                   help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
@@ -75,7 +78,7 @@ def main():
         transpose.run(args.semitones, args.paths)
     elif args.command == "separate":
         from . import separate
-        separate.run(args.stem, args.paths)
+        separate.run(args.stem, args.paths, force_cpu=args.cpu)
     elif args.command == "setup":
         from . import setup
         setup.run()

@@ -13,6 +13,7 @@ import numpy as np
 import soundfile as sf
 
 from .audio import expand, load, output_path, save
+from .device import pick
 from .paths import MODELS_DIR
 
 # instrument -> (model file, stem name the model gives it)
@@ -32,12 +33,15 @@ SR = 44100
 HEADROOM = 0.5
 
 
-def run(stems, paths):
-    from audio_separator.separator import Separator
-
+def run(stems, paths, force_cpu=False):
     files = list(expand(paths, skip_generated=True))
     if not files:
         return
+
+    device, desc, warning = pick(force_cpu)
+    print(f"Running on {desc}")
+    if warning:
+        print(f"Warning: {warning}")
 
     by_model = defaultdict(list)
     for stem in dict.fromkeys(stems):
@@ -46,7 +50,8 @@ def run(stems, paths):
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="song-wizard-") as tmp:
-        # Decode every song once: 44.1 kHz stereo float, scaled to leave headroom.
+        # Decode every song once to 44.1 kHz stereo float, scaled to leave headroom. Only the
+        # temp files are kept, not the audio, so a big folder doesn't fill up the RAM.
         mixes = {}
         for i, f in enumerate(files):
             audio, _ = load(f, sr=SR)
@@ -54,32 +59,73 @@ def run(stems, paths):
             scale = min(1.0, HEADROOM / peak)
             path = os.path.join(tmp, f"in{i}.wav")
             save(path, audio * scale, SR)
-            mixes[f] = (audio, scale, path)
+            mixes[f] = (scale, path)
 
         # Outer loop over models so each model is loaded only once.
         for model, wanted in by_model.items():
             print(f"Model {model} ({', '.join(s for s, _ in wanted)})")
-            sep = Separator(
-                log_level=logging.ERROR,
-                model_file_dir=str(MODELS_DIR),
-                output_dir=tmp,
-                output_format="WAV",
-                use_soundfile=True,
-                normalization_threshold=1.0,
-                amplification_threshold=0,
-                output_single_stem=wanted[0][1] if len(wanted) == 1 else None,
-                sample_rate=SR,
-            )
-            sep.load_model(model_filename=model)
-            for f, (audio, scale, path) in mixes.items():
-                names = {name: f"out-{name}" for _, name in wanted}
-                sep.separate(path, custom_output_names=names)
+            sep = separator(model, wanted, device, tmp)
+            names = {name: f"out-{name}" for _, name in wanted}
+            for f, (scale, path) in mixes.items():
+                try:
+                    sep.separate(path, custom_output_names=names)
+                except Exception as e:
+                    if device == "cpu" or not out_of_memory(e):
+                        raise
+                    print("  the GPU ran out of memory; switching to the CPU, which is slower")
+                    device = "cpu"
+                    del sep
+                    free_gpu_memory()
+                    sep = separator(model, wanted, device, tmp)
+                    sep.separate(path, custom_output_names=names)
+
+                mix, _ = sf.read(path, dtype="float32", always_2d=True)
+                mix = mix.T / scale
                 for stem, name in wanted:
                     part, _ = sf.read(os.path.join(tmp, f"out-{name}.wav"), dtype="float32", always_2d=True)
-                    part = fit(part.T / scale, audio.shape[1])
+                    part = fit(part.T / scale, mix.shape[1])
                     save(output_path(f, stem), part, SR)
-                    save(output_path(f, f"no {stem}"), audio - part, SR)
+                    save(output_path(f, f"no {stem}"), mix - part, SR)
                     print(f"  {stem:<6}  {output_path(f, stem)}")
+
+
+def separator(model, wanted, device, tmp):
+    from audio_separator.separator import Separator
+
+    sep = Separator(
+        log_level=logging.ERROR,
+        model_file_dir=str(MODELS_DIR),
+        output_dir=tmp,
+        output_format="WAV",
+        use_soundfile=True,
+        normalization_threshold=1.0,
+        amplification_threshold=0,
+        output_single_stem=wanted[0][1] if len(wanted) == 1 else None,
+        sample_rate=SR,
+    )
+    # audio-separator picks the GPU on its own; override it when the GPU can't be used.
+    if device == "cpu":
+        sep.torch_device = sep.torch_device_cpu
+    sep.load_model(model_filename=model)
+    return sep
+
+
+def out_of_memory(error):
+    import torch
+
+    # CUDA raises OutOfMemoryError; Apple's Metal backend raises a RuntimeError.
+    return isinstance(error, torch.OutOfMemoryError) or "out of memory" in str(error).lower()
+
+
+def free_gpu_memory():
+    import gc
+    import torch
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    elif torch.backends.mps.is_available():
+        torch.mps.empty_cache()
 
 
 def fit(audio, length):

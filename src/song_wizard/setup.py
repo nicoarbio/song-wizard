@@ -15,10 +15,8 @@ def importable(module):
 
 
 def accelerator():
-    code = ("import torch\n"
-            "if torch.cuda.is_available(): print('NVIDIA GPU (' + torch.cuda.get_device_name(0) + ')')\n"
-            "elif torch.backends.mps.is_available(): print('Apple GPU (Metal)')\n"
-            "else: print('CPU only (separation will be slow)')")
+    # In a subprocess for the same reason as importable(): a broken GPU stack can crash it.
+    code = "from song_wizard.device import describe; print(describe())"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     return out.stdout.strip() or "unknown"
 
