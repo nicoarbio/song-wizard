@@ -19,9 +19,14 @@ def is_wsl():
 
 
 def music_dir():
-    """Where downloads go: $SONG_WIZARD_DIR, else the Windows Music folder on WSL, else ~/Music."""
+    """Where downloads go: $SONG_WIZARD_DIR, else music_dir in the config file, else the
+    Windows Music folder on WSL, else ~/Music."""
+    from . import config
+
     if env := os.environ.get("SONG_WIZARD_DIR"):
         return Path(env).expanduser()
+    if configured := config.get("download", "music_dir"):
+        return Path(configured).expanduser()
     if is_wsl() and shutil.which("cmd.exe") and shutil.which("wslpath"):
         # Run from a Windows drive: from a Linux folder cmd.exe prints a localized (non-UTF-8)
         # warning about UNC paths.

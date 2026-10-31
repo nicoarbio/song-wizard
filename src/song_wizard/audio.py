@@ -12,8 +12,10 @@ import soundfile as sf
 
 AUDIO_EXTS = {".opus", ".webm", ".wav", ".flac", ".mp3", ".m4a", ".ogg", ".aac", ".mkv", ".mp4", ".aiff", ".aif"}
 
-# Files this tool writes: "Title (drums).wav", "Title (no drums).wav", "Title (other).wav", "Title (+2).wav".
-GENERATED = re.compile(r" \((no )?(vocals|drums|bass|guitar)\)$| \(other\)$| \([+-]\d+(\.\d+)?\)$")
+# Files this tool writes: "Title (drums).wav", "Title (no drums).wav", "Title (other).wav",
+# "Title (+2).wav", "Title (click).wav", "Title (count-in).wav" and "Title (drums) (count-in).wav".
+GENERATED = re.compile(r" \(((no )?(vocals|drums|bass|guitar)|other|[+-]\d+(\.\d+)?|click)\)( \(count-in\))?$"
+                       r"| \(count-in\)$")
 
 
 def die(msg):

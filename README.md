@@ -5,6 +5,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda:
 - **download**: baja temas o playlists de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
 - **key**: detecta la tonalidad.
 - **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
+- **click** *(experimental)*: genera una pista de click con count-in, alineada al tema.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 
@@ -77,6 +78,28 @@ song-wizard setup
 
 Todo tiene que quedar en verde. También te dice si la separación va a usar la placa de video
 (mucho más rápido) o solo el procesador.
+
+### Configuración
+
+```bash
+song-wizard config
+```
+
+Muestra dónde está el archivo de configuración y qué valores se están usando; si no existe, lo crea
+con todo comentado. Ahí se pueden guardar valores por defecto propios: la carpeta de descargas y el
+compás y count-in del click. Lo que pases en cada comando siempre gana sobre el archivo.
+
+- Linux/WSL: `~/.config/song-wizard/config.toml`
+- Mac: `~/Library/Application Support/song-wizard/config.toml`
+
+```toml
+[download]
+music_dir = "~/Ensayos"
+
+[click]
+meter = "4/4"
+count_in = 2
+```
 
 ### Actualizar
 
@@ -163,6 +186,37 @@ song-wizard bpm "tema.opus"
 - `uncertain`: la detección no es confiable. Lo más común es que el detector marque el doble o la
   mitad del tempo real, por eso se sugiere la alternativa.
 
+### Pista de click *(experimental)*
+
+```bash
+song-wizard click "tema.opus"                    # 4/4, 1 compás de count-in
+song-wizard click --count-in 2 "Música/Show"     # 2 compases, toda la carpeta
+song-wizard click --meter 3/4 "vals.opus"
+```
+
+Genera dos archivos que arrancan juntos:
+
+- `Título (click).wav`: el click, con el count-in antes del compás 1 y el primer tiempo de cada
+  compás acentuado.
+- `Título (count-in).wav`: el tema con el silencio necesario al principio para que entre la cuenta.
+  Si al lado del tema hay stems generados con `separate`, también se genera la versión con
+  count-in de cada uno: `Título (drums) (count-in).wav`, etc.
+
+Por defecto **el click sigue al tema**: si la banda original aceleraba o frenaba, el click también,
+así queda alineado con la grabación. `--steady` genera un click de tempo fijo; en temas grabados
+sin click se va a ir desfasando (avisa cuando pasa).
+
+Es **experimental** porque hay algo que conviene revisar de oído:
+
+- **Dónde cae el "1".** Lo estima con el bombo, el bajo y los cambios de acorde, pero en temas
+  reales puede quedar en otro tiempo del compás. Si el acento cae, por ejemplo, en el 2, corregilo
+  con `--shift`: `--shift 1` lo corre un tiempo más tarde, `--shift -1` uno antes.
+- **Las intros sin batería** (sintes, colchones) tienen pocos golpes claros para guiarse, así que
+  ahí el click es una estimación a partir del tempo del resto del tema.
+
+El compás: el número de arriba es la cantidad de clicks por compás (`4/4` = 4, `3/4` = 3,
+`6/8` = 6). Para un 6/8 que se cuenta en 2, usá `2/4`.
+
 ### Cambiar el tono
 
 ```bash
@@ -248,6 +302,10 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `download` de un video suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
 | `key` sobre los 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
 | `bpm` sobre los 11 temas | Real | ✅ 8 estables, 2 con tempo variable (121-125 y 144-147) y 1 dudoso que sugiere la mitad |
+| `click` sobre 3 temas sintéticos (120 estable, 118 a 126 acelerando, vals en 3/4) | Real, con los tiempos exactos conocidos | ✅ Clicks a 3 ms en promedio y 5 ms como máximo del golpe real; el "1" en el lugar correcto en el 100% de los compases; count-in y relleno exactos |
+| `click` sobre 4 temas reales | Real | ✅ Entre el 92% y el 99% de los clicks a menos de 10 ms de un golpe del tema. El lugar del "1" no se verificó de oído |
+| `click --steady` sobre el tema que acelera | Real | ✅ Avisa que el click se va a desfasar |
+| `click --count-in 2` con stems al lado | Real | ✅ Click, tema y stems con count-in del mismo largo exacto |
 | `download --no-download-archive` | Real (sin descargar) | ✅ Ignora el registro y no lo modifica |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |

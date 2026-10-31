@@ -5,13 +5,15 @@ import sys
 
 from . import __version__
 
-DESCRIPTION = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
+DESCRIPTION = ("Prepare songs for band practice: download, key and tempo detection, click tracks, "
+               "transposition and stem separation.")
 
 EPILOG = """\
 examples:
   song-wizard download "https://www.youtube.com/playlist?list=..."
   song-wizard key ~/Music/Show
   song-wizard bpm ~/Music/Show
+  song-wizard click --count-in 2 "song.opus"
   song-wizard transpose -2 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
@@ -50,6 +52,23 @@ def main():
                                    "land on half or double the real tempo; uncertain results say so.")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    p = sub.add_parser("click", help="(experimental) make a click track with a count-in, aligned to the song",
+                       description='Experimental: the click follows the song closely, but the accented first beat of the bar can land on the wrong beat; check it and fix it with --shift. Writes "Title (click).wav". The count-in goes before bar 1, so a copy of the '
+                                   'song with that much silence added, "Title (count-in).wav", starts together '
+                                   'with the click; stems of the song next to it ("Title (drums).wav"...) get '
+                                   'the same copy. By default the click follows the song, so it stays aligned '
+                                   "even when the tempo drifts. Defaults for --meter and --count-in come from "
+                                   'the settings file (see "song-wizard config").')
+    p.add_argument("--meter", help='time signature, e.g. 4/4, 3/4, 6/8: the top number is the clicks per bar, '
+                                   'the first one accented (default: 4/4)')
+    p.add_argument("--count-in", type=int, metavar="BARS", help="bars of count-in; 0 for none (default: 1)")
+    p.add_argument("--steady", action="store_true",
+                   help="one fixed tempo for the whole song instead of following it")
+    p.add_argument("--shift", type=int, default=0, metavar="N",
+                   help="move the accented first beat of the bar N beats later (negative: earlier), "
+                        "if it was detected on the wrong beat")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
                                    "(32-bit float) next to the original.")
@@ -72,6 +91,7 @@ def main():
                    help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
     sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
 
@@ -86,6 +106,16 @@ def main():
     elif args.command == "bpm":
         from . import bpm
         bpm.run(args.paths)
+    elif args.command == "click":
+        from . import click, config
+        settings = config.load()["click"]
+        click.run(args.paths,
+                  meter=args.meter or settings["meter"],
+                  count_in=args.count_in if args.count_in is not None else int(settings["count_in"]),
+                  steady=args.steady, shift=args.shift)
+    elif args.command == "config":
+        from . import config
+        config.show()
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)
