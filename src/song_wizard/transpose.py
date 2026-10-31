@@ -20,16 +20,24 @@ SCALE = 0.25
 
 
 def run(semitones, paths):
+    stretch(paths, ["-p", str(semitones)], f"{semitones:+g}")
+
+
+def stretch(paths, options, label):
+    """Run each file through rubberband with these options; writes "Title (label).wav"."""
     if not shutil.which("rubberband"):
         die('rubberband is missing. Run "song-wizard setup" to see how to install it.')
 
-    label = f"{semitones:+g}"
     with tempfile.TemporaryDirectory(prefix="song-wizard-") as tmp:
         src, dst = os.path.join(tmp, "in.wav"), os.path.join(tmp, "out.wav")
         for f in expand(paths):
-            audio, sr = load(f)
+            try:
+                audio, sr = load(f)
+            except subprocess.CalledProcessError:
+                print(f"  skipping {os.path.basename(f)}: could not read it")
+                continue
             save(src, audio * SCALE, sr)
-            result = subprocess.run(["rubberband", "--fine", "-q", "-p", str(semitones), src, dst],
+            result = subprocess.run(["rubberband", "--fine", "-q", *options, src, dst],
                                     capture_output=True, text=True)
             if result.returncode != 0:
                 die(result.stderr.strip() or result.stdout.strip())

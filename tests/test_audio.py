@@ -7,7 +7,7 @@ import pytest
 import soundfile as sf
 
 import synth
-from song_wizard import audio, bpm, click, convert, key, transpose
+from song_wizard import audio, bpm, click, convert, key, speed, transpose
 
 
 def click_onsets(track, threshold=1e-3, gap=0.02):
@@ -99,6 +99,59 @@ def test_transpose_changes_pitch_keeps_length_and_peaks(tmp_path, semitones, fre
     assert synth.dominant_freq(shifted[0]) == pytest.approx(freq, abs=1)
     # Peaks above 0 dB survive (rubberband alone would clip them at 1.0).
     assert np.abs(shifted).max() == pytest.approx(1.5, rel=0.02)
+
+
+def sped(src, percent, semitones=0):
+    speed.run(percent, [str(src)], semitones=semitones)
+    label = f"{percent:g}%" + (f", {semitones:+g}" if semitones else "")
+    data, sr = sf.read(audio.output_path(str(src), label), dtype="float32", always_2d=True)
+    assert sr == synth.SR
+    return data.T
+
+
+@pytest.mark.parametrize("percent", [25, 50, 80, 87.5, 150, 200])
+def test_speed_keeps_pitch_and_peaks(tmp_path, percent):
+    original = synth.sine(440, 4, peak=1.5)
+    src = synth.write(tmp_path / "tone.wav", original)
+    out = sped(src, percent)
+    assert out.shape == (2, round(original.shape[1] * 100 / percent))
+    assert synth.dominant_freq(out[0]) == pytest.approx(440, abs=1)
+    middle = out[:, out.shape[1] // 4:-out.shape[1] // 4]
+    assert np.abs(middle).max() == pytest.approx(1.5, rel=0.02)
+
+
+def test_speed_and_semitones(tmp_path):
+    src = synth.write(tmp_path / "tone.wav", synth.sine(440, 4))
+    out = sped(src, 80, semitones=-2)
+    assert out.shape[1] == 5 * synth.SR
+    assert synth.dominant_freq(out[0]) == pytest.approx(392, abs=1)
+
+
+@pytest.mark.parametrize("percent", [75, 125])
+def test_speed_moves_beats_to_the_new_tempo(tmp_path, percent):
+    click.run(120, bars=8, output=str(tmp_path))
+    (name,) = os.listdir(tmp_path)
+    out = sped(tmp_path / name, percent)
+    starts, _ = click_onsets(out[0], threshold=0.02)
+    expected = np.arange(32) * 0.5 * 100 / percent
+    assert len(starts) == 32
+    # A slowed-down attack spreads a little (up to ~4 ms at 75%), but never drifts.
+    assert np.abs(starts / synth.SR - expected).max() < 0.006
+
+
+@pytest.mark.parametrize("percent", [10, 24, 201])
+def test_speed_out_of_range(tmp_path, percent):
+    src = synth.write(tmp_path / "tone.wav", synth.sine(440, 1))
+    with pytest.raises(SystemExit):
+        speed.run(percent, [str(src)])
+
+
+def test_unreadable_file_is_skipped(tmp_path, capsys):
+    (tmp_path / "broken.wav").write_bytes(b"not audio")
+    good = synth.write(tmp_path / "good.wav", synth.sine(440, 1))
+    transpose.run(1, [str(tmp_path / "broken.wav"), str(good)])
+    assert "could not read" in capsys.readouterr().out
+    assert sorted(os.listdir(tmp_path)) == ["broken.wav", "good (+1).wav", "good.wav"]
 
 
 @pytest.mark.parametrize("k, minor", [("G", False), ("A", True), ("Eb", False), ("F#", True)])

@@ -6,7 +6,7 @@ import sys
 from . import __version__
 
 DESCRIPTION = ("Prepare songs for band practice: download, key and tempo detection, click tracks, "
-               "transposition and stem separation.")
+               "transposition, speed changes and stem separation.")
 
 EPILOG = """\
 examples:
@@ -15,6 +15,7 @@ examples:
   song-wizard bpm ~/Music/Show
   song-wizard click 120 --duration 4:30
   song-wizard transpose -2 "song.opus"
+  song-wizard speed 80 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
   song-wizard separate --stem all "song.opus"
@@ -75,6 +76,15 @@ def build_parser():
                                    "(32-bit float) next to the original.")
     p.add_argument("semitones", type=float, metavar="N",
                    help="semitones: +1 = half step up, +2 = whole step up, -1.5, ...")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+
+    p = sub.add_parser("speed", help="slow songs down or speed them up without changing the pitch",
+                       description='Change the speed without changing the pitch. Writes "Title (80%%).wav" '
+                                   "(32-bit float) next to the original; with --semitones, also shifts the "
+                                   'pitch in the same pass: "Title (80%%, -2).wav".')
+    p.add_argument("percent", type=float, metavar="PERCENT",
+                   help="speed in percent of the original: 80 = slower, 120 = faster (25 to 200)")
+    p.add_argument("--semitones", type=float, default=0, metavar="N", help="also shift the pitch, like transpose")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     from .separate import ALL, STEMS
@@ -158,6 +168,9 @@ def main(argv=None):
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)
+    elif args.command == "speed":
+        from . import speed
+        speed.run(args.percent, args.paths, semitones=args.semitones)
     elif args.command == "separate":
         from . import separate
         separate.run(args.stem, args.paths, force_cpu=args.cpu)

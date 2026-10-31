@@ -9,6 +9,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
 - **click**: genera una pista de click fija, con el tempo, el compás y la duración que quieras.
 - **transpose**: sube o baja el tono sin cambiar el tempo.
+- **speed**: hace un tema más lento (o más rápido) sin cambiar el tono, para sacarlo de a poco.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
 - **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
@@ -26,7 +27,7 @@ song-wizard está escrito en Python, pero usa algunos programas externos que hay
 | [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
 | [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio del video (y para generar los `.wav` con `--wav`). |
 | [**deno**](https://deno.com) | YouTube exige resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo y con muy buena calidad. | `transpose` le pasa los semitonos y genera el archivo `Título (+2).wav`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).wav`; `speed` le pasa la velocidad y genera `Título (80%).wav`. |
 
 En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y `build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada. En Mac no hace falta, porque el compilador ya lo instala Homebrew.
 
@@ -127,9 +128,9 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas, MP3). Con ▶ se escucha cualquiera.
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3). Con ▶ se escucha cualquiera.
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
-- **Acciones** sobre los temas elegidos: tonalidad, tempo, separar instrumentos, transponer, convertir y generar un click.
+- **Acciones** sobre los temas elegidos: tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con su avance en vivo; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de olvidarlas.
 
@@ -230,6 +231,18 @@ song-wizard transpose -1 "Música/Show"    # todos los temas de la carpeta
 
 El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `Título (+2).wav` al lado del original sin tocarlo. El tempo y la duración no cambian, así que sigue alineado con el click.
 
+### Cambiar la velocidad
+
+```bash
+song-wizard speed 80 "tema.opus"                   # al 80 %: más lento, mismo tono
+song-wizard speed 70 "tema (no guitar).wav"        # el tema sin tu instrumento, más lento
+song-wizard speed 90 --semitones -2 "tema.opus"    # más lento y un tono abajo, en un solo paso
+```
+
+El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `Título (80%).wav` (o `Título (90%, -2).wav`) al lado del original sin tocarlo.
+
+Sirve para sacar un tema de a poco: practicarlo al 70 %, después al 85 % y al final a velocidad normal. Para practicar con click, generá el click al tempo nuevo: si el tema va a 120 BPM, al 80 % va a 96. Cuanto más lento, más se nota que el audio está estirado, sobre todo en la batería.
+
 ### Separar instrumentos
 
 Cada uno pide su instrumento y recibe dos archivos: **el instrumento solo** y **el resto del tema sin ese instrumento**.
@@ -316,7 +329,7 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 - [Demucs](https://github.com/facebookresearch/demucs), de Meta: los modelos `htdemucs_ft` y `htdemucs_6s`.
 - [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, entrenado con el código de ZFTurbo.
 - [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
-- [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono.
+- [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
 - [ffmpeg](https://ffmpeg.org): lectura y conversión de audio.
 - [PyTorch](https://pytorch.org) y [uv](https://docs.astral.sh/uv/).
@@ -334,6 +347,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `bpm`: una batería a 90, 120 y 137 BPM da el tempo exacto (±0.5) y "estable".
 - `click`: cada golpe a menos de 0.1 ms de su posición teórica durante 10 minutos, también con tempos con decimales; acentos y subdivisiones en su lugar; la duración redondea a compases enteros.
 - `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
+- `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt`, la configuración, la carpeta de música y los registros de `archives`.
 - `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
@@ -370,6 +384,9 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |
 | `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |
+| `speed` sobre un click de 5 minutos a 120 BPM | Real | ✅ Ningún golpe se acumula atrasado ni adelantado a lo largo del tema; al 90 % o más caen a menos de 2 ms de su lugar, al 75 % a menos de 4 ms y al 50 % a unos 10 ms (el ataque del golpe se estira) |
+| `speed 80` y `speed 120 --semitones -2` sobre un tema de 4:33 | Real | ✅ 21 s cada uno; `key` da la misma tonalidad al 80 % y un tono abajo con −2; `bpm` da 103.1 → 82.5 y 123.6 (exacto); duración 5:41 y 3:47 |
+| `speed` con `--semitones` y con archivos ilegibles | Real | ✅ Velocidad y tono en un paso; un archivo que no se puede leer se saltea con un aviso |
 | `separate` de los 4 instrumentos en placa de video (tema de 5 min) | Real | ✅ 2 min 11 s en total |
 | Instrumento + resto contra el original | Real | ✅ Diferencia de 0.0000001 (redondeo de float) |
 | Batería contra la de UVR (`htdemucs`) | Real | ✅ Correlación 0.994, sin desfase |

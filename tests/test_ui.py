@@ -9,6 +9,8 @@ from http.server import ThreadingHTTPServer
 import pytest
 import soundfile as sf
 
+import synth
+
 from song_wizard import ui
 
 TOKEN = "test-token"
@@ -84,6 +86,7 @@ def test_paths_outside_the_music_folder(server, tmp_path):
     {"action": "rm"}, {"paths": []}, {"action": "key", "paths": []},
     {"action": "download", "url": "file:///etc/passwd"}, {"action": "convert", "paths": [""], "format": "exe"},
     {"action": "separate", "paths": [""], "stems": ["kazoo"]}, {"action": "transpose", "paths": [""], "semitones": "x"},
+    {"action": "speed", "paths": [""]}, {"action": "speed", "paths": [""], "percent": "fast"},
 ])
 def test_bad_requests(server, body):
     port, _ = server
@@ -157,9 +160,24 @@ def test_click_job(server):
     assert len(track) / sr == pytest.approx(2 * 3 * 60 / 90, abs=0.05)
 
 
+def test_speed_job(server):
+    port, root = server
+    synth.write(root / "tone.wav", synth.sine(440, 2))
+    response, content = request(port, "POST", "/api/jobs",
+                                {"action": "speed", "percent": 80, "semitones": -2, "paths": ["tone.wav"]})
+    job = json.loads(content)
+    assert job["title"] == "Velocidad 80% y tono -2: tone.wav"
+    status, lines = wait_for(port, job["id"])
+    assert status == "done", lines
+    song = get_json(port, "/api/library")["folders"][0]["songs"][0]
+    assert song["name"] == "tone.wav"
+    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).wav"]
+
+
 def test_failed_job(server):
     port, root = server
     (root / "broken.wav").write_bytes(b"not audio")
-    response, content = request(port, "POST", "/api/jobs", {"action": "transpose", "semitones": 1, "paths": ["broken.wav"]})
+    response, content = request(port, "POST", "/api/jobs",
+                                {"action": "click", "bpm": 120, "like": "broken.wav", "folder": ""})
     status, _ = wait_for(port, json.loads(content)["id"])
     assert status == "failed"

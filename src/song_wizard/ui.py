@@ -340,7 +340,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "convert", "click", "archives-delete"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "archives-delete"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             label = ", ".join(os.path.basename(p) or "carpeta principal" for p in paths)[:120]
@@ -364,6 +364,10 @@ def make_handler(token, root, runner, port):
             if action == "transpose":
                 n = float(body["semitones"])
                 return f"Transponer {n:+g}: {label}", ["transpose", f"{n:+g}", *paths]
+            if action == "speed":
+                percent, n = float(body["percent"]), float(body.get("semitones") or 0)
+                args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
+                return f"Velocidad {percent:g}%" + (f" y tono {n:+g}" if n else "") + f": {label}", args
             if action == "convert":
                 fmt = body.get("format", "mp3")
                 if fmt not in ("mp3", "m4a"):

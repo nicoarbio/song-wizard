@@ -13,6 +13,7 @@ DISPATCH = {
     "bpm": (["song.opus"], "bpm", "run"),
     "click": (["120"], "click", "run"),
     "transpose": (["--", "-2", "song.opus"], "transpose", "run"),
+    "speed": (["80", "song.opus"], "speed", "run"),
     "separate": (["--stem", "drums", "song.opus"], "separate", "run"),
     "convert": (["song.wav"], "convert", "run"),
     "archives": ([], "archives", "show"),
@@ -50,6 +51,14 @@ def test_transpose_negative_semitones(monkeypatch):
     monkeypatch.setattr(transpose, "run", lambda *a: calls.append(a))
     cli.main(["transpose", "--", "-2", "song.opus"])
     assert calls == [(-2.0, ["song.opus"])]
+
+
+def test_speed_with_semitones(monkeypatch):
+    from song_wizard import speed
+    calls = []
+    monkeypatch.setattr(speed, "run", lambda *a, **k: calls.append((a, k)))
+    cli.main(["speed", "87.5", "--semitones", "-2", "a.opus", "b.opus"])
+    assert calls == [((87.5, ["a.opus", "b.opus"]), {"semitones": -2.0})]
 
 
 def test_archives_delete(monkeypatch):
