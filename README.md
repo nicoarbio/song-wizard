@@ -91,7 +91,7 @@ Conviene hacerlo seguido: YouTube cambia a menudo y las descargas pueden dejar d
 |---|---|---|
 | song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
 | Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~1.3 GB si usás los cuatro instrumentos; se bajan la primera vez que se usa cada uno |
-| Registro de temas ya bajados | La misma carpeta, en `archives` | unos pocos KB |
+| Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
 | Tus temas | La carpeta Música (o la que elijas) | lo que bajes |
 
 Los modelos se bajan de fuentes públicas: los de Demucs, de los servidores de Meta (que lo creó),
