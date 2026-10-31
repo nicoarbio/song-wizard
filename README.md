@@ -12,6 +12,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **speed**: hace un tema más lento (o más rápido) sin cambiar el tono, para sacarlo de a poco.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
+- **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
 - **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
 
 Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
@@ -128,7 +129,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3). Con ▶ se escucha cualquiera. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3). Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
@@ -307,6 +308,18 @@ song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
 - No pisa archivos que ya existen; `--overwrite` los reemplaza.
 - Para trabajar en un DAW seguí usando los WAV: el MP3 pierde algo de calidad y agrega unos milisegundos de silencio al principio, así que no queda perfectamente alineado con el click ni con los otros stems.
 
+### Renombrar un tema
+
+```bash
+song-wizard rename "001 - Tema (Official Video).opus" "Tema"
+```
+
+Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav` o el `.mp3`, los stems, las versiones transpuestas o con otra velocidad, y sus líneas en `key.txt` y `bpm.txt`. Queda `001 - Tema.opus`, `001 - Tema (drums).wav`, etc. Se puede pasar cualquier archivo del tema, no solo el original.
+
+La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
+
+Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué video se bajó, no el nombre del archivo.
+
 ## Aviso legal
 
 song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
@@ -383,6 +396,9 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui`: acciones que no corresponden a lo elegido | Real | ✅ Separar solo se habilita con temas originales; cambiar el tono o la velocidad, con temas y stems pero no con versiones ya transpuestas o con otra velocidad; debajo de la acción se explica por qué |
 | `ui`: "abrir" una carpeta | Real (WSL) | ✅ Abre el Explorador de Windows en la carpeta, tanto en `C:` como en una carpeta de Linux (`\\wsl.localhost\...`); rechaza carpetas fuera de la de música. En Mac (`open`) y Linux (`xdg-open`) **no probado** a mano |
 | `ui`: barra de avance | Real | ✅ `speed` sobre 2 temas de 4:33 avanza de 0 a 100 % repartido entre los dos ("58% (2/2) other.opus"); la separación y las descargas muestran el porcentaje de cada paso; tonalidad y tempo, una barra animada sin porcentaje; el tiempo transcurrido se ve mientras corre y queda la duración al terminar |
+| `rename` en una carpeta de `C:` (disco de Windows) | Real | ✅ Renombra el tema y su versión al 80 % y actualiza `key.txt`; mantiene el `001 - `; un cambio solo de mayúsculas (`song` → `Song`) funciona; rechaza `:` y no toca nada |
+| `rename`: nombre ocupado o falla a mitad de camino | Simulada | ✅ No renombra nada, o deshace lo que ya había renombrado |
+| `ui`: renombrar con ✎ | Real | ✅ Enter guarda y Escape cancela; lo escrito no se pierde si la biblioteca se actualiza mientras tanto; el tema y su stem quedan con el nombre nuevo |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

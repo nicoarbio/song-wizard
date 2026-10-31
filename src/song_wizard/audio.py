@@ -20,6 +20,14 @@ GENERATED = re.compile(r" \(((no )?(vocals|drums|bass|guitar)|other|[+-]\d+(\.\d
                        r"|^Click \d+(\.\d+)? BPM \d+-\d+( x\d+)?$")
 
 
+def base_of(name):
+    """The song a file belongs to: 'Title (drums) (80%).wav' -> 'Title'; 'Title.mp3' -> 'Title'."""
+    stem = os.path.splitext(name)[0]
+    while (match := GENERATED.search(stem)) and match.start() > 0:
+        stem = stem[:match.start()]
+    return stem
+
+
 def die(msg):
     print(msg, file=sys.stderr)
     sys.exit(1)

@@ -25,7 +25,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import archives
-from .audio import AUDIO_EXTS, GENERATED
+from .audio import AUDIO_EXTS, GENERATED, base_of
 from .paths import is_wsl, music_dir
 
 PORT = 8765
@@ -145,16 +145,6 @@ def read_results(folder, command):
                 name, text = line.split("\t", 1)
                 found[name] = text.strip()
     return found
-
-
-def base_of(name):
-    """'Title (drums) (count-in).wav' -> 'Title'; 'Title.mp3' -> 'Title'."""
-    stem = os.path.splitext(name)[0]
-    while True:
-        match = GENERATED.search(stem)
-        if not match or match.start() == 0:
-            return stem
-        stem = stem[:match.start()]
 
 
 # When a song exists in several formats ("Title.opus" and "Title.wav" from download --wav, or
@@ -386,7 +376,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "archives-delete"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "archives-delete"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             label = ", ".join(os.path.basename(p) or "carpeta principal" for p in paths)[:120]
@@ -414,6 +404,11 @@ def make_handler(token, root, runner, port):
                 percent, n = float(body["percent"]), float(body.get("semitones") or 0)
                 args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
                 return f"Velocidad {percent:g}%" + (f" y tono {n:+g}" if n else "") + f": {label}", args
+            if action == "rename":
+                if len(paths) != 1:
+                    raise ValueError("se renombra de a un tema")
+                name = str(body["name"]).strip()
+                return f"Renombrar {label} → {name}", ["rename", paths[0], name]
             if action == "convert":
                 fmt = body.get("format", "mp3")
                 if fmt not in ("mp3", "m4a"):

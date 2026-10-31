@@ -189,6 +189,21 @@ def test_job_on_a_single_stem(server):
     assert sf.info(root / "tone (drums) (50%).wav").duration == pytest.approx(4)
 
 
+def test_rename_job(server):
+    port, root = server
+    for name in ["Song (HQ).opus", "Song (HQ) (drums).wav"]:
+        (root / name).write_bytes(b"x")
+    response, content = request(port, "POST", "/api/jobs", {"action": "rename", "paths": ["Song (HQ).opus"], "name": "Song"})
+    job = json.loads(content)
+    assert job["title"] == "Renombrar Song (HQ).opus → Song"
+    status, lines = wait_for(port, job["id"])
+    assert status == "done", lines
+    (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
+    assert song["name"] == "Song.opus" and [f["name"] for f in song["files"]] == ["Song (drums).wav"]
+    two = {"action": "rename", "paths": ["Song.opus", "Song (drums).wav"], "name": "X"}
+    assert request(port, "POST", "/api/jobs", two)[0].status == 400
+
+
 def test_failed_job(server):
     port, root = server
     (root / "broken.wav").write_bytes(b"not audio")

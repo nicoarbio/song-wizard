@@ -58,6 +58,8 @@
   .song:last-child { border-bottom: 0; }
   .song .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .song .title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+  .song .rename-box { flex: 1 1 200px; display: flex; gap: 6px; min-width: 0; }
+  .song .rename-box input { flex: 1; min-width: 0; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
   .badge.warn { color: var(--warn); }
   .files { list-style: none; margin: 4px 0 0 26px; padding: 0; font-size: 13px; }
@@ -377,12 +379,41 @@ function renderSong(song) {
   const check = el("input", { type: "checkbox", onchange: toggle(song.path) });
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song);
+  const title = state.renaming === song.path ? renameBox(song) : el("span", { class: "title" }, song.name);
   const li = el("li", { class: "song" },
     el("div", { class: "head" }, check,
       el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
-      el("span", { class: "title" }, song.name), badges));
+      title, badges,
+      state.renaming === song.path ? null : el("button", { class: "small", title: "Renombrar el tema (y sus stems, versiones y resultados)",
+        onclick: () => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); } }, "✎")));
   if (song.files.length) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
   return li;
+}
+
+// Inline rename: Enter saves, Escape cancels. Stems, versions and key/bpm results follow the
+// song (song-wizard rename does it all, or nothing if a name is taken).
+function renameBox(song) {
+  const ext = song.name.match(/\.[^.]+$/)[0];
+  // The library is redrawn when a job ends or the page gets focus: keep what was typed.
+  const first = state.renameDraft === undefined;
+  if (first) state.renameDraft = song.name.slice(0, -ext.length);
+  const input = el("input", { type: "text", value: state.renameDraft, "aria-label": "Nombre nuevo",
+                               oninput: (e) => { state.renameDraft = e.target.value; } });
+  const cancel = () => { state.renaming = null; state.renameDraft = undefined; renderLibrary(); };
+  const save = () => {
+    const name = input.value.trim();
+    if (!name || name === song.name.slice(0, -ext.length)) return cancel();
+    state.renaming = null;
+    state.renameDraft = undefined;
+    start({ action: "rename", paths: [song.path], name });
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); });
+  // Select the name but not its "001 - " number, which is kept anyway.
+  const number = (/^\d+ - /.exec(state.renameDraft) || [""])[0].length;
+  requestAnimationFrame(() => { input.focus(); if (first) input.setSelectionRange(number, input.value.length); });
+  return el("span", { class: "rename-box" }, input,
+    el("button", { class: "small primary", onclick: save }, "guardar"),
+    el("button", { class: "small", onclick: cancel }, "cancelar"));
 }
 
 function renderFile(file) {

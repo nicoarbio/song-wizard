@@ -19,19 +19,39 @@ def save(command, results):
 
     written = []
     for folder, new in by_folder.items():
-        out = os.path.join(folder, f"{command}.txt")
-        lines = {}
-        if os.path.exists(out):
-            with open(out, encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("#") or "\t" not in line:
-                        continue
-                    name, text = line.rstrip("\n").split("\t", 1)
-                    lines[name] = text
+        lines = read(folder, command)
         lines.update(new)
-        with open(out, "w", encoding="utf-8") as f:
-            f.write(HEADER.format(command=command, date=f"{datetime.datetime.now():%Y-%m-%d %H:%M}"))
-            for name in sorted(lines):
-                f.write(f"{name}\t{lines[name]}\n")
-        written.append(out)
+        written.append(write(folder, command, lines))
     return written
+
+
+def rename(folder, command, names):
+    """Follow renamed files ({old name: new name}). Returns whether anything changed."""
+    lines = read(folder, command)
+    if not any(name in lines for name in names):
+        return False
+    write(folder, command, {names.get(name, name): text for name, text in lines.items()})
+    return True
+
+
+def read(folder, command):
+    """{file name: result} from <folder>/<command>.txt; empty if there's none."""
+    lines = {}
+    path = os.path.join(folder, f"{command}.txt")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("#") or "\t" not in line:
+                    continue
+                name, text = line.rstrip("\n").split("\t", 1)
+                lines[name] = text
+    return lines
+
+
+def write(folder, command, lines):
+    path = os.path.join(folder, f"{command}.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(HEADER.format(command=command, date=f"{datetime.datetime.now():%Y-%m-%d %H:%M}"))
+        for name in sorted(lines):
+            f.write(f"{name}\t{lines[name]}\n")
+    return path

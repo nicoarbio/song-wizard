@@ -20,6 +20,7 @@ examples:
   song-wizard separate --stem vocals --stem guitar "song.opus"
   song-wizard separate --stem all "song.opus"
   song-wizard convert "song (no drums).wav"
+  song-wizard rename "001 - Song (Official Video).opus" "Song"
   song-wizard ui
 
 run "song-wizard COMMAND --help" for the options of each command.
@@ -113,6 +114,14 @@ def build_parser():
     p.add_argument("--overwrite", action="store_true", help="replace files that already exist")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    p = sub.add_parser("rename", help="rename a song together with its stems, versions and results",
+                       description="Renames the song and every file made from it (other formats, stems, "
+                                   'transposed and sped-up versions), and its lines in key.txt and bpm.txt. '
+                                   'The "001 - " numbering is kept unless the new name has its own. If any new '
+                                   "name is taken, nothing is renamed.")
+    p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
+    p.add_argument("name", metavar="NEW_NAME", help="the new name, without extension")
+
     p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
                        description="Lists each playlist downloaded so far and how many songs. --delete forgets "
                                    "some of them (by the numbers in the list) or all, so downloading them "
@@ -149,6 +158,9 @@ def main(argv=None):
     elif args.command == "convert":
         from . import convert
         convert.run(args.paths, fmt=args.format, overwrite=args.overwrite)
+    elif args.command == "rename":
+        from . import rename
+        rename.run(args.path, args.name)
     elif args.command == "archives":
         from . import archives
         if args.delete:
