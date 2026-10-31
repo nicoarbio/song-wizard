@@ -1,7 +1,8 @@
 """Stem separation with the UVR model zoo (via audio-separator).
 
 Each instrument uses the model that separates it best. "Rest" is the original mix minus
-the instrument, so instrument + rest always add back up to the exact original.
+the instrument, so instrument + rest always add back up to the exact original. With "all",
+"other" is the original minus the four instruments, so all five stems add back up to it too.
 """
 
 import logging
@@ -24,6 +25,7 @@ MODELS = {
     "guitar": ("htdemucs_6s.yaml", "guitar"),
 }
 STEMS = list(MODELS)
+ALL = "all"
 
 # The models work at 44.1 kHz, so outputs are 44.1 kHz too.
 SR = 44100
@@ -42,6 +44,11 @@ def run(stems, paths, force_cpu=False):
     print(f"Running on {desc}")
     if warning:
         print(f"Warning: {warning}")
+
+    # With all stems, the "no X" files would be redundant: muting a track gives the same.
+    every = ALL in stems
+    if every:
+        stems = STEMS
 
     by_model = defaultdict(list)
     for stem in dict.fromkeys(stems):
@@ -85,8 +92,19 @@ def run(stems, paths, force_cpu=False):
                     part, _ = sf.read(os.path.join(tmp, f"out-{name}.wav"), dtype="float32", always_2d=True)
                     part = fit(part.T / scale, mix.shape[1])
                     save(output_path(f, stem), part, SR)
-                    save(output_path(f, f"no {stem}"), mix - part, SR)
+                    if not every:
+                        save(output_path(f, f"no {stem}"), mix - part, SR)
                     print(f"  {stem:<6}  {output_path(f, stem)}")
+
+        if every:
+            for f, (scale, path) in mixes.items():
+                mix, _ = sf.read(path, dtype="float32", always_2d=True)
+                other = mix.T / scale
+                for stem in STEMS:
+                    part, _ = sf.read(output_path(f, stem), dtype="float32", always_2d=True)
+                    other -= part.T
+                save(output_path(f, "other"), other, SR)
+                print(f"  {'other':<6}  {output_path(f, 'other')}")
 
 
 def separator(model, wanted, device, tmp):

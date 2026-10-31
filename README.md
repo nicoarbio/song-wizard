@@ -171,6 +171,18 @@ Se pueden pedir varios a la vez y procesar una carpeta entera:
 song-wizard separate --stem drums --stem bass "Música/Show"
 ```
 
+Para tener **todos los stems** (por ejemplo, para mezclar en REAPER):
+
+```bash
+song-wizard separate --stem all "tema.opus"
+```
+
+Genera `Título (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` y `(other)`, donde "other" es todo
+lo demás: teclados, sintes, coros, efectos. Los cinco suman exactamente el tema original: con todos
+los faders a 0 dB suena igual que la grabación. No genera los "no X", porque se arman silenciando
+una pista. Como los stems salen de modelos distintos, "other" puede tener algún resto de los otros
+instrumentos.
+
 - Cada instrumento se separa con el modelo que mejor lo hace: Mel-Band Roformer para la voz,
   Demucs `htdemucs_ft` para batería y bajo, Demucs `htdemucs_6s` para la guitarra.
 - Instrumento + resto suman **exactamente** el tema original, y todo queda alineado.
@@ -219,6 +231,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `separate` de los 4 instrumentos en placa de video (tema de 5 min) | Real | ✅ 2 min 11 s en total |
 | Instrumento + resto contra el original | Real | ✅ Diferencia de 0.0000001 (redondeo de float) |
 | Batería contra la de UVR (`htdemucs`) | Real | ✅ Correlación 0.994, sin desfase |
+| `separate --stem all` (tema de 5 min) | Real | ✅ 2 min 18 s; los 5 stems suman el original (diferencia de 0.0000002) |
 | `separate --cpu` (30 s, 2 instrumentos) | Real | ✅ 124 s, contra 24 s en placa; mismo resultado |
 | Placa NVIDIA muy vieja (GTX 1080) | Simulada | ✅ Avisa y usa el procesador |
 | Placa NVIDIA con driver viejo | Simulada | ✅ Avisa que actualice el driver y usa el procesador |

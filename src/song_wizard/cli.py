@@ -14,6 +14,7 @@ examples:
   song-wizard transpose -2 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
+  song-wizard separate --stem all "song.opus"
 
 run "song-wizard COMMAND --help" for the options of each command.
 """
@@ -49,15 +50,17 @@ def main():
                    help="semitones: +1 = half step up, +2 = whole step up, -1.5, ...")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
-    from .separate import STEMS
+    from .separate import ALL, STEMS
     p = sub.add_parser("separate", help="split out instruments: the instrument alone plus everything else",
                        description='For each --stem, writes "Title (drums).wav" (the instrument alone) and '
                                    '"Title (no drums).wav" (everything else) next to the original, as 44.1 kHz '
                                    "32-bit float WAV. The two always add up to the exact original. Models are "
                                    "downloaded the first time they are used. Runs on an NVIDIA GPU (GTX 16 / "
                                    "RTX 20 or newer) or an Apple Silicon GPU when available, else on the CPU.")
-    p.add_argument("--stem", action="append", required=True, choices=STEMS,
-                   help="instrument to separate; repeat for several")
+    p.add_argument("--stem", action="append", required=True, choices=[*STEMS, ALL],
+                   help='instrument to separate; repeat for several. "all" writes the four '
+                        'instruments plus "Title (other).wav" (everything else: keys, synths, '
+                        'backing vocals...), without the "no X" files; the five add up to the original')
     p.add_argument("--cpu", action="store_true",
                    help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
