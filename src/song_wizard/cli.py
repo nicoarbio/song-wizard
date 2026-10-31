@@ -19,6 +19,7 @@ examples:
   song-wizard separate --stem vocals --stem guitar "song.opus"
   song-wizard separate --stem all "song.opus"
   song-wizard convert "song (no drums).wav"
+  song-wizard ui
 
 run "song-wizard COMMAND --help" for the options of each command.
 """
@@ -109,6 +110,13 @@ def main():
     p.add_argument("--delete", nargs="+", metavar="N", help='numbers from the list, or "all"')
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
 
+    p = sub.add_parser("ui", help="open the interface in the browser (same commands, without the terminal)",
+                       description="Starts a local server (only reachable from this computer) and opens the "
+                                   "interface in the browser; on WSL, the Windows browser. Keep the terminal "
+                                   "open while using it; Ctrl+C closes it.")
+    p.add_argument("--port", type=int, default=8765, help="local port (default: 8765, or the next free one)")
+    p.add_argument("--no-browser", action="store_true", help="don't open the browser, just print the link")
+
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
     sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
@@ -133,6 +141,9 @@ def main():
             archives.delete(args.delete, yes=args.yes)
         else:
             archives.show()
+    elif args.command == "ui":
+        from . import ui
+        ui.run(port=args.port, open_page=not args.no_browser)
     elif args.command == "config":
         from . import config
         config.show()

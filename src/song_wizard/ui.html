@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>song-wizard</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1c1a; --muted: #6b6862; --line: #e3e0da;
+    --accent: #2f6f5e; --accent-ink: #ffffff; --soft: #eef4f1; --warn: #9a5b13; --bad: #a33a2e;
+    --radius: 10px; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151615; --panel: #1e201f; --ink: #ecebe7; --muted: #9c9a94; --line: #2f3230;
+      --accent: #5fb39a; --accent-ink: #0f1a16; --soft: #1f2c27; --warn: #d9a25b; --bad: #e07a6c;
+      --shadow: none; color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header .root { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  form.download { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 280px; min-width: 0; }
+  form.download input[type=url] { flex: 1 1 220px; min-width: 0; }
+  main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 16px; padding: 16px 20px 110px; max-width: 1400px; margin: 0 auto; }
+  main > div { min-width: 0; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding-left: 12px; padding-right: 12px; } header { padding: 12px; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  h3 { font-size: 14px; margin: 0; }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=url], input[type=text], input[type=number], select { background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+  input[type=number] { width: 84px; }
+  button { background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .muted { color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .filter { width: 100%; margin-bottom: 10px; }
+  details.folder { border-top: 1px solid var(--line); padding: 8px 0; }
+  details.folder:first-of-type { border-top: 0; }
+  details.folder > summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; }
+  details.folder > summary::-webkit-details-marker { display: none; }
+  details.folder > summary::before { content: "▸"; color: var(--muted); width: 10px; }
+  details.folder[open] > summary::before { content: "▾"; }
+  .count { color: var(--muted); font-size: 12px; }
+  .songs { list-style: none; margin: 6px 0 0; padding: 0 0 0 20px; }
+  .song { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .song:last-child { border-bottom: 0; }
+  .song .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .song .title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
+  .badge.warn { color: var(--warn); }
+  .files { list-style: none; margin: 4px 0 0 26px; padding: 0; font-size: 13px; }
+  .files li { display: flex; gap: 6px; align-items: center; padding: 1px 0; }
+  .files .fname { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+  .play { width: 26px; height: 22px; padding: 0; }
+  .selection { font-size: 13px; margin-bottom: 10px; }
+  .action { border-top: 1px solid var(--line); padding: 10px 0; }
+  .action:first-of-type { border-top: 0; padding-top: 0; }
+  .action h3 { margin-bottom: 6px; }
+  .job { border-top: 1px solid var(--line); padding: 8px 0; }
+  .job:first-child { border-top: 0; }
+  .job .head { display: flex; gap: 8px; align-items: center; }
+  .job .title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .status { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); white-space: nowrap; }
+  .status.running { color: var(--accent); } .status.failed { color: var(--bad); } .status.queued, .status.cancelled { color: var(--muted); }
+  .progress { font: 12px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+  pre.log { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 8px; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; }
+  .empty { color: var(--muted); padding: 6px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .player { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 14px; align-items: center; z-index: 3; }
+  .player .now { flex: 0 1 35%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .player audio { flex: 1; min-width: 0; }
+  .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
+  .toast.show { opacity: .92; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>song-wizard</h1>
+    <div class="root" id="root"></div>
+  </div>
+  <form class="download" id="download">
+    <input type="url" id="url" placeholder="Pegá la URL de un video o una playlist de YouTube" required>
+    <label class="muted"><input type="checkbox" id="wav"> también .wav</label>
+    <button class="primary" type="submit">Bajar</button>
+  </form>
+</header>
+
+<main>
+  <div>
+    <section>
+      <h2>Biblioteca</h2>
+      <input type="text" class="filter" id="filter" placeholder="Filtrar temas…">
+      <div id="library"><p class="empty">Cargando…</p></div>
+    </section>
+    <section>
+      <h2>Playlists bajadas</h2>
+      <div id="archives"><p class="empty">Cargando…</p></div>
+    </section>
+  </div>
+
+  <div>
+    <section>
+      <h2>Acciones</h2>
+      <div class="selection" id="selection"></div>
+
+      <div class="action">
+        <h3>Analizar</h3>
+        <div class="row">
+          <button data-needs="songs" id="do-key">Tonalidad</button>
+          <button data-needs="songs" id="do-bpm">Tempo</button>
+        </div>
+        <p class="hint">Los resultados quedan en key.txt y bpm.txt, en la carpeta de cada tema.</p>
+      </div>
+
+      <div class="action">
+        <h3>Separar instrumentos</h3>
+        <div class="row" id="stems">
+          <label><input type="checkbox" value="vocals"> Voz</label>
+          <label><input type="checkbox" value="drums"> Batería</label>
+          <label><input type="checkbox" value="bass"> Bajo</label>
+          <label><input type="checkbox" value="guitar"> Guitarra</label>
+          <label><input type="checkbox" value="all"> Todos</label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label class="muted"><input type="checkbox" id="cpu"> usar el procesador</label>
+          <button data-needs="songs" class="primary" id="do-separate">Separar</button>
+        </div>
+        <p class="hint">Cada instrumento da dos archivos: el instrumento solo y el resto del tema. "Todos" da los 4 más "other", sin los "no X".</p>
+      </div>
+
+      <div class="action">
+        <h3>Cambiar el tono</h3>
+        <div class="row">
+          <label>Semitonos <input type="number" id="semitones" value="-1" step="0.5" min="-24" max="24"></label>
+          <button data-needs="songs" id="do-transpose">Transponer</button>
+        </div>
+        <p class="hint">+1 = medio tono arriba, +2 = un tono. El tempo no cambia.</p>
+      </div>
+
+      <div class="action">
+        <h3>Convertir para compartir</h3>
+        <div class="row">
+          <select id="format"><option value="mp3">MP3</option><option value="m4a">M4A</option></select>
+          <button data-needs="songs" id="do-convert">Convertir los elegidos</button>
+        </div>
+        <p class="hint">Para un stem o una versión transpuesta, usá el botón MP3 al lado de cada archivo.</p>
+      </div>
+
+      <div class="action">
+        <h3>Pista de click</h3>
+        <div class="row">
+          <label>BPM <input type="number" id="click-bpm" value="120" step="0.1" min="20" max="400"></label>
+          <label>Compás <input type="text" id="click-meter" value="4/4" size="4"></label>
+          <label>Subdividir <select id="click-sub"><option value="1">no</option><option value="2">corcheas</option><option value="3">tresillos</option><option value="4">semicorcheas</option></select></label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <label><input type="radio" name="click-len" value="like" checked> tan largo como el tema elegido</label>
+          <label><input type="radio" name="click-len" value="duration"> <input type="text" id="click-duration" value="4:00" size="5"> min</label>
+          <label><input type="radio" name="click-len" value="bars"> <input type="number" id="click-bars" value="32" min="1"> compases</label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="do-click">Generar click</button>
+        </div>
+        <p class="hint">Si el tema elegido ya tiene tempo detectado, se usa ese BPM. Se guarda en la carpeta del tema.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Trabajos</h2>
+      <div id="jobs"><p class="empty">Todavía no corriste nada.</p></div>
+    </section>
+  </div>
+</main>
+
+<div class="player">
+  <span class="now" id="now">Elegí un archivo con ▶ para escucharlo</span>
+  <audio id="audio" controls preload="none"></audio>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const token = new URLSearchParams(location.search).get("t") || "";
+const $ = (id) => document.getElementById(id);
+const state = { folders: [], selected: new Set(), closedFolders: new Set(), openJob: null, logs: {}, lastDone: new Set() };
+
+async function api(path, body) {
+  const options = { headers: { "X-Token": token } };
+  if (body !== undefined) {
+    options.method = "POST";
+    options.headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
+  }
+  const res = await fetch(path, options);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v === true ? "" : v);
+  }
+  // Text only: file names come from YouTube titles and must never be parsed as HTML.
+  for (const c of children.flat()) if (c !== null && c !== undefined) node.append(c instanceof Node ? c : String(c));
+  return node;
+}
+
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 3500);
+}
+
+function play(file) {
+  const audio = $("audio");
+  audio.src = `/api/audio?path=${encodeURIComponent(file.path)}&t=${encodeURIComponent(token)}`;
+  $("now").textContent = file.name;
+  audio.play().catch(() => toast("El navegador no pudo reproducir ese formato."));
+}
+
+function songByPath(path) {
+  for (const f of state.folders) for (const s of f.songs) if (s.path === path) return { song: s, folder: f };
+  return null;
+}
+
+function bpmNumber(text) {
+  const m = /([\d.]+)\s*BPM/.exec(text || "");
+  return m ? parseFloat(m[1]) : null;
+}
+
+function renderLibrary() {
+  const filter = $("filter").value.trim().toLowerCase();
+  const box = $("library");
+  box.replaceChildren();
+  const visible = state.folders.filter((f) => f.songs.length || f.extras.length);
+  if (!visible.length) {
+    box.append(el("p", { class: "empty" }, "No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música."));
+    return;
+  }
+  for (const folder of visible) {
+    const songs = folder.songs.filter((s) => !filter || s.name.toLowerCase().includes(filter));
+    if (filter && !songs.length) continue;
+    const allChecked = songs.length && songs.every((s) => state.selected.has(s.path));
+    const toggleAll = el("input", { type: "checkbox", title: "Elegir todos", onclick: (e) => {
+      e.stopPropagation();
+      for (const s of songs) e.target.checked ? state.selected.add(s.path) : state.selected.delete(s.path);
+      renderLibrary(); renderSelection();
+    }});
+    toggleAll.checked = !!allChecked;
+    const n = folder.songs.length;
+    const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
+      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`)));
+    details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
+    const list = el("ul", { class: "songs" });
+    for (const song of songs) list.append(renderSong(song));
+    details.append(list);
+    if (folder.extras.length && !filter) {
+      details.append(el("ul", { class: "files" }, folder.extras.map(renderFile)));
+    }
+    box.append(details);
+  }
+}
+
+function renderSong(song) {
+  const check = el("input", { type: "checkbox", onchange: (e) => {
+    e.target.checked ? state.selected.add(song.path) : state.selected.delete(song.path);
+    renderSelection(); renderLibrary();
+  }});
+  check.checked = state.selected.has(song.path);
+  const badges = [];
+  if (song.key) badges.push(el("span", { class: "badge" + (song.key.includes("uncertain") ? " warn" : ""), title: song.key }, song.key.split(/\s+/)[0]));
+  if (song.bpm) badges.push(el("span", { class: "badge" + (/uncertain|varies/.test(song.bpm) ? " warn" : ""), title: song.bpm }, `${bpmNumber(song.bpm)} BPM`));
+  const li = el("li", { class: "song" },
+    el("div", { class: "head" }, check,
+      el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
+      el("span", { class: "title" }, song.name), badges));
+  if (song.files.length) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
+  return li;
+}
+
+function renderFile(file) {
+  const lossless = /\.(wav|flac|aiff?)$/i.test(file.name);
+  return el("li", {},
+    el("button", { class: "play small", title: "Escuchar", onclick: () => play(file) }, "▶"),
+    el("span", { class: "fname" }, file.name),
+    el("span", { class: "count" }, `${(file.size / 1e6).toFixed(1)} MB`),
+    lossless ? el("button", { class: "small", title: "Convertir a MP3 para compartir",
+      onclick: () => start({ action: "convert", format: $("format").value, paths: [file.path] }) }, "MP3") : null);
+}
+
+function renderSelection() {
+  const n = state.selected.size;
+  const box = $("selection");
+  box.replaceChildren(n
+    ? el("span", {}, `${n} tema${n === 1 ? "" : "s"} elegido${n === 1 ? "" : "s"} `, el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar"))
+    : el("span", { class: "muted" }, "Elegí temas en la biblioteca (o todos los de una carpeta con su casilla)."));
+  for (const b of document.querySelectorAll("[data-needs=songs]")) b.disabled = !n;
+  const first = n ? songByPath([...state.selected][0]) : null;
+  const detected = first ? bpmNumber(first.song.bpm) : null;
+  if (detected && n === 1) $("click-bpm").value = detected;
+}
+
+function renderArchives(rows) {
+  const box = $("archives");
+  box.replaceChildren();
+  if (!rows.length) { box.append(el("p", { class: "empty" }, "Todavía no bajaste nada.")); return; }
+  const table = el("table", {}, el("tr", {}, el("th", {}, "Playlist"), el("th", {}, "Temas"), el("th", {}, "Última"), el("th", {})));
+  for (const r of rows) {
+    table.append(el("tr", {}, el("td", {}, r.title), el("td", {}, r.songs), el("td", { class: "muted" }, r.changed),
+      el("td", {}, el("button", { class: "small", title: "La próxima vez se baja entera de nuevo. Los temas no se borran.",
+        onclick: () => confirmForget([r.number], r.title) }, "olvidar"))));
+  }
+  box.append(table, el("p", { class: "hint" }, "Olvidar una playlist hace que la próxima vez se baje entera de nuevo. Nunca borra los temas."));
+}
+
+function confirmForget(numbers, title) {
+  // A two-step button instead of confirm(), which some browsers block in local pages.
+  const msg = `¿Olvidar "${title}"? Tocá "olvidar" otra vez en 5 segundos para confirmar.`;
+  if (confirmForget.pending === title) {
+    confirmForget.pending = null;
+    start({ action: "archives-delete", numbers });
+  } else {
+    confirmForget.pending = title;
+    toast(msg);
+    setTimeout(() => { if (confirmForget.pending === title) confirmForget.pending = null; }, 5000);
+  }
+}
+
+function renderJobs(jobs) {
+  const box = $("jobs");
+  box.replaceChildren();
+  if (!jobs.length) { box.append(el("p", { class: "empty" }, "Todavía no corriste nada.")); return; }
+  const names = { queued: "en espera", running: "corriendo", done: "listo", failed: "falló", cancelled: "cancelado" };
+  for (const job of [...jobs].reverse()) {
+    const open = state.openJob === job.id;
+    const div = el("div", { class: "job" },
+      el("div", { class: "head" },
+        el("span", { class: `status ${job.status}` }, names[job.status] || job.status),
+        el("span", { class: "title" }, job.title),
+        ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, "cancelar") : null,
+        el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
+    if (job.progress) div.append(el("div", { class: "progress" }, job.progress));
+    if (open) {
+      const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || "(sin salida todavía)");
+      div.append(pre);
+      requestAnimationFrame(() => { pre.scrollTop = pre.scrollHeight; });
+    }
+    box.append(div);
+  }
+}
+
+async function start(request) {
+  try {
+    const job = await api("/api/jobs", request);
+    state.openJob = job.id;
+    toast(`En marcha: ${job.title}`);
+    poll();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
+async function refresh() {
+  try {
+    const lib = await api("/api/library");
+    $("root").textContent = `Carpeta de música: ${lib.root}`;
+    state.folders = lib.folders;
+    const existing = new Set(lib.folders.flatMap((f) => f.songs.map((s) => s.path)));
+    for (const p of [...state.selected]) if (!existing.has(p)) state.selected.delete(p);
+    renderLibrary(); renderSelection();
+    renderArchives(await api("/api/archives"));
+  } catch (e) {
+    $("library").replaceChildren(el("p", { class: "empty" }, `No se pudo cargar: ${e.message}`));
+  }
+}
+
+async function poll() {
+  clearTimeout(poll.timer);
+  try {
+    const id = state.openJob;
+    const since = id && state.logs[id] ? state.logs[id].length : 0;
+    const jobs = await api(`/api/jobs?job=${id || 0}&since=${since}`);
+    let finished = false;
+    for (const job of jobs) {
+      if (job.id === id) state.logs[id] = (state.logs[id] || []).concat(job.lines);
+      if (["done", "failed", "cancelled"].includes(job.status) && !state.lastDone.has(job.id)) {
+        state.lastDone.add(job.id);
+        finished = true;
+      }
+    }
+    renderJobs(jobs);
+    if (finished) refresh();
+    const busy = jobs.some((j) => ["queued", "running"].includes(j.status));
+    poll.timer = setTimeout(poll, busy ? 1000 : 4000);
+  } catch (e) {
+    poll.timer = setTimeout(poll, 5000);
+  }
+}
+
+const selectedPaths = () => [...state.selected];
+
+$("download").addEventListener("submit", (e) => {
+  e.preventDefault();
+  start({ action: "download", url: $("url").value, wav: $("wav").checked });
+  $("url").value = "";
+});
+$("filter").addEventListener("input", renderLibrary);
+$("do-key").onclick = () => start({ action: "key", paths: selectedPaths() });
+$("do-bpm").onclick = () => start({ action: "bpm", paths: selectedPaths() });
+$("do-separate").onclick = () => {
+  const stems = [...document.querySelectorAll("#stems input:checked")].map((i) => i.value);
+  if (!stems.length) return toast("Elegí al menos un instrumento.");
+  start({ action: "separate", stems, cpu: $("cpu").checked, paths: selectedPaths() });
+};
+$("do-transpose").onclick = () => start({ action: "transpose", semitones: parseFloat($("semitones").value), paths: selectedPaths() });
+$("do-convert").onclick = () => start({ action: "convert", format: $("format").value, paths: selectedPaths() });
+$("do-click").onclick = () => {
+  const mode = document.querySelector("input[name=click-len]:checked").value;
+  const first = selectedPaths()[0];
+  const where = first ? songByPath(first) : null;
+  const request = { action: "click", bpm: parseFloat($("click-bpm").value), meter: $("click-meter").value,
+                    subdivide: parseInt($("click-sub").value, 10), folder: where ? where.folder.path : "" };
+  if (mode === "like") {
+    if (!first) return toast('Elegí un tema para "tan largo como el tema", o poné una duración.');
+    request.like = first;
+  } else if (mode === "bars") request.bars = parseInt($("click-bars").value, 10);
+  else request.duration = $("click-duration").value;
+  start(request);
+};
+// "Todos" and single instruments are exclusive.
+$("stems").addEventListener("change", (e) => {
+  const all = document.querySelector('#stems input[value=all]');
+  if (e.target === all && all.checked) for (const i of document.querySelectorAll("#stems input")) { if (i !== all) i.checked = false; }
+  else if (e.target !== all && e.target.checked) all.checked = false;
+});
+
+refresh();
+poll();
+</script>
+</body>
+</html>

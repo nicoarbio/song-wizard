@@ -9,6 +9,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **transpose**: sube o baja el tono sin cambiar el tempo.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
+- **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
 
 Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
 
@@ -115,6 +116,24 @@ rm -rf ~/Library/Application\ Support/song-wizard    # Mac
 Tus temas no se tocan. Si no usás ffmpeg, deno, rubberband ni uv para otra cosa, también podés desinstalarlos con `brew uninstall` (Mac) o `sudo apt remove` (Linux).
 
 ## Uso
+
+### Interfaz en el navegador
+
+```bash
+song-wizard ui
+```
+
+Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
+
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas, MP3). Con ▶ se escucha cualquiera.
+- **Bajar**: pegás la URL de un video o una playlist arriba de todo.
+- **Acciones** sobre los temas elegidos: tonalidad, tempo, separar instrumentos, transponer, convertir y generar un click.
+- **Trabajos**: lo que está corriendo, con su avance en vivo; se puede cancelar. Corren de a uno.
+- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de olvidarlas.
+
+La página solo funciona mientras la terminal donde la abriste siga abierta; Ctrl+C la cierra. Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
+
+Todo lo que hace la interfaz se puede hacer también con los comandos de abajo, que son los que la interfaz usa por detrás.
 
 ### Bajar temas
 
@@ -323,6 +342,10 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `archives --delete` con número inexistente, texto inválido o sin confirmar | Real | ✅ No borra nada y explica por qué |
 | `archives --delete all --yes` | Real | ✅ Borra los registros; los temas bajados quedan intactos |
 | `click` a 120 BPM 4/4, 96 BPM 3/4, 105.6 BPM durante 10 minutos, con tresillos y `--like` | Real | ✅ Cada golpe a 0.03 ms de su posición teórica (redondeo a la muestra), también a los 10 minutos; cantidad de golpes, acentos y subdivisiones correctos; `--like` cubre todo el tema |
+| `ui`: seguridad | Real | ✅ Sin clave, con clave incorrecta o con otro dominio responde 403; rutas fuera de la carpeta de música, rechazadas; acciones que no existen, rechazadas |
+| `ui`: todos los trabajos desde la API (tonalidad, tempo, transponer, separar, convertir, click, bajar, olvidar registros) | Real | ✅ Todos terminan bien; el avance de la separación se ve en vivo; cancelar a mitad de una separación la detiene |
+| `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
+| `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |
 | `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |
