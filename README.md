@@ -151,6 +151,22 @@ song-wizard download "https://www.youtube.com/watch?v=..."
 - Para volver a bajar temas que ya están en el registro: agregá `--no-download-archive` al final. Si
   los archivos siguen en la carpeta, sumá también `--force-overwrites`, porque si no se saltean igual.
 
+Para ver qué playlists bajaste y cuántos temas de cada una:
+
+```bash
+song-wizard archives
+```
+
+```
+   #  Playlist                 Songs  Last download
+   1  Showww dic-2026             11  2026-10-31 18:44
+   2  Singles (single videos)      1  2026-10-31 18:44
+```
+
+Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo:
+`song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y
+nunca borra los temas ya bajados.
+
 ### Detectar la tonalidad
 
 ```bash
@@ -307,6 +323,10 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `click --steady` sobre el tema que acelera | Real | ✅ Avisa que el click se va a desfasar |
 | `click --count-in 2` con stems al lado | Real | ✅ Click, tema y stems con count-in del mismo largo exacto |
 | `download --no-download-archive` | Real (sin descargar) | ✅ Ignora el registro y no lo modifica |
+| `download` + `archives` (2 temas de una playlist y un video suelto) | Real | ✅ Guarda el nombre de la playlist; la lista muestra la playlist con 2 temas y los sueltos con 1 |
+| `archives` con un registro anterior, sin nombre guardado | Real | ✅ Busca el nombre en YouTube una vez y lo guarda |
+| `archives --delete` con número inexistente, texto inválido o sin confirmar | Real | ✅ No borra nada y explica por qué |
+| `archives --delete all --yes` | Real | ✅ Borra los registros; los temas bajados quedan intactos |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
 | `transpose 0` | Real | ✅ Idéntico al original |
 | `transpose` sobre un click sintético | Real | ✅ Los golpes se corren menos de 1 ms con ±2 y −3 semitonos, unos 2 ms con +7 |

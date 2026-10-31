@@ -91,6 +91,13 @@ def main():
                    help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
+                       description="Lists each playlist downloaded so far and how many songs. --delete forgets "
+                                   "some of them (by the numbers in the list) or all, so downloading them "
+                                   "again gets every song again. Downloaded songs are never deleted.")
+    p.add_argument("--delete", nargs="+", metavar="N", help='numbers from the list, or "all"')
+    p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
+
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
     sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
@@ -113,6 +120,12 @@ def main():
                   meter=args.meter or settings["meter"],
                   count_in=args.count_in if args.count_in is not None else int(settings["count_in"]),
                   steady=args.steady, shift=args.shift)
+    elif args.command == "archives":
+        from . import archives
+        if args.delete:
+            archives.delete(args.delete, yes=args.yes)
+        else:
+            archives.show()
     elif args.command == "config":
         from . import config
         config.show()
