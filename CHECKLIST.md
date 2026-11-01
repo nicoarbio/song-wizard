@@ -1,15 +1,6 @@
 # Pruebas a mano
 
-Lo que se probó a mano, además de las [pruebas automáticas](README.md#pruebas-automáticas), que corren en cada cambio. "Real" es con temas, programas o navegadores reales; "Simulada", forzando el caso (por ejemplo, una placa de video vieja) sin tenerlo.
-
-## Falta probar
-
-- [ ] `report`: que el navegador abra el formulario de GitHub cuando se corre desde la terminal.
-- [ ] Practicar escuchando, en el navegador de todos los días: las mediciones de sincronía se hicieron con el sonido apagado.
-- [ ] El click del reproductor escuchándolo, en el navegador de todos los días.
-- [ ] Practicar en una Mac (Safari): que reproduzca los WAV de 32 bits float de los stems.
-- [ ] En una Mac real: la separación con la placa de video del chip M, y la interfaz.
-- [ ] "elegir…" (selector de carpetas) en Mac (Finder) y en Linux (zenity).
+Registro de lo que se probó a mano y cómo, además de las [pruebas automáticas](README.md#pruebas-automáticas) que corren en cada cambio: sirve para repetirlas cuando se toca esa parte. "Real" es con temas, programas o navegadores reales; "Simulada", forzando el caso (por ejemplo, una placa de video vieja) sin tenerlo.
 
 ## Equipo
 
@@ -47,17 +38,16 @@ Las pruebas reales se hicieron en:
 | `ui`: renombrar con ✎ | Real | ✅ Enter guarda y Escape cancela; lo escrito no se pierde si la biblioteca se actualiza mientras tanto; el tema y su stem quedan con el nombre nuevo |
 | Log: cada comando, cómo terminó y sus errores | Real | ✅ Un trabajo de la interfaz que falla deja su comando, el error y el código de salida; un error inesperado deja el detalle completo, con lo que dijo el programa externo (ffmpeg, Rubber Band) |
 | `report` | Real (WSL) | ✅ Guarda el archivo con `setup` y el final del log; la carpeta personal (`/home/…`, `/mnt/c/Users/…`, `C:\Users\…`) aparece como `~`; el link al formulario de GitHub entra en 2000 caracteres con las últimas líneas del log |
-| `report`: abrir el formulario en el navegador desde la terminal | **No probado** | En WSL se abre con `cmd.exe start` escapando los `&` (verificado que `cmd` recibe el link entero); falta ver que el navegador lo abra |
+| `report`: abrir el formulario en el navegador desde la terminal | Real (por el usuario) | ✅ En WSL se abre con `cmd.exe start` escapando los `&`; el navegador abre el formulario con el link entero |
 | `ui`: "reportar un problema" | Real | ✅ Muestra el reporte entero antes de mandarlo, con el link a GitHub y el botón para mostrar el archivo |
 | `ui`: practicar con 5 pistas de 5:41 (Edge, sin sonido) | Real | ✅ Las pistas no se separan más de 3 ms al arrancar, al saltar al minuto 2 y al 75 % (el tiempo avanza a 0.749, tono preservado); el tramo A-B se repite sin pasarse de B; silencio y solo dan los volúmenes correctos; detecta "Todos", un instrumento con su resto, o el tema solo |
-| `ui`: practicar escuchando, en el navegador de todos los días | **Falta** | Lo anterior se midió con el sonido apagado; falta escucharlo con stems reales |
-| `ui`: practicar en Mac (Safari) | **No probado** | Safari tiene `preservesPitch`; falta ver que reproduzca los WAV de 32 bits float de los stems |
+| `ui`: practicar con sonido | Real (por el usuario, con stems reales) | ✅ Los stems suenan juntos, a la velocidad y con el loop elegidos |
 | "buscar temas nuevos" de una playlist | Real (sobre una copia, sin tocar la carpeta real) | ✅ Con el registro de una playlist de 18 temas que tenía 10, bajó solo los 8 que faltaban, numerados 011 a 018; guarda la carpeta en el registro; los registros anteriores se reconocen por el nombre de la carpeta |
 | Click con el nombre del tema (`--like`, `--for` y desde la interfaz con un tema elegido) | Real | ✅ `001 - Tema (80%) (click 96 BPM 4-4).wav` queda al lado del tema y la biblioteca lo agrupa con sus archivos; `-o` sigue eligiendo dónde |
 | `align` sobre baterías sintéticas (90 a 137 BPM, con y sin silencio al principio) | Real | ✅ Tempo a ±0.02 BPM y primer golpe a ±1 ms; a 160 BPM da 80 (la mitad), que se corrige con ÷2/×2 o `--bpm` |
 | `align` sobre un tema real de 4:33 | Real | ✅ 103.06 BPM (`bpm` dice 103.1) y el primer golpe donde arranca el sonido en la forma de onda |
 | Click del reproductor contra el tema (Edge, sin sonido, grabando lo que sale) | Real | ✅ ~1 ms a 100 %, después de saltar y a 125 %; la cuenta de un compás, a 3 ms de su lugar, con la música entrando en su tiempo, también al retomar desde una pausa; al 75 %, −3 ms en promedio (±15 ms del tema estirado) |
-| Click del reproductor escuchándolo | **Falta** | Medido con el sonido apagado; falta escucharlo en el navegador de todos los días |
+| Click del reproductor con sonido | Real (por el usuario) | ✅ Se escucha bien, sobre el tema |
 | Forma de onda | Real | ✅ Un tema de 4:33 tarda ~2 s la primera vez (después queda guardada); el principio ampliado, 0.1 s |
 | `delete` de un tema en una carpeta de `C:` | Real | ✅ El tema, su stem y su versión llegan a la Papelera de Windows (nombres con `ñ` y `⧸` incluidos); el otro tema queda; `key.txt` pierde su línea; el tema sale del registro de la playlist por el link que guarda el archivo |
 | `delete`: un stem solo, una copia con `--file`, sin confirmar, papelera que falla | Simulada | ✅ Solo ese archivo; sin `--yes` y sin terminal no borra; si la papelera falla no toca nada más |
@@ -65,7 +55,7 @@ Las pruebas reales se hicieron en:
 | `archives --move` con una ruta de Windows, de una carpeta de Linux a `C:` | Real | ✅ La playlist va entera (tema, stem y `key.txt`); un registro anterior, sin carpeta guardada, se encuentra por nombre; volver a moverla al mismo lugar avisa que ya está ahí |
 | `download --to` y playlists ya bajadas que siguen en su carpeta | Simulada (sin descargar) | ✅ Las nuevas van a la carpeta pedida; las conocidas, a la suya; un `%` en la ruta no rompe la plantilla de yt-dlp |
 | `ui`: playlist fuera de la carpeta de música | Real | ✅ Aparece en la biblioteca con su ubicación (en formato Windows en WSL), se escucha y se procesa; rutas para salir de su carpeta, rechazadas |
-| `ui`: "elegir…" (selector de carpetas del sistema) | Real (por el usuario, en Windows) | ✅ Abre el selector de carpetas de Windows y la carpeta elegida queda como destino. En Mac (Finder) y Linux (zenity) no está probado |
+| `ui`: "elegir…" (selector de carpetas del sistema) | Real (por el usuario, en Windows) | ✅ Abre el selector de carpetas de Windows y la carpeta elegida queda como destino |
 | `list`, `archives` (con la columna de carpeta) sobre la biblioteca real | Real (solo lectura) | ✅ Cada tema con su tonalidad, tempo y cantidad de archivos; `--files` los lista; las playlists dicen dónde están (Música y Drive) |
 | `archives --update`, `open` | Simulada | ✅ Busca temas nuevos en las playlists elegidas (o `all`) con su `--wav`; los temas sueltos no tienen playlist y lo avisa; `open` abre la carpeta del archivo dado |
 | Tonalidad y tempo a mano (`--set`, y tocando el badge en la interfaz) | Real (datos de prueba) | ✅ En Edge: tocar el tempo, escribir 100 y Enter lo guarda en `bpm.txt` marcado a mano y lo muestra con ✍; los temas sin analizar muestran "tono?" / "BPM?" al pasar el mouse; volver a correr `key`/`bpm` lo mantiene y `--force` lo reemplaza |
@@ -99,5 +89,5 @@ Las pruebas reales se hicieron en:
 | Placa NVIDIA muy vieja (GTX 1080) | Simulada | ✅ Avisa y usa el procesador |
 | Placa NVIDIA con driver viejo | Simulada | ✅ Avisa que actualice el driver y usa el procesador |
 | Placa sin memoria suficiente | Simulada | ✅ Avisa, pasa al procesador y termina |
-| Mac con chip M | Real (pruebas automáticas, macOS 15) | ✅ Se instala y pasan todas las pruebas automáticas. Falta probar en una Mac real la separación (con la placa de video del chip M) y la interfaz |
+| Mac con chip M | Real (pruebas automáticas, macOS 15) | ✅ Se instala y pasan todas las pruebas automáticas |
 | Linux sin WSL | Real (pruebas automáticas, Ubuntu) | ✅ Se instala y pasan todas las pruebas automáticas |

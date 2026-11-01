@@ -566,4 +566,4 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 
 ### Pruebas a mano
 
-Lo que se probó a mano (con temas, programas y navegadores reales, o simulando casos como una placa de video vieja), y lo que falta probar, está en [CHECKLIST.md](CHECKLIST.md).
+El registro de lo que se probó a mano y cómo (con temas, programas y navegadores reales, o simulando casos como una placa de video vieja), para repetirlo cuando se toca esa parte, está en [CHECKLIST.md](CHECKLIST.md).
