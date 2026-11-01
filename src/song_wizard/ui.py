@@ -443,9 +443,16 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "archives-delete"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
+            if action == "delete":
+                songs = [str(self.resolve(p)) for p in body.get("songs", [])]
+                files = [str(self.resolve(p)) for p in body.get("files", [])]
+                if not songs and not files:
+                    raise ValueError("no hay nada elegido")
+                names = ", ".join(os.path.basename(p) for p in [*songs, *files])[:120]
+                return f"Borrar: {names}", ["delete", "--yes", *songs, *[a for f in files for a in ("--file", f)]]
             label = ", ".join(os.path.basename(p) or "carpeta principal" for p in paths)[:120]
             if action == "download":
                 url = str(body["url"]).strip()

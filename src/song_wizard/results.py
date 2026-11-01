@@ -34,6 +34,16 @@ def rename(folder, command, names):
     return True
 
 
+def forget(folder, command, names):
+    """Drop the lines of deleted files. Returns whether anything changed."""
+    lines = read(folder, command)
+    kept = {name: text for name, text in lines.items() if name not in names}
+    if len(kept) == len(lines):
+        return False
+    write(folder, command, kept)
+    return True
+
+
 def read(folder, command):
     """{file name: result} from <folder>/<command>.txt; empty if there's none."""
     lines = {}

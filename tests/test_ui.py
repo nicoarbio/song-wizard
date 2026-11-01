@@ -331,3 +331,19 @@ def test_info(server):
     assert get_json(port, "/api/info?path=broken.wav") == {"duration": None}
     assert request(port, "GET", "/api/info?path=../x")[0].status == 403
     assert request(port, "GET", "/api/info?path=missing.wav")[0].status == 404
+
+
+def test_delete_job(server, monkeypatch):
+    port, root = server
+    ran = []
+    monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
+    for name in ["Song.opus", "Song (drums).wav"]:
+        (root / name).write_bytes(b"x")
+    body = {"action": "delete", "songs": ["Song.opus"], "files": ["Song (drums).wav"]}
+    job = json.loads(request(port, "POST", "/api/jobs", body)[1])
+    assert job["title"] == "Borrar: Song.opus, Song (drums).wav"
+    wait_for(port, job["id"])
+    r = root.resolve()
+    assert ran == [["delete", "--yes", str(r / "Song.opus"), "--file", str(r / "Song (drums).wav")]]
+    assert request(port, "POST", "/api/jobs", {"action": "delete"})[0].status == 400
+    assert request(port, "POST", "/api/jobs", {"action": "delete", "files": ["../x"]})[0].status == 403

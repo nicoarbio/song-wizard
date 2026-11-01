@@ -13,6 +13,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
 - **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
+- **delete**: manda a la papelera un tema (con todo lo que se generó a partir de él) o archivos sueltos.
 - **report**: si algo falla, arma un reporte para pedir ayuda.
 - **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
 
@@ -135,6 +136,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo.
+- **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
 - **Pista de click**: con un tema elegido se completan su tempo (si ya lo detectaste), su duración y los compases que la cubren; para un compás más, le sumás 1.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
@@ -360,6 +362,21 @@ La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya 
 
 Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué link se bajó, no el nombre del archivo.
 
+### Borrar
+
+```bash
+song-wizard delete "001 - Tema.opus"              # el tema con todo lo suyo
+song-wizard delete "001 - Tema (drums).wav"       # solo ese stem
+song-wizard delete --file "001 - Tema.mp3"        # solo esa copia
+```
+
+Todo va a la papelera del sistema (en WSL, a la Papelera de reciclaje de Windows si el archivo está en un disco de Windows), así que se puede recuperar. Si algo no se puede mandar a la papelera, se detiene y no borra nada más.
+
+- Un tema se va con todo lo que se generó a partir de él (sus otros formatos, stems, versiones y clicks) y con sus líneas en `key.txt`, `bpm.txt` y `click.txt`.
+- Si era de una playlist, sale también de su registro: "buscar temas nuevos" (o volver a correr `download`) lo vuelve a bajar.
+- Un stem, una versión o un click se van solos; `--file` borra solo ese archivo aunque sea una copia del tema, como el `.mp3`.
+- Pide confirmación antes de borrar; `--yes` no pregunta.
+
 ### Si algo falla
 
 ```bash
@@ -465,6 +482,9 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Click del reproductor contra el tema (Edge, sin sonido, grabando lo que sale) | Real | ✅ ~1 ms a 100 %, después de saltar y a 125 %; la cuenta de un compás, a 3 ms de su lugar, con la música entrando en su tiempo, también al retomar desde una pausa; al 75 %, −3 ms en promedio (±15 ms del tema estirado) |
 | Click del reproductor escuchándolo | **Falta** | Medido con el sonido apagado; falta escucharlo en el navegador de todos los días |
 | Forma de onda | Real | ✅ Un tema de 4:33 tarda ~2 s la primera vez (después queda guardada); el principio ampliado, 0.1 s |
+| `delete` de un tema en una carpeta de `C:` | Real | ✅ El tema, su stem y su versión llegan a la Papelera de Windows (nombres con `ñ` y `⧸` incluidos); el otro tema queda; `key.txt` pierde su línea; el tema sale del registro de la playlist por el link que guarda el archivo |
+| `delete`: un stem solo, una copia con `--file`, sin confirmar, papelera que falla | Simulada | ✅ Solo ese archivo; sin `--yes` y sin terminal no borra; si la papelera falla no toca nada más |
+| `ui`: "borrar archivos seleccionados" | Real | ✅ La ventana lista exactamente qué se va (un tema con todos sus archivos, un stem solo) y arranca con "cancelar" elegido |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

@@ -39,6 +39,8 @@
   button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   button:disabled { opacity: .45; cursor: default; }
   button.small { padding: 2px 8px; font-size: 12px; }
+  button.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+  #delete ul { max-height: 40vh; overflow: auto; font-size: 13px; padding-left: 20px; overflow-wrap: anywhere; }
   label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   .muted { color: var(--muted); }
@@ -326,6 +328,13 @@
   <p id="practice-sync" hidden></p>
 </dialog>
 
+<dialog id="delete">
+  <h3 id="delete-title">¿Borrar?</h3>
+  <ul id="delete-list"></ul>
+  <p class="hint" id="delete-note"></p>
+  <div class="row" style="justify-content:flex-end"><button id="delete-cancel">cancelar</button><button class="danger" id="delete-confirm">mandar a la papelera</button></div>
+</dialog>
+
 <dialog id="report">
   <h3>Reportar un problema</h3>
   <p id="report-status">Armando el reporte (revisa la instalación, tarda unos segundos)…</p>
@@ -579,7 +588,9 @@ function renderSelection() {
   if (files) parts.push(`${files} archivo${files === 1 ? "" : "s"}`);
   const box = $("selection");
   box.replaceChildren(n
-    ? el("span", {}, `${parts.join(" y ")} elegido${n === 1 ? "" : "s"} `, el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar"))
+    ? el("span", {}, `${parts.join(" y ")} elegido${n === 1 ? "" : "s"} `,
+        el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar selección"), " ",
+        el("button", { class: "small", title: "Mandar a la papelera lo elegido (pide confirmación)", onclick: confirmDelete }, "borrar archivos seleccionados"))
     : el("span", { class: "muted" }, "Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas."));
   const kinds = found.map(kindOf);
   for (const b of document.querySelectorAll("[data-needs=songs]")) {
@@ -1381,6 +1392,36 @@ $("practice").addEventListener("keydown", (e) => {
   const action = actions[key.length === 1 ? key.toLowerCase() : key];
   if (action) { e.preventDefault(); action(); }
 });
+
+// Delete: a picked song goes with all its files; a picked file, alone. The dialog lists exactly
+// what goes; it all goes to the system's trash.
+function deletePlan() {
+  const found = [...state.selected].map(findPath).filter(Boolean);
+  const songs = found.filter((f) => f.item === f.song).map((f) => f.song);
+  const covered = new Set(songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]));
+  const files = found.filter((f) => f.item !== f.song && !covered.has(f.item.path)).map((f) => f.item);
+  return { songs, files, names: [...songs.flatMap((s) => [s.name, ...s.files.map((x) => x.name)]), ...files.map((f) => f.name)] };
+}
+
+function confirmDelete() {
+  const plan = deletePlan();
+  if (!plan.names.length) return;
+  const n = plan.names.length;
+  $("delete-title").textContent = `¿Mandar ${n} archivo${n === 1 ? "" : "s"} a la papelera?`;
+  $("delete-list").replaceChildren(...plan.names.map((name) => el("li", {}, name)));
+  const notes = ["Si te equivocás, los recuperás desde la papelera del sistema."];
+  if (plan.songs.length) notes.push(`Cada tema elegido se va con todos sus archivos y sus resultados (tonalidad, tempo, click); si era de una playlist, "buscar temas nuevos" lo vuelve a bajar.`);
+  $("delete-note").textContent = notes.join(" ");
+  $("delete").showModal();
+  $("delete-cancel").focus();
+}
+
+$("delete-cancel").onclick = () => $("delete").close();
+$("delete-confirm").onclick = () => {
+  const plan = deletePlan();
+  $("delete").close();
+  start({ action: "delete", songs: plan.songs.map((s) => s.path), files: plan.files.map((f) => f.path) });
+};
 
 // The report is written by the server; the page shows it, then links to GitHub (this browser
 // opens it directly) and to the folder with the file to attach.

@@ -18,6 +18,7 @@ DISPATCH = {
     "separate": (["--stem", "drums", "song.opus"], "separate", "run"),
     "convert": (["song.wav"], "convert", "run"),
     "rename": (["song.opus", "New"], "rename", "run"),
+    "delete": (["song.opus"], "delete", "run"),
     "archives": ([], "archives", "show"),
     "ui": (["--no-browser"], "ui", "run"),
     "config": ([], "config", "show"),

@@ -26,6 +26,20 @@ def remember(archive_id, url, title, folder=None, wav=None):
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
 
 
+def forget_sources(links):
+    """Take songs out of every archive by the links they were downloaded from (each archive line
+    is "<site> <id>", and a downloaded file keeps its link), so downloading the playlist again
+    brings them back. Returns how many lines went."""
+    gone = 0
+    for path in ARCHIVE_DIR.glob("*.txt") if ARCHIVE_DIR.exists() else []:
+        lines = path.read_text().splitlines()
+        kept = [l for l in lines if not (len(l.split()) == 2 and any(l.split()[1] in link for link in links))]
+        if len(kept) != len(lines):
+            path.write_text("".join(f"{l}\n" for l in kept))
+            gone += len(lines) - len(kept)
+    return gone
+
+
 def simple(name):
     """Only letters and digits, lowercase: yt-dlp changes some characters of a playlist's name
     when it makes its folder ("A: B" -> "A： B")."""

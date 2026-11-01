@@ -23,6 +23,7 @@ examples:
   song-wizard separate --stem all "song.opus"
   song-wizard convert "song (no drums).wav"
   song-wizard rename "001 - Song (Official Video).opus" "Song"
+  song-wizard delete "001 - Song.opus"
   song-wizard ui
   song-wizard report
 
@@ -139,6 +140,17 @@ def build_parser():
     p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
     p.add_argument("name", metavar="NEW_NAME", help="the new name, without extension")
 
+    p = sub.add_parser("delete", help="send songs or single files to the trash",
+                       description="Sends files to the system's trash (the Recycle Bin on WSL, for files on a "
+                                   "Windows drive). A song goes with everything made from it (its other formats, "
+                                   "stems, versions and clicks) and its lines in key.txt, bpm.txt and click.txt, and "
+                                   "leaves its playlist's archive, so looking for new songs downloads it again. A "
+                                   "stem or a version goes alone; --file deletes any single file alone, like an "
+                                   ".mp3 copy. Asks first unless --yes.")
+    p.add_argument("paths", nargs="*", metavar="SONG", help="songs to delete with everything made from them")
+    p.add_argument("--file", action="append", default=[], metavar="FILE", help="a single file, alone (repeatable)")
+    p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
+
     p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
                        description="Lists each playlist downloaded so far and how many songs. --delete forgets "
                                    "some of them (by the numbers in the list) or all, so downloading them "
@@ -202,6 +214,9 @@ def dispatch(argv):
     elif args.command == "convert":
         from . import convert
         convert.run(args.paths, fmt=args.format, overwrite=args.overwrite)
+    elif args.command == "delete":
+        from . import delete
+        delete.run(songs=args.paths, files=args.file, yes=args.yes)
     elif args.command == "rename":
         from . import rename
         rename.run(args.path, args.name)
