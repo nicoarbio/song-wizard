@@ -283,6 +283,7 @@ def library(root):
                        if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
             songs.append({"name": main, "path": rel(folder / main),
                           "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
+                          "lyrics": (folder / f"{base}.lyrics.json").is_file(),
                           "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
             playlist = archives.playlist_for(folder, known) if folder != root else None
@@ -387,6 +388,25 @@ def make_handler(token, root, runner, port):
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "no existe")
                 return self.json({"duration": duration(path)})
+            if url.path in ("/api/lyrics", "/lyrics"):
+                # The lyrics of a song with their marks (for the page), or printable.
+                from . import lyrics
+                from .setlist import title_of
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                title, artist = title_of(path.name)
+                data = lyrics.load(path)
+                if url.path == "/api/lyrics":
+                    return self.json({"lyrics": data, "title": title, "artist": artist,
+                                      "colors": [{"id": c, "shade": lyrics.SHADES[c], "name": lyrics.NAMES[c]} for c in lyrics.COLORS]})
+                if not data:
+                    return self.error(HTTPStatus.NOT_FOUND, "este tema no tiene letra todavía")
+                page_title = f"{title} ({artist})" if artist else title
+                return self.send(HTTPStatus.OK, lyrics.page(page_title, data).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
                 # The printable setlist of a folder, in its own tab.
                 from . import setlist
@@ -510,6 +530,33 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.NOT_FOUND, "no existe")
                 results.save("click", [(str(path), align.describe(bpm, meter, first))])
                 return self.json(align.parse(align.describe(bpm, meter, first)))
+            if url.path in ("/api/lyrics", "/api/lyrics/fetch"):
+                from . import lyrics
+                try:
+                    path = self.resolve(str(body["path"]))
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                except (KeyError, TypeError):
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                if url.path == "/api/lyrics":
+                    try:
+                        return self.json(lyrics.save(path, body.get("lyrics")))
+                    except (KeyError, ValueError, TypeError):
+                        return self.error(HTTPStatus.BAD_REQUEST, "letra inválida")
+                try:
+                    found = lyrics.fetch(path)
+                except OSError as e:
+                    log.error("lyrics: %s", e)
+                    return self.error(HTTPStatus.BAD_GATEWAY, "No pude llegar a la base de letras (¿hay internet?).")
+                if not found:
+                    return self.error(HTTPStatus.NOT_FOUND, "No encontré la letra de este tema: podés pegarla con \"escribir o pegar\".")
+                old = lyrics.load(path)
+                if old:
+                    found["legend"] = old.get("legend", {})
+                log.info("lyrics found for %s: %s", path.name, found["source"])
+                return self.json(lyrics.save(path, found))
             if url.path == "/api/set-result":
                 # A key or tempo typed in the library, over what was detected.
                 from . import bpm as tempo, key as keys
@@ -729,7 +776,8 @@ def start_background(port):
         process = subprocess.Popen([sys.executable, "-m", "song_wizard", "ui", "--foreground", "--no-browser",
                                     "--port", str(port)], stdin=subprocess.DEVNULL, stdout=f, stderr=f,
                                    start_new_session=True, cwd=str(Path.home()))
-    deadline = time.time() + 30
+    # A first start can be slow (on a Mac, the system checks the libraries the first time).
+    deadline = time.time() + 90
     while time.time() < deadline:
         info = running()
         if info and info["pid"] == process.pid:
@@ -738,7 +786,11 @@ def start_background(port):
             break
         time.sleep(0.2)
     process.kill()
-    sys.exit(f"The interface didn't start. What it printed is in {out}")
+    try:
+        printed = out.read_text(errors="replace").strip()[-2000:]
+    except OSError:
+        printed = ""
+    sys.exit(f"The interface didn't start (it's kept in {out}):\n{printed or '(it printed nothing)'}")
 
 
 def run(port=PORT, open_page=True, practice=None, foreground=False):
