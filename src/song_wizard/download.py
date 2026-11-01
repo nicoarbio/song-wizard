@@ -20,6 +20,10 @@ def node_ok():
 
 
 def run(url, wav=False, extra=(), to=None):
+    sys.exit(fetch(url, wav=wav, extra=extra, to=to))
+
+
+def fetch(url, wav=False, extra=(), to=None):
     """to: the folder where a new playlist's folder (or Singles) goes; the music folder if not
     given. A playlist downloaded before goes on in its own folder, wherever it is now."""
     require_ffmpeg()
@@ -74,4 +78,4 @@ def run(url, wav=False, extra=(), to=None):
     if archive.exists():
         archives.remember(archive_id, url, lines[-1] if lines else None,
                           folder=str(Path(files[-1]).parent) if files else None, wav=wav)
-    sys.exit(code)
+    return code

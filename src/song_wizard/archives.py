@@ -179,11 +179,44 @@ def show(rows=None):
     if not rows:
         print("Nothing downloaded yet.")
         return
+    from . import system
+
     width = max(len(r[1]) for r in rows)
-    print(f"  {'#':>2}  {'Playlist':<{width}}  {'Songs':>5}  Last download")
-    for i, (_, title, songs, changed) in enumerate(rows, 1):
-        print(f"  {i:>2}  {title:<{width}}  {songs:>5}  {changed:%Y-%m-%d %H:%M}")
+    print(f"  {'#':>2}  {'Playlist':<{width}}  {'Songs':>5}  {'Last download':<16}  Folder")
+    for i, (archive_id, title, songs, changed) in enumerate(rows, 1):
+        folder = read_meta(archive_id).get("folder")
+        where = system.shown_path(folder) if folder else "(not recorded yet)"
+        print(f"  {i:>2}  {title:<{width}}  {songs:>5}  {changed:%Y-%m-%d %H:%M}  {where}")
     print(f"\nArchives are in {ARCHIVE_DIR}")
+
+
+def update(which):
+    """Look for new songs in some playlists (by number or id) or "all": each is downloaded again,
+    and its archive makes only the songs added since come down, into its own folder."""
+    from .download import fetch
+
+    numbered = {str(i): r[0] for i, r in enumerate(entries(), 1)}
+    known = {p["id"]: p for p in playlists()}
+    if [w.lower() for w in which] == ["all"]:
+        chosen = list(known.values())
+    else:
+        chosen = []
+        for w in which:
+            archive_id = numbered.get(str(w), w)
+            if archive_id not in known:
+                sys.exit(f'No playlist "{w}" to update: use the numbers shown by "song-wizard archives" '
+                         "(single songs have no playlist to look in).")
+            chosen.append(known[archive_id])
+    if not chosen:
+        print("No playlists downloaded yet.")
+        return
+    failed = []
+    for p in chosen:
+        print(f"Looking for new songs in {p['title'] or p['id']}...", flush=True)
+        if fetch(p["url"], wav=p["wav"]) != 0:
+            failed.append(p["title"] or p["id"])
+    if failed:
+        sys.exit("Some playlists had errors: " + ", ".join(failed))
 
 
 def delete(which, yes=False):

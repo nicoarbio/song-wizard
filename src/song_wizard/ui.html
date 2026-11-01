@@ -1186,6 +1186,7 @@ async function moveTo(time) {
 
 async function togglePlay() {
   if (!practice.tracks.length || $("practice-play").disabled) return;
+  context().resume();  // opened without a click (ui --practice): sound starts with the first play
   if (practice.playing) {
     practice.playing = false;
     endPreroll();
@@ -1645,7 +1646,12 @@ $("stems").addEventListener("change", (e) => {
   else if (e.target !== all && e.target.checked) all.checked = false;
 });
 
-refresh();
+refresh().then(() => {
+  // "song-wizard ui --practice FILE": straight into that song's practice player.
+  const wanted = new URLSearchParams(location.search).get("practice");
+  const found = wanted ? findPath(wanted) : null;
+  if (found && found.song) openPractice(found.song);
+});
 poll();
 </script>
 </body>

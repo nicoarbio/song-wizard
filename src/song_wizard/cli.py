@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -24,6 +25,8 @@ examples:
   song-wizard convert "song (no drums).wav"
   song-wizard rename "001 - Song (Official Video).opus" "Song"
   song-wizard delete "001 - Song.opus"
+  song-wizard list cryin --files
+  song-wizard archives --update all
   song-wizard ui
   song-wizard report
 
@@ -155,14 +158,31 @@ def build_parser():
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
 
     p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
-                       description="Lists each playlist downloaded so far and how many songs. --delete forgets "
-                                   "some of them (by the numbers in the list) or all, so downloading them "
-                                   "again gets every song again. Downloaded songs are never deleted.")
+                       description="Lists each playlist downloaded so far, how many songs and where its folder "
+                                   "is. --update looks for songs added to them and downloads only those. --move "
+                                   "takes one to another folder. --delete forgets some of them (by the numbers in "
+                                   "the list) or all, so downloading them again gets every song again. Downloaded "
+                                   "songs are never deleted.")
     p.add_argument("--delete", nargs="+", metavar="N", help='numbers from the list, or "all"')
+    p.add_argument("--update", nargs="+", metavar="N",
+                   help='look for new songs in playlists (numbers from the list, or "all") and download them')
     p.add_argument("--move", nargs=2, metavar=("N", "FOLDER"),
                    help="move playlist N (songs, stems and all) into FOLDER and keep downloading there; if you "
                         "moved it by hand already, records where it is now")
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
+
+    p = sub.add_parser("list", help="list the songs in the music folder (and wherever downloads went)",
+                       description="What the interface's library shows: each folder with its songs, their key, "
+                                   "tempo and click settings if detected, and how many files were made from each "
+                                   "(stems, versions, copies, clicks). Folders outside the music folder where "
+                                   "downloads went are included.")
+    p.add_argument("text", nargs="?", metavar="TEXT", help="only songs (or folders) whose name has this")
+    p.add_argument("--files", action="store_true", help="also list the files made from each song")
+
+    p = sub.add_parser("open", help="open a folder in the file manager (the music folder by default)",
+                       description="Opens the music folder, or the folder given (or the folder of the file "
+                                   "given), in Explorer on WSL, the Finder on a Mac or the desktop's file manager.")
+    p.add_argument("path", nargs="?", metavar="FOLDER|FILE")
 
     p = sub.add_parser("ui", help="open the interface in the browser (same commands, without the terminal)",
                        description="Starts a local server (only reachable from this computer) and opens the "
@@ -170,6 +190,7 @@ def build_parser():
                                    "open while using it; Ctrl+C closes it.")
     p.add_argument("--port", type=int, default=8765, help="local port (default: 8765, or the next free one)")
     p.add_argument("--no-browser", action="store_true", help="don't open the browser, just print the link")
+    p.add_argument("--practice", metavar="FILE", help="open straight into the practice player with this song")
 
     p = sub.add_parser("report", help="put together a report to ask for help when something fails",
                        description="Writes a text file with this computer's setup and the last lines of "
@@ -229,7 +250,9 @@ def dispatch(argv):
         rename.run(args.path, args.name)
     elif args.command == "archives":
         from . import archives, system
-        if args.move:
+        if args.update:
+            archives.update(args.update)
+        elif args.move:
             archives.move(args.move[0], system.local_path(args.move[1]))
         elif args.delete:
             archives.delete(args.delete, yes=args.yes)
@@ -237,10 +260,24 @@ def dispatch(argv):
             archives.show()
     elif args.command == "ui":
         from . import ui
-        ui.run(port=args.port, open_page=not args.no_browser)
+        ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice)
     elif args.command == "report":
         from . import report
         report.run(yes=args.yes)
+    elif args.command == "list":
+        from . import listing
+        listing.run(args.text, files=args.files)
+    elif args.command == "open":
+        from . import system
+        from .paths import music_dir
+        target = Path(system.local_path(args.path)) if args.path else music_dir()
+        if target.is_file():
+            target = target.parent
+        if not target.is_dir():
+            sys.exit(f"{target}: no such folder.")
+        if not system.open_folder(target):
+            sys.exit("No file manager found on this system.")
+        print(f"Opened {system.shown_path(target)}")
     elif args.command == "config":
         from . import config
         config.show()

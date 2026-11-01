@@ -23,6 +23,7 @@ DISPATCH = {
     "ui": (["--no-browser"], "ui", "run"),
     "config": ([], "config", "show"),
     "report": ([], "report", "run"),
+    "list": ([], "listing", "run"),
     "setup": ([], "setup", "run"),
 }
 
@@ -34,7 +35,7 @@ def subcommands():
 
 
 def test_every_subcommand_is_covered():
-    assert subcommands() == set(DISPATCH) | {"upgrade"}
+    assert subcommands() == set(DISPATCH) | {"upgrade", "open"}  # both have their own tests
 
 
 @pytest.mark.parametrize("command", sorted(DISPATCH))

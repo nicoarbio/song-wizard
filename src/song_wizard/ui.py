@@ -21,7 +21,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 from . import align, archives, log, results, system
 from .audio import AUDIO_EXTS, GENERATED, base_of
@@ -602,9 +602,26 @@ class Server(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
-def run(port=PORT, open_page=True):
+def page_path(root, file):
+    """The library's name for the song a file belongs to (the song itself, a stem, a version...)."""
+    from .listing import folder_path
+
+    target = Path(system.local_path(str(file))).resolve()
+    for folder in library(root):
+        if folder_path(root, folder).resolve() != target.parent:
+            continue
+        for song in folder["songs"]:
+            if target.name in [song["name"], *(f["name"] for f in song["files"])]:
+                return song["path"]
+    return None
+
+
+def run(port=PORT, open_page=True, practice=None):
     root = music_dir()
     root.mkdir(parents=True, exist_ok=True)
+    practice_path = page_path(root, practice) if practice else None
+    if practice and practice_path is None:
+        sys.exit(f"{practice}: not a song in the library (see song-wizard list).")
     token = secrets.token_urlsafe(16)
     runner = Runner()
     server = None
@@ -620,6 +637,8 @@ def run(port=PORT, open_page=True):
     if actual != candidate:  # port 0: the system picked one, the handler must know which
         server.RequestHandlerClass = make_handler(token, root, runner, actual)
     url = f"http://127.0.0.1:{actual}/?t={token}"
+    if practice_path:
+        url += f"&practice={quote(practice_path)}"
     # flush: when the output isn't a terminal it's buffered, and the link must show up right away.
     print(f"song-wizard interface: {url}", flush=True)
     print(f"Music folder: {root}", flush=True)

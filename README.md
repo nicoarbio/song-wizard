@@ -16,6 +16,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
 - **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
 - **delete**: manda a la papelera un tema (con todo lo que se generó a partir de él) o archivos sueltos.
+- **list**: muestra los temas de tu carpeta de música (y de donde hayas bajado), con lo que se detectó de cada uno.
 - **report**: si algo falla, arma un reporte para pedir ayuda.
 - **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
 
@@ -169,7 +170,27 @@ Medido en Edge: el click cae a ~1 ms del tema, también después de saltar y a 1
 
 Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
 
-Todo lo que hace la interfaz se puede hacer también con los comandos de abajo, que son los que la interfaz usa por detrás.
+#### La interfaz y la terminal
+
+Todo lo que hace la interfaz se puede hacer también desde la terminal; casi siempre es el mismo comando que la interfaz usa por detrás:
+
+| En la interfaz | En la terminal |
+|---|---|
+| Biblioteca | `song-wizard list` (`list TEXTO` filtra, `--files` muestra los stems y versiones de cada tema) |
+| Bajar (y "en Música" para elegir la carpeta) | `song-wizard download URL` (`--wav`, `--to CARPETA`) |
+| "buscar temas nuevos" | `song-wizard archives --update N` (o `all`) |
+| Playlists bajadas: mover, olvidar | `song-wizard archives` (`--move N CARPETA`, `--delete N`) |
+| "abrir" | `song-wizard open` (la carpeta de música, o la que digas) |
+| Tonalidad, Tempo | `song-wizard key`, `song-wizard bpm` |
+| Separar instrumentos | `song-wizard separate --stem ...` |
+| Cambiar el tono, Cambiar la velocidad | `song-wizard transpose`, `song-wizard speed` |
+| Convertir para compartir | `song-wizard convert` |
+| Pista de click | `song-wizard click` (`--for TEMA` le pone el nombre del tema) |
+| Ajustar el click (detectar, tempo, primer golpe) | `song-wizard align` (`--bpm`, `--first`, `--meter`) |
+| ✎ renombrar | `song-wizard rename` |
+| Borrar archivos seleccionados | `song-wizard delete` |
+| Reportar un problema | `song-wizard report` |
+| Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
 
@@ -496,6 +517,9 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `download --to` y playlists ya bajadas que siguen en su carpeta | Simulada (sin descargar) | ✅ Las nuevas van a la carpeta pedida; las conocidas, a la suya; un `%` en la ruta no rompe la plantilla de yt-dlp |
 | `ui`: playlist fuera de la carpeta de música | Real | ✅ Aparece en la biblioteca con su ubicación (en formato Windows en WSL), se escucha y se procesa; rutas para salir de su carpeta, rechazadas |
 | `ui`: "elegir…" (selector de carpetas del sistema) | **No probado** | Abre el selector de Windows, del Finder o de zenity; falta probarlo a mano |
+| `list`, `archives` (con la columna de carpeta) sobre la biblioteca real | Real (solo lectura) | ✅ Cada tema con su tonalidad, tempo y cantidad de archivos; `--files` los lista; las playlists dicen dónde están (Música y Drive) |
+| `archives --update`, `open` | Simulada | ✅ Busca temas nuevos en las playlists elegidas (o `all`) con su `--wav`; los temas sueltos no tienen playlist y lo avisa; `open` abre la carpeta del archivo dado |
+| `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
