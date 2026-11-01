@@ -199,6 +199,8 @@
   .empty-lyrics { padding: 24px 0; color: var(--muted); }
   dialog::backdrop { background: rgb(0 0 0 / .35); }
   dialog h3 { margin: 0 0 8px; }
+  dialog.confirm { max-width: min(480px, calc(100vw - 32px)); }
+  dialog.confirm #confirm-text p { margin: 0 0 12px; }
   dialog ol { padding-left: 20px; } dialog li { margin: 6px 0; }
   dialog a { color: var(--accent); font-weight: 600; }
 </style>
@@ -433,6 +435,12 @@
   <div class="row" style="justify-content:flex-end"><button id="command-close">cerrar</button><button class="primary" id="command-copy">copiar comando</button></div>
 </dialog>
 
+<dialog id="confirm" class="confirm">
+  <h3 id="confirm-title"></h3>
+  <div id="confirm-text"></div>
+  <div class="row" style="justify-content:flex-end"><button id="confirm-cancel">cancelar</button><button id="confirm-ok"></button></div>
+</dialog>
+
 <dialog id="delete">
   <h3 id="delete-title">¿Borrar?</h3>
   <ul id="delete-list"></ul>
@@ -522,6 +530,27 @@ function el(tag, props = {}, ...children) {
   // Text only: file names come from downloaded titles and must never be parsed as HTML.
   for (const c of children.flat()) if (c !== null && c !== undefined) node.append(c instanceof Node ? c : String(c));
   return node;
+}
+
+// Our own confirmation, in place of the browser's confirm(): resolves true or false. Escape, or
+// clicking outside it, cancels. For something that can't be undone ("danger"), the focus starts
+// on "cancelar", so Enter doesn't do it by accident.
+function askConfirm({ title, text, ok = "aceptar", danger = false }) {
+  const box = $("confirm");
+  $("confirm-title").textContent = title;
+  $("confirm-text").replaceChildren(...[].concat(text || []).map((t) => el("p", {}, t)));
+  const okButton = $("confirm-ok");
+  okButton.textContent = ok;
+  okButton.className = danger ? "danger" : "primary";
+  return new Promise((resolve) => {
+    const done = (answer) => { box.onclose = null; if (box.open) box.close(); resolve(answer); };
+    okButton.onclick = () => done(true);
+    $("confirm-cancel").onclick = () => done(false);
+    box.onclose = () => done(false);
+    box.onclick = (e) => { if (e.target === box) done(false); };  // the backdrop
+    box.showModal();
+    (danger ? $("confirm-cancel") : okButton).focus();
+  });
 }
 
 function toast(text, ms = 3500) {
@@ -815,7 +844,8 @@ $("reaper-changed-restore").onclick = () => { $("reaper-changed").close(); reape
 
 // Open the song's REAPER project, making it first if there's none (or remaking it: "redo").
 async function reaperProject(song, redo = false) {
-  if (redo && !confirm("El proyecto de Reaper actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora. ¿Seguir?")) return;
+  if (redo && !await askConfirm({ title: "¿Rehacer el proyecto de Reaper?", danger: true, ok: "rehacer",
+                                    text: ["El proyecto actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora."] })) return;
   try {
     const got = await api("/api/reaper", { path: song.path, redo });
     const said = [got.created ? (redo ? `Rehice ${got.name}` : `Creé ${got.name}`) : null,
@@ -997,16 +1027,10 @@ function updatePlaylist(playlist) {
   start({ action: "download", url: playlist.url, wav: playlist.wav, title: playlist.title });
 }
 
-function confirmForget(numbers, title) {
-  // A two-step button instead of confirm(), which some browsers block in local pages.
-  const msg = `¿Olvidar "${title}"? Tocá "olvidar" otra vez en 5 segundos para confirmar.`;
-  if (confirmForget.pending === title) {
-    confirmForget.pending = null;
+async function confirmForget(numbers, title) {
+  if (await askConfirm({ title: `¿Olvidar "${title}"?`, ok: "olvidar",
+                         text: ["Los temas bajados no se tocan. Si la volvés a bajar, se bajan todos sus temas de nuevo."] })) {
     start({ action: "archives-delete", numbers });
-  } else {
-    confirmForget.pending = title;
-    toast(msg);
-    setTimeout(() => { if (confirmForget.pending === title) confirmForget.pending = null; }, 5000);
   }
 }
 
@@ -1933,10 +1957,11 @@ async function poll() {
 
 $("shutdown").onclick = async () => {
   const busy = state.jobs && state.jobs.filter((j) => ["queued", "running"].includes(j.status));
-  const question = busy && busy.length
-    ? `Todavía está corriendo: ${busy.map((j) => j.title).join("; ")}.\n¿Cancelarlo y apagar la interfaz?`
-    : "¿Apagar la interfaz? Para volver a usarla: song-wizard ui en la terminal.";
-  if (!confirm(question)) return;
+  const running = busy && busy.length;
+  if (!await askConfirm({
+    title: "¿Apagar la interfaz?", ok: running ? "cancelar y apagar" : "apagar", danger: Boolean(running),
+    text: [running ? `Todavía está corriendo: ${busy.map((j) => j.title).join("; ")}. Se cancela.` : null,
+           "Para volver a usarla: song-wizard ui en la terminal."].filter(Boolean) })) return;
   try { await api("/api/shutdown", {}); } catch {}
   clearTimeout(poll.timer);
   $("offline").hidden = false;
@@ -2330,7 +2355,8 @@ $("lyr-fetch").onclick = () => fetchLyrics();
 async function fetchLyrics() {
   const d = lyr.data;
   if (d && ((d.marks || []).length || Object.keys(d.notes || {}).length) &&
-      !confirm("Buscar de nuevo reemplaza la letra, y se pierden sus colores y notas (la leyenda queda). ¿Seguir?")) return;
+      !await askConfirm({ title: "¿Buscar la letra de nuevo?", ok: "buscar de nuevo", danger: true,
+                          text: ["Reemplaza la letra, y se pierden sus colores y notas (la leyenda queda)."] })) return;
   $("lyr-fetch").disabled = true;
   try {
     lyr.data = await api("/api/lyrics/fetch", { path: lyr.song.path });
