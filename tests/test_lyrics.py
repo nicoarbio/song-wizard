@@ -169,3 +169,16 @@ def test_interface_not_found_and_offline(server, monkeypatch):  # noqa: F811
     monkeypatch.setattr(lyrics, "get", offline)
     response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "Song.wav"})
     assert response.status == 502 and "internet" in json.loads(content)["error"]
+
+
+def test_interface_database_down(server, monkeypatch):  # noqa: F811
+    """A 503 from the database isn't the user's internet: the message says so."""
+    port, root = server
+    synth.write(root / "001 - Band - Song.wav", synth.sine(440, 5.0))
+
+    def down(url):
+        raise lyrics.urllib.error.HTTPError(url, 503, "Service Unavailable", {}, None)
+    monkeypatch.setattr(lyrics, "get", down)
+    response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "001 - Band - Song.wav"})
+    message = json.loads(content)["error"]
+    assert response.status == 502 and "no está respondiendo" in message and "internet" not in message

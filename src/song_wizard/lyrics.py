@@ -125,9 +125,13 @@ def search(title, artist="", seconds=None):
                       f"lrclib #{best.get('id')}"}
 
 
+class Unavailable(OSError):
+    """The lyrics database was reached but couldn't answer (down or busy: 503 and the like)."""
+
+
 def fetch(song):
-    """Look up the lyrics of a song file by its name and length. None if not found; OSError if the
-    database can't be reached."""
+    """Look up the lyrics of a song file by its name and length. None if not found; Unavailable if
+    the database is down or busy; OSError if it can't be reached at all."""
     from .setlist import title_of
     from .ui import duration
 
@@ -137,7 +141,7 @@ def fetch(song):
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return None
-        raise OSError(f"the lyrics database answered {e.code}") from e
+        raise Unavailable(f"the lyrics database answered {e.code}: it's down or busy, try again in a while") from e
     except (urllib.error.URLError, TimeoutError, ValueError) as e:
         raise OSError(f"couldn't reach the lyrics database ({getattr(e, 'reason', e)})") from e
 

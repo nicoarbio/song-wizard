@@ -599,6 +599,10 @@ def make_handler(token, root, runner, port):
                         return self.error(HTTPStatus.BAD_REQUEST, "letra inválida")
                 try:
                     found = lyrics.fetch(path)
+                except lyrics.Unavailable as e:
+                    # Reached, but it couldn't answer: the internet is fine, the database isn't.
+                    log.error("lyrics: %s", e)
+                    return self.error(HTTPStatus.BAD_GATEWAY, "La base de letras no está respondiendo ahora (está caída o saturada). Probá de nuevo en un rato.")
                 except OSError as e:
                     log.error("lyrics: %s", e)
                     return self.error(HTTPStatus.BAD_GATEWAY, "No pude llegar a la base de letras (¿hay internet?).")
