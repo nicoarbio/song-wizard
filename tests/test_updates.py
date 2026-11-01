@@ -93,3 +93,23 @@ def test_restart_endpoint(server, monkeypatch):  # noqa: F811
     restarted = []
     monkeypatch.setattr(ui, "restart", restarted.append)
     assert request(port, "POST", "/api/restart", {})[0].status == 200 and restarted == [port]
+
+
+def test_upgrade_loads_what_it_needs_before_installing(tmp_path):
+    """The install replaces the files under the running process: anything imported afterwards
+    would come from the new version and could clash with the old modules already loaded
+    (0.6.0 → 0.15.0 crashed that way right after a good install). So by the time it installs,
+    everything used afterwards is loaded."""
+    import subprocess
+    import sys
+    script = (
+        "import sys\n"
+        "from song_wizard import cli, updates\n"
+        "def fake():\n"
+        "    print('ui loaded:', 'song_wizard.ui' in sys.modules)\n"
+        "    return 1\n"
+        "updates.upgrade = fake\n"
+        "cli.main(['upgrade'])\n")
+    env = {**__import__("os").environ, "SONG_WIZARD_UI_STATE": str(tmp_path / "ui.json")}
+    out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
+    assert "ui loaded: True" in out.stdout, out.stdout + out.stderr

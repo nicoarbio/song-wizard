@@ -404,9 +404,11 @@ def dispatch(argv):
         from . import updates
         updates.check() if args.check else updates.show()
     elif args.command == "upgrade":
-        from . import updates
+        # Everything this needs is loaded before the install replaces the files: importing one
+        # afterwards would mix this version's modules, already in memory, with the new ones
+        # (0.6.0 → 0.15.0 failed that way, after a good install).
+        from . import ui, updates
         code = updates.to(args.to) if args.to else updates.upgrade()
-        from . import ui
         if code == 0 and ui.running():
             print("The interface is still running the version from before: song-wizard ui --restart "
                   "opens the new one.")
