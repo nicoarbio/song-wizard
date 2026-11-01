@@ -7,12 +7,14 @@ Each action runs the real CLI as a subprocess, one at a time, and the page polls
 
 import collections
 import hashlib
+import http.client
 import itertools
 import json
 import mimetypes
 import os
 import re
 import secrets
+import signal
 import subprocess
 import sys
 import threading
@@ -23,7 +25,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from . import align, archives, log, results, system
+from . import align, archives, log, paths, results, system
 from .audio import AUDIO_EXTS, GENERATED, base_of
 from .paths import music_dir
 
@@ -462,6 +464,12 @@ def make_handler(token, root, runner, port):
                 except (KeyError, ValueError, TypeError) as e:
                     return self.error(HTTPStatus.BAD_REQUEST, f"pedido inválido: {e}")
                 return self.json(runner.add(title, args).summary())
+            if url.path == "/api/shutdown":
+                # "apagar" on the page, or song-wizard ui --stop. Not from this request's thread:
+                # shutdown() waits for serve_forever, which waits for this request.
+                log.info("interface: closed from %s", "the page" if self.headers.get("Referer") else "the terminal")
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                return self.json({})
             if url.path == "/api/report":
                 from . import report
                 path, text, link = report.build()
@@ -647,12 +655,136 @@ def page_path(root, file):
     return None
 
 
-def run(port=PORT, open_page=True, practice=None):
+# The interface running on this computer (port, token, process), so "song-wizard ui" from any
+# terminal finds it, and "--stop" closes it. Only readable by you: it holds the page's token.
+STATE_ENV = "SONG_WIZARD_UI_STATE"
+
+
+def state_file():
+    return Path(os.environ.get(STATE_ENV) or paths.DATA_DIR / "ui.json")
+
+
+def ask(port, token, method, path, timeout=3):
+    """A request to an interface on this computer: (status, decoded JSON), or None if it's not there."""
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+        conn.request(method, path, body=b"{}" if method == "POST" else None,
+                     headers={"X-Token": token, "Host": f"127.0.0.1:{port}", "Content-Type": "application/json"})
+        response = conn.getresponse()
+        data = json.loads(response.read() or b"null")
+        conn.close()
+        return response.status, data
+    except (OSError, ValueError):
+        return None
+
+
+def running():
+    """The interface already running: {"pid", "port", "token", "url", "root"}, or None."""
+    try:
+        info = json.loads(state_file().read_text())
+        answer = ask(info["port"], info["token"], "GET", "/api/jobs")
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return info if answer and answer[0] == HTTPStatus.OK else None
+
+
+def write_state(info):
+    path = state_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(info, f)
+
+
+def clear_state(pid):
+    try:
+        if json.loads(state_file().read_text()).get("pid") == pid:
+            state_file().unlink()
+    except (OSError, ValueError):
+        pass
+
+
+def server_output():
+    return log.LOG_DIR / "interface-server.txt"
+
+
+def start_background(port):
+    """Start the server as its own process, detached from this terminal; wait until it answers."""
+    out = server_output()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w") as f:
+        process = subprocess.Popen([sys.executable, "-m", "song_wizard", "ui", "--foreground", "--no-browser",
+                                    "--port", str(port)], stdin=subprocess.DEVNULL, stdout=f, stderr=f,
+                                   start_new_session=True, cwd=str(Path.home()))
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        info = running()
+        if info and info["pid"] == process.pid:
+            return info
+        if process.poll() is not None:
+            break
+        time.sleep(0.2)
+    process.kill()
+    sys.exit(f"The interface didn't start. What it printed is in {out}")
+
+
+def run(port=PORT, open_page=True, practice=None, foreground=False):
     root = music_dir()
     root.mkdir(parents=True, exist_ok=True)
     practice_path = page_path(root, practice) if practice else None
     if practice and practice_path is None:
         sys.exit(f"{practice}: not a song in the library (see song-wizard list).")
+    if foreground:
+        return serve(root, port, open_page, practice_path)
+    info = running()
+    if info and info.get("root") != str(root):
+        sys.exit(f"The interface is running with another music folder ({info.get('root')}): "
+                 "close it with song-wizard ui --stop and open it again.")
+    if info:
+        print("The interface was already running.", flush=True)
+    else:
+        info = start_background(port)
+    url = info["url"] + (f"&practice={quote(practice_path)}" if practice_path else "")
+    print(f"song-wizard interface: {url}", flush=True)
+    print(f"Music folder: {root}", flush=True)
+    print("It keeps running in the background; song-wizard ui --stop closes it (or \"apagar\" on the page).",
+          flush=True)
+    if open_page:
+        system.open_url(url)
+
+
+def stop(yes=False):
+    info = running()
+    if not info:
+        try:
+            state_file().unlink()
+        except OSError:
+            pass
+        print("The interface isn't running.")
+        return
+    answer = ask(info["port"], info["token"], "GET", "/api/jobs")
+    busy = [j["title"] for j in (answer[1] if answer else []) if j["status"] in ("queued", "running")]
+    if busy and not yes:
+        print("Still working on: " + "; ".join(busy))
+        if not sys.stdin.isatty():
+            sys.exit("Not closing it in the middle of that: add --yes to cancel and close.")
+        if input("Cancel and close? [y/N] ").strip().lower() not in ("y", "yes", "s", "si", "sí"):
+            print("Left running.")
+            return
+    ask(info["port"], info["token"], "POST", "/api/shutdown")
+    deadline = time.time() + 10
+    while time.time() < deadline and running():
+        time.sleep(0.2)
+    if running():
+        try:
+            os.kill(info["pid"], signal.SIGTERM)
+        except OSError:
+            pass
+    print("Interface closed.")
+
+
+def serve(root, port, open_page, practice_path):
+    """The server itself, in this process until Ctrl+C, "--stop" or "apagar" on the page."""
     token = secrets.token_urlsafe(16)
     runner = Runner()
     server = None
@@ -668,18 +800,26 @@ def run(port=PORT, open_page=True, practice=None):
     if actual != candidate:  # port 0: the system picked one, the handler must know which
         server.RequestHandlerClass = make_handler(token, root, runner, actual)
     url = f"http://127.0.0.1:{actual}/?t={token}"
-    if practice_path:
-        url += f"&practice={quote(practice_path)}"
+    write_state({"pid": os.getpid(), "port": actual, "token": token, "url": url, "root": str(root)})
+    page = url + (f"&practice={quote(practice_path)}" if practice_path else "")
     # flush: when the output isn't a terminal it's buffered, and the link must show up right away.
-    print(f"song-wizard interface: {url}", flush=True)
+    print(f"song-wizard interface: {page}", flush=True)
     print(f"Music folder: {root}", flush=True)
     print("Leave this terminal open while you use it; Ctrl+C closes it.", flush=True)
     if open_page:
-        system.open_url(url)
+        system.open_url(page)
+
+    def interrupt(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, interrupt)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nClosing.")
+        pass
+    finally:
+        print("\nClosing.", flush=True)
+        clear_state(os.getpid())
         for job in list(runner.jobs.values()):
             if job.process and job.process.poll() is None:
                 job.process.terminate()
+        server.server_close()

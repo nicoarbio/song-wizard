@@ -146,7 +146,11 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
-La página solo funciona mientras la terminal donde la abriste siga abierta; Ctrl+C la cierra. Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
+La interfaz queda corriendo de fondo y la terminal queda libre para otra cosa (o para cerrarla). Volver a escribir `song-wizard ui` abre la misma interfaz, sin arrancar otra. Para cerrarla: "apagar" (abajo, en Trabajos) o `song-wizard ui --stop`; si hay algo corriendo, pregunta antes. Con `--foreground` queda en la terminal como antes, y Ctrl+C la cierra.
+
+En WSL, Linux se apaga solo un rato después de cerrar todas sus terminales, y la interfaz con él: si la usás con todas las ventanas de Ubuntu cerradas y deja de responder, volvé a abrirla con `song-wizard ui`.
+
+Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
 
 #### Practicar
 
@@ -191,6 +195,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | ✎ renombrar | `song-wizard rename` |
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
+| "apagar" | `song-wizard ui --stop` |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
@@ -473,7 +478,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
-- `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
+- `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), que corra de fondo (arranca una vez, se reusa, se apaga con `--stop` o desde la página, y solo con la clave), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
 
 `separate` no corre en las pruebas automáticas porque necesita bajar los modelos (1.3 GB); se puede probar a mano con `uv run pytest -m slow`, que verifica que instrumento + resto sumen el original. Para correr las pruebas en tu computadora, desde la carpeta del proyecto: `uv run pytest`.
 
@@ -533,6 +538,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `list`, `archives` (con la columna de carpeta) sobre la biblioteca real | Real (solo lectura) | ✅ Cada tema con su tonalidad, tempo y cantidad de archivos; `--files` los lista; las playlists dicen dónde están (Música y Drive) |
 | `archives --update`, `open` | Simulada | ✅ Busca temas nuevos en las playlists elegidas (o `all`) con su `--wav`; los temas sueltos no tienen playlist y lo avisa; `open` abre la carpeta del archivo dado |
 | Tonalidad y tempo a mano (`--set`, y tocando el badge en la interfaz) | Real (datos de prueba) | ✅ En Edge: tocar el tempo, escribir 100 y Enter lo guarda en `bpm.txt` marcado a mano y lo muestra con ✍; los temas sin analizar muestran "tono?" / "BPM?" al pasar el mouse; volver a correr `key`/`bpm` lo mantiene y `--force` lo reemplaza |
+| `ui` de fondo: arrancar, reusar y apagar | Real (datos de prueba) | ✅ La terminal queda libre al instante; el servidor sigue después de cerrar la terminal que lo abrió; otro `ui` reusa el mismo; `--stop` lo cierra (pregunta si hay un trabajo corriendo); "apagar" en Edge lo cierra y la página avisa que está apagada; el archivo con la clave queda legible solo por el usuario. **Falta probar** cerrar todas las terminales de WSL |
 | `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |

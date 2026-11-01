@@ -130,6 +130,8 @@
   #practice-count { color: var(--warn); }
   .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
   .toast.show { opacity: .92; }
+  .offline { position: sticky; top: 0; z-index: 5; background: var(--warn); color: #fff; padding: 8px 20px; font-size: 14px; }
+  .offline code { background: rgb(0 0 0 / .2); padding: 1px 5px; border-radius: 4px; }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); max-width: min(720px, calc(100vw - 32px)); width: 100%; padding: 18px 20px; }
   dialog#practice { max-width: min(860px, calc(100vw - 24px)); }
   input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
@@ -153,6 +155,7 @@
 </style>
 </head>
 <body>
+<div class="offline" id="offline" hidden>La interfaz está apagada. Para usarla de nuevo, en la terminal: <code>song-wizard ui</code> (abre una página nueva; esta podés cerrarla).</div>
 <header>
   <div class="brand">
     <img src="/static/logo.png" alt="" width="40" height="40">
@@ -272,7 +275,10 @@
     <section>
       <div class="section-head">
         <h2>Trabajos</h2>
+        <span>
         <button class="small" id="report-open" title="Arma un archivo con el estado de esta computadora y lo último que pasó, para pedir ayuda">reportar un problema</button>
+        <button class="small" id="shutdown" title="Cierra la interfaz, que sigue corriendo de fondo aunque cierres la página (como song-wizard ui --stop)">apagar</button>
+        </span>
       </div>
       <div id="jobs"><p class="empty">Todavía no corriste nada.</p></div>
     </section>
@@ -1627,14 +1633,31 @@ async function poll() {
         finished = true;
       }
     }
+    state.jobs = jobs;
     renderJobs(jobs);
     if (finished) refresh();
     const busy = jobs.some((j) => ["queued", "running"].includes(j.status));
     poll.timer = setTimeout(poll, busy ? 1000 : 4000);
+    poll.failures = 0;
+    $("offline").hidden = true;
   } catch (e) {
+    // Twice in a row: the server is gone (closed, or opened again with a new link).
+    poll.failures = (poll.failures || 0) + 1;
+    if (poll.failures >= 2) $("offline").hidden = false;
     poll.timer = setTimeout(poll, 5000);
   }
 }
+
+$("shutdown").onclick = async () => {
+  const busy = state.jobs && state.jobs.filter((j) => ["queued", "running"].includes(j.status));
+  const question = busy && busy.length
+    ? `Todavía está corriendo: ${busy.map((j) => j.title).join("; ")}.\n¿Cancelarlo y apagar la interfaz?`
+    : "¿Apagar la interfaz? Para volver a usarla: song-wizard ui en la terminal.";
+  if (!confirm(question)) return;
+  try { await api("/api/shutdown", {}); } catch {}
+  clearTimeout(poll.timer);
+  $("offline").hidden = false;
+};
 
 const selectedPaths = () => [...state.selected];
 

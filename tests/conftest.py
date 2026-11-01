@@ -16,4 +16,6 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.delenv("SONG_WIZARD_DIR", raising=False)
     # Commands the tests run as subprocesses (interface jobs) must not log to the real log.
     monkeypatch.setenv(log.OFF, "1")
+    # Nor find (or stop) the real interface if it's running.
+    monkeypatch.setenv("SONG_WIZARD_UI_STATE", str(data / "ui.json"))
     return tmp_path

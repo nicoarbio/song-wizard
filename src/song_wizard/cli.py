@@ -191,12 +191,17 @@ def build_parser():
     p.add_argument("path", nargs="?", metavar="FOLDER|FILE")
 
     p = sub.add_parser("ui", help="open the interface in the browser (same commands, without the terminal)",
-                       description="Starts a local server (only reachable from this computer) and opens the "
-                                   "interface in the browser; on WSL, the Windows browser. Keep the terminal "
-                                   "open while using it; Ctrl+C closes it.")
+                       description="Starts a local server (only reachable from this computer) in the background "
+                                   "and opens the interface in the browser; on WSL, the Windows browser. The "
+                                   "terminal stays free; running it again opens the same interface. --stop "
+                                   "closes it.")
     p.add_argument("--port", type=int, default=8765, help="local port (default: 8765, or the next free one)")
     p.add_argument("--no-browser", action="store_true", help="don't open the browser, just print the link")
     p.add_argument("--practice", metavar="FILE", help="open straight into the practice player with this song")
+    p.add_argument("--stop", action="store_true", help="close the interface running in the background")
+    p.add_argument("--yes", action="store_true", help="with --stop: close it even if something is running")
+    p.add_argument("--foreground", action="store_true",
+                   help="keep it in this terminal instead (Ctrl+C closes it), like before")
 
     p = sub.add_parser("report", help="put together a report to ask for help when something fails",
                        description="Writes a text file with this computer's setup and the last lines of "
@@ -266,7 +271,11 @@ def dispatch(argv):
             archives.show()
     elif args.command == "ui":
         from . import ui
-        ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice)
+        if args.stop:
+            ui.stop(yes=args.yes)
+        else:
+            ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice,
+                   foreground=args.foreground)
     elif args.command == "report":
         from . import report
         report.run(yes=args.yes)
@@ -309,7 +318,12 @@ def dispatch(argv):
     elif args.command == "upgrade":
         if not shutil.which("uv"):
             sys.exit("uv is missing; reinstall song-wizard following the README.")
-        sys.exit(subprocess.run(["uv", "tool", "upgrade", "song-wizard"]).returncode)
+        code = subprocess.run(["uv", "tool", "upgrade", "song-wizard"]).returncode
+        from . import ui
+        if code == 0 and ui.running():
+            print("The interface is still running the version from before: close it with "
+                  "song-wizard ui --stop and open it again with song-wizard ui.")
+        sys.exit(code)
     else:
         parser.print_help()
         sys.exit(1)
