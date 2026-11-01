@@ -1,5 +1,5 @@
-"""Rename a song and everything made from it: its other formats, stems and versions, and its
-lines in key.txt and bpm.txt."""
+"""Rename a song and everything made from it: its other formats, stems and versions, its lyrics,
+and its lines in key.txt and bpm.txt."""
 
 import os
 import re
@@ -12,10 +12,15 @@ FORBIDDEN = set('\\/:*?"<>|')
 NUMBER = re.compile(r"^\d+ - ")
 
 
+# Files that go with a song without being audio: its lyrics and their printable page.
+COMPANIONS = (".lyrics.json", ".lyrics.html")
+
+
 def group(folder, base):
-    """Every audio file in the folder that belongs to this song."""
+    """Every file in the folder that belongs to this song: its audio files and its lyrics."""
     return sorted(n for n in os.listdir(folder)
-                  if os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base
+                  if ((os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base)
+                      or n in {base + c for c in COMPANIONS})
                   and os.path.isfile(os.path.join(folder, n)))
 
 

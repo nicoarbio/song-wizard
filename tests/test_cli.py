@@ -25,6 +25,7 @@ DISPATCH = {
     "report": ([], "report", "run"),
     "list": ([], "listing", "run"),
     "setlist": ([], "setlist", "run"),
+    "lyrics": (["song.opus"], "lyrics", "run"),
     "setup": ([], "setup", "run"),
 }
 

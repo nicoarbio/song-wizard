@@ -136,7 +136,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "setlist" abre la lista de la carpeta lista para imprimir (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)). "setlist" abre la lista de la carpeta lista para imprimir (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
@@ -198,6 +198,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Reportar un problema | `song-wizard report` |
 | "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
 | "setlist" | `song-wizard setlist CARPETA` |
+| "letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
@@ -425,6 +426,25 @@ Todo va a la papelera del sistema (en WSL, a la Papelera de reciclaje de Windows
 - Un stem, una versión o un click se van solos; `--file` borra solo ese archivo aunque sea una copia del tema, como el `.mp3`.
 - Pide confirmación antes de borrar; `--yes` no pregunta.
 
+### Letras
+
+```bash
+song-wizard lyrics "Música/Show"          # busca la letra de cada tema
+song-wizard lyrics --from letra.txt "tema.opus"   # o la toma de un archivo
+song-wizard lyrics --export "tema.opus"   # la guarda lista para imprimir
+```
+
+Busca la letra de cada tema en una base de letras abierta, por el nombre del archivo ("Artista - Tema") y su duración, y la guarda al lado del tema como `Tema.lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `rename` la renombra y `delete` la borra con él.
+
+En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
+
+- **Colores**: marcás un pedazo con el mouse y tocás un color; "sin color" lo saca. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
+- **Notas**: "nota" agrega un comentario a la línea marcada ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
+- **Escribir o pegar**: para corregir la letra o cargarla a mano. Las líneas que no cambies conservan sus colores y notas.
+- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`.
+
+Todo se guarda solo. Buscar la letra de nuevo la reemplaza y se pierden los colores y las notas (la leyenda queda), por eso pregunta antes.
+
 ### Setlist
 
 ```bash
@@ -480,6 +500,7 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 - [Demucs](https://github.com/facebookresearch/demucs), de Meta: los modelos `htdemucs_ft` y `htdemucs_6s`.
 - [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, entrenado con el código de ZFTurbo.
 - [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
+- [LRCLIB](https://lrclib.net): base de letras abierta y comunitaria.
 - [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
 - [ffmpeg](https://ffmpeg.org): lectura y conversión de audio.
@@ -501,6 +522,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
+- `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
 - `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo con la clave).
 - El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.
 - `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), que corra de fondo (arranca una vez, se reusa, se apaga con `--stop` o desde la página, y solo con la clave), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
@@ -565,6 +587,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Tonalidad y tempo a mano (`--set`, y tocando el badge en la interfaz) | Real (datos de prueba) | ✅ En Edge: tocar el tempo, escribir 100 y Enter lo guarda en `bpm.txt` marcado a mano y lo muestra con ✍; los temas sin analizar muestran "tono?" / "BPM?" al pasar el mouse; volver a correr `key`/`bpm` lo mantiene y `--force` lo reemplaza |
 | `ui` de fondo: arrancar, reusar y apagar | Real (datos de prueba) | ✅ La terminal queda libre al instante; el servidor sigue después de cerrar la terminal que lo abrió; otro `ui` reusa el mismo; `--stop` lo cierra (pregunta si hay un trabajo corriendo); "apagar" en Edge lo cierra y la página avisa que está apagada; el archivo con la clave queda legible solo por el usuario. **Falta probar** cerrar todas las terminales de WSL |
 | Tono en vivo en el reproductor (de -6 a +6 semitonos) | Real (audio sintético) | ✅ Tonos puros de 98 y 440 Hz llegan a la frecuencia pedida con un error menor a 3 cents; lo demás queda por debajo de -73 dB y el nivel se mantiene. El retardo es el mismo para todos los tonos (±1.5 ms). En Edge, grabando dentro del navegador, la música y el click quedan a 1 ms (tono 0), 4 ms (-3) y 2 ms (+3). **Falta escucharlo con temas reales** y comparar con `transpose` |
+| `lyrics` contra la base de letras real (con archivos de prueba con nombre y duración de un tema conocido, y uno inventado) | Real | ✅ Encuentra la del tema conocido con la duración más cercana (275 s contra 276 s) y con tiempos; la del inventado no aparece y lo dice; si la base no responde (503) reintenta una vez y sigue con el resto |
+| Letra en la interfaz: colores, nota, leyenda e imprimir | Real (Edge, con un script) | ✅ Un pedazo de una línea y otro de dos líneas se pintan y se guardan; la nota y la leyenda se guardan; la hoja para imprimir muestra todo con sus colores |
 | `setlist` sobre la playlist real | Real (solo lectura, sin guardar en la carpeta) | ✅ Los 23 temas en orden con tonalidad, tempo y duración, total 1:40:00; impreso a PDF desde Edge entra en una A4 |
 | `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |

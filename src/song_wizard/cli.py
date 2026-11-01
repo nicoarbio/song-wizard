@@ -205,6 +205,17 @@ def build_parser():
     p.add_argument("--foreground", action="store_true",
                    help="keep it in this terminal instead (Ctrl+C closes it), like before")
 
+    p = sub.add_parser("lyrics", help="find the lyrics of songs and save them next to each song",
+                       description="Looks up each song's lyrics in an open lyrics database, by its name "
+                                   '("Artist - Song") and length, and saves them as "<song>.lyrics.json". '
+                                   "Highlighting and notes are done in the interface (song-wizard ui).")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--from", dest="text_from", metavar="FILE",
+                   help="don't look them up: take them from a text file (- reads what you paste, Ctrl+D to end)")
+    p.add_argument("--force", action="store_true", help="look them up again (highlights and notes are lost)")
+    p.add_argument("--export", action="store_true",
+                   help='save the lyrics with highlights and notes as "<song>.lyrics.html", to print or share')
+
     p = sub.add_parser("setlist", help="a printable setlist of a folder: key, tempo and length of each song",
                        description="Lists the songs of a folder in the order of their files (001 - ...), with "
                                    "key and tempo (from key.txt and bpm.txt: run key and bpm first) and length, "
@@ -288,6 +299,9 @@ def dispatch(argv):
         else:
             ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice,
                    foreground=args.foreground)
+    elif args.command == "lyrics":
+        from . import lyrics
+        lyrics.run(args.paths, text_from=args.text_from, force=args.force, export_page=args.export)
     elif args.command == "setlist":
         from . import setlist
         setlist.run(args.folder, name=args.title)
