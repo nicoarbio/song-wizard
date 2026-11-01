@@ -93,3 +93,12 @@ def test_no_command_shows_help(capsys):
         cli.main([])
     assert e.value.code == 1
     assert "usage: song-wizard" in capsys.readouterr().out
+
+
+def test_version_in_one_place():
+    import tomllib
+    from pathlib import Path
+
+    from song_wizard import __version__
+    project = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
+    assert project["project"]["version"] == __version__
