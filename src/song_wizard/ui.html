@@ -46,6 +46,7 @@
   button.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
   .download .dest { white-space: nowrap; }
   .folder .location { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  #command-code { user-select: all; white-space: pre-wrap; }
   #delete ul { max-height: 40vh; overflow: auto; font-size: 13px; padding-left: 20px; overflow-wrap: anywhere; }
   label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
@@ -349,6 +350,13 @@
   <div class="row" style="justify-content:flex-end"><button id="folder-default" hidden>usar Música</button><button id="folder-cancel">cancelar</button><button class="primary" id="folder-ok">aceptar</button></div>
 </dialog>
 
+<dialog id="command">
+  <h3>Falta un paso</h3>
+  <p id="command-text"></p>
+  <pre class="log" id="command-code"></pre>
+  <div class="row" style="justify-content:flex-end"><button id="command-close">cerrar</button><button class="primary" id="command-copy">copiar comando</button></div>
+</dialog>
+
 <dialog id="delete">
   <h3 id="delete-title">¿Borrar?</h3>
   <ul id="delete-list"></ul>
@@ -385,7 +393,7 @@ async function api(path, body) {
   }
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { command: data.command });
   return data;
 }
 
@@ -776,9 +784,33 @@ async function start(request) {
     toast(`En marcha: ${job.title}`);
     poll();
   } catch (e) {
-    toast(e.message);
+    if (e.command) showCommand(e.message, e.command);
+    else toast(e.message);
   }
 }
+
+// Errors that need a command run first (in a terminal): shown in a dialog where it can be copied.
+function showCommand(message, command) {
+  $("command-text").textContent = message;
+  $("command-code").textContent = command;
+  $("command-copy").textContent = "copiar comando";
+  $("command").showModal();
+}
+$("command-copy").onclick = async () => {
+  const command = $("command-code").textContent;
+  try {
+    await navigator.clipboard.writeText(command);
+  } catch {
+    // Without clipboard access: select it, so Ctrl+C works.
+    const range = document.createRange();
+    range.selectNodeContents($("command-code"));
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    document.execCommand("copy");
+  }
+  $("command-copy").textContent = "copiado ✓";
+};
+$("command-close").onclick = () => $("command").close();
 
 // ---------- Waveform ----------
 // The audio's outline (from /api/peaks) on a canvas: the played part, an A-B range, beat lines

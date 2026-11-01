@@ -401,4 +401,5 @@ def test_folder_on_an_unmounted_drive(server, monkeypatch):
     monkeypatch.setattr(system.shutil, "which", lambda name: None)
     monkeypatch.setattr(system.os.path, "ismount", lambda p: False)
     response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": "H:\\Mi unidad"})
-    assert response.status == 400 and "sudo mount -t drvfs H: /mnt/h" in json.loads(content)["error"]
+    data = json.loads(content)
+    assert response.status == 400 and data["command"] == "sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h"

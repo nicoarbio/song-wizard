@@ -199,6 +199,14 @@ def peaks(path, n, start=None, end=None):
     return result
 
 
+class NeedsCommand(ValueError):
+    """A request that can't go on until the user runs a command; the page offers to copy it."""
+
+    def __init__(self, message, command):
+        super().__init__(message)
+        self.command = command
+
+
 def folder_from(text):
     """A folder typed or picked in the page (a Windows path works on WSL): its path, or None.
     It must already exist."""
@@ -206,8 +214,9 @@ def folder_from(text):
         return None
     path = Path(system.local_path(str(text)))
     if letter := system.unmounted_drive(path):
-        raise ValueError(f"WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo en la "
-                         f"terminal: sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
+        raise NeedsCommand(f"WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo este "
+                           "comando en la terminal de WSL (pide tu contraseña) y probá de nuevo.",
+                           f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
     if not path.is_absolute() or not path.is_dir():
         raise ValueError(f"no existe la carpeta {text}")
     return str(path)
@@ -436,6 +445,8 @@ def make_handler(token, root, runner, port):
                     title, args = self.command_for(body)
                 except PermissionError:
                     return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                except NeedsCommand as e:
+                    return self.json({"error": str(e), "command": e.command}, HTTPStatus.BAD_REQUEST)
                 except (KeyError, ValueError, TypeError) as e:
                     return self.error(HTTPStatus.BAD_REQUEST, f"pedido inválido: {e}")
                 return self.json(runner.add(title, args).summary())
