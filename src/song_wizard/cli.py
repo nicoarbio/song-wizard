@@ -199,7 +199,9 @@ def build_parser():
     p.add_argument("--no-browser", action="store_true", help="don't open the browser, just print the link")
     p.add_argument("--practice", metavar="FILE", help="open straight into the practice player with this song")
     p.add_argument("--stop", action="store_true", help="close the interface running in the background")
-    p.add_argument("--yes", action="store_true", help="with --stop: close it even if something is running")
+    p.add_argument("--restart", action="store_true",
+                   help="close it and open it again (after an upgrade, or if it misbehaves)")
+    p.add_argument("--yes", action="store_true", help="with --stop or --restart: close it even if something is running")
     p.add_argument("--foreground", action="store_true",
                    help="keep it in this terminal instead (Ctrl+C closes it), like before")
 
@@ -280,6 +282,9 @@ def dispatch(argv):
         from . import ui
         if args.stop:
             ui.stop(yes=args.yes)
+        elif args.restart:
+            if ui.stop(yes=args.yes):
+                ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice)
         else:
             ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice,
                    foreground=args.foreground)
@@ -331,8 +336,8 @@ def dispatch(argv):
         code = subprocess.run(["uv", "tool", "upgrade", "song-wizard"]).returncode
         from . import ui
         if code == 0 and ui.running():
-            print("The interface is still running the version from before: close it with "
-                  "song-wizard ui --stop and open it again with song-wizard ui.")
+            print("The interface is still running the version from before: song-wizard ui --restart "
+                  "opens the new one.")
         sys.exit(code)
     else:
         parser.print_help()

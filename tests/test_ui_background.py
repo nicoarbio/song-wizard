@@ -52,6 +52,11 @@ def test_background_start_reuse_and_stop(music, monkeypatch, capsys):
     cli.main(["ui", "--port", str(port)])
     assert ui.running()["pid"] == info["pid"] and opened[1] == info["url"]
     assert "already running" in capsys.readouterr().out
+    # Restart: a new server (new process, new link), opened in the browser.
+    cli.main(["ui", "--restart", "--port", str(port)])
+    again = ui.running()
+    assert again and again["pid"] != info["pid"] and again["url"] != info["url"] and opened[-1] == again["url"]
+    assert "closed" in capsys.readouterr().out
     cli.main(["ui", "--stop"])
     assert ui.running() is None and not ui.state_file().exists()
     assert "closed" in capsys.readouterr().out
@@ -78,6 +83,8 @@ def test_stop_asks_while_working(music, monkeypatch, capsys):
         m.setattr(ui.sys, "stdin", open(os.devnull))
         with pytest.raises(SystemExit, match="--yes"):
             ui.stop()
+        with pytest.raises(SystemExit, match="--yes"):  # restart doesn't start a second one either
+            cli.main(["ui", "--restart"])
     assert "Separar: song.opus" in capsys.readouterr().out
     assert ui.running()  # still there
 

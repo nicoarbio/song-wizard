@@ -767,6 +767,7 @@ def run(port=PORT, open_page=True, practice=None, foreground=False):
 
 
 def stop(yes=False):
+    """Close the interface running in the background. False if it was left running."""
     info = running()
     if not info:
         try:
@@ -774,7 +775,7 @@ def stop(yes=False):
         except OSError:
             pass
         print("The interface isn't running.")
-        return
+        return True
     answer = ask(info["port"], info["token"], "GET", "/api/jobs")
     busy = [j["title"] for j in (answer[1] if answer else []) if j["status"] in ("queued", "running")]
     if busy and not yes:
@@ -783,7 +784,7 @@ def stop(yes=False):
             sys.exit("Not closing it in the middle of that: add --yes to cancel and close.")
         if input("Cancel and close? [y/N] ").strip().lower() not in ("y", "yes", "s", "si", "sí"):
             print("Left running.")
-            return
+            return False
     ask(info["port"], info["token"], "POST", "/api/shutdown")
     deadline = time.time() + 10
     while time.time() < deadline and running():
@@ -794,6 +795,7 @@ def stop(yes=False):
         except OSError:
             pass
     print("Interface closed.")
+    return True
 
 
 def serve(root, port, open_page, practice_path):

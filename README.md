@@ -146,7 +146,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
-La interfaz queda corriendo de fondo y la terminal queda libre para otra cosa (o para cerrarla). Volver a escribir `song-wizard ui` abre la misma interfaz, sin arrancar otra. Para cerrarla: "apagar" (abajo, en Trabajos) o `song-wizard ui --stop`; si hay algo corriendo, pregunta antes. Con `--foreground` queda en la terminal como antes, y Ctrl+C la cierra.
+La interfaz queda corriendo de fondo y la terminal queda libre para otra cosa (o para cerrarla). Volver a escribir `song-wizard ui` abre la misma interfaz, sin arrancar otra. Para cerrarla: "apagar" (abajo, en Trabajos) o `song-wizard ui --stop`; si hay algo corriendo, pregunta antes. `song-wizard ui --restart` la cierra y la vuelve a abrir (por ejemplo después de `upgrade`, que avisa si la interfaz sigue con la versión anterior). Con `--foreground` queda en la terminal como antes, y Ctrl+C la cierra.
 
 En WSL, Linux se apaga solo un rato después de cerrar todas sus terminales, y la interfaz con él: si la usás con todas las ventanas de Ubuntu cerradas y deja de responder, volvé a abrirla con `song-wizard ui`.
 
@@ -196,7 +196,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | ✎ renombrar | `song-wizard rename` |
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
-| "apagar" | `song-wizard ui --stop` |
+| "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
 | "setlist" | `song-wizard setlist CARPETA` |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
