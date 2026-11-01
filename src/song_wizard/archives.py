@@ -22,6 +22,7 @@ def remember(archive_id, url, title, folder=None, wav=None):
         meta["title"] = title
     if folder:
         meta["folder"] = folder
+        add_place(Path(folder).parent)
     if wav is not None:
         meta["wav"] = wav
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
@@ -80,6 +81,30 @@ def move(which, dest):
         sys.exit(f"Can't find the folder of {playlist['title']}; move it by hand and run this again.")
     remember(archive_id, playlist["url"], None, folder=str(target))
     print(f"{playlist['title']} is now in {target}. Looking for new songs downloads them there.")
+
+
+def places_file():
+    return ARCHIVE_DIR / "places.list"
+
+
+def add_place(folder):
+    """Remember a folder downloads went into (a playlist's or Singles' parent), for the library."""
+    folder = str(Path(folder).resolve())
+    known = places_file().read_text().splitlines() if places_file().exists() else []
+    if folder not in known:
+        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        places_file().write_text("".join(f"{p}\n" for p in [*known, folder]))
+
+
+def places():
+    """Every folder downloads went into: the ones remembered, plus the parents of the folders the
+    archives recorded (for archives from before places were kept). Only those that exist."""
+    found = places_file().read_text().splitlines() if places_file().exists() else []
+    for path in sorted(ARCHIVE_DIR.glob("*.json")) if ARCHIVE_DIR.exists() else []:
+        folder = read_meta(path.stem).get("folder")
+        if folder:
+            found.append(str(Path(folder).resolve().parent))
+    return [Path(p) for p in dict.fromkeys(found) if p and Path(p).is_dir()]
 
 
 def simple(name):

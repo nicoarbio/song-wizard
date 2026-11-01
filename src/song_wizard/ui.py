@@ -6,6 +6,7 @@ Each action runs the real CLI as a subprocess, one at a time, and the page polls
 """
 
 import collections
+import hashlib
 import itertools
 import json
 import mimetypes
@@ -222,16 +223,24 @@ def folder_from(text):
     return str(path)
 
 
-def outside(root, known=None):
-    """Playlists kept outside the music folder (moved to a synced drive, say): {"@<id>": folder}.
-    The page names their files "@<id>/<file>"."""
+def outside(root):
+    """Places outside the music folder where downloads went (a synced drive, say), like another
+    music folder each: {"@<key>": folder}. The page names their files "@<key>/<folder>/<file>";
+    the key is a short hash of the place, so it stays the same between runs."""
     root = root.resolve()
     found = {}
-    for p in archives.playlists() if known is None else known:
-        folder = Path(p["folder"]).resolve() if p["folder"] else None
-        if folder and folder.is_dir() and folder != root and root not in folder.parents:
-            found[f"@{p['id']}"] = folder
+    for place in archives.places():
+        place = place.resolve()
+        if place != root and root not in place.parents and place not in root.parents:
+            found["@" + hashlib.sha1(str(place).encode()).hexdigest()[:8]] = place
     return found
+
+
+def with_audio(folder):
+    try:
+        return any(os.path.splitext(n)[1].lower() in AUDIO_EXTS for n in os.listdir(folder))
+    except OSError:
+        return False
 
 
 def library(root):
@@ -244,9 +253,12 @@ def library(root):
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
     places = [(root, "", f) for f in [root, *subfolders]]
-    places += [(base, key, base) for key, base in sorted(outside(root, known).items(), key=lambda kv: kv[1].name.lower())]
-    for base, key, folder in places:
-        rel = lambda path, base=base, key=key: "/".join(filter(None, [key, relative(base, path)]))
+    for key, place in sorted(outside(root).items(), key=lambda kv: str(kv[1]).lower()):
+        inside = sorted((p for p in place.iterdir() if p.is_dir() and not p.name.startswith(".")),
+                        key=lambda p: p.name.lower()) if place.is_dir() else []
+        places += [(place, key, f) for f in [place, *inside] if with_audio(f)]
+    for place, key, folder in places:
+        rel = lambda path, place=place, key=key: "/".join(filter(None, [key, relative(place, path)]))
         try:
             names = sorted(n for n in os.listdir(folder)
                            if os.path.splitext(n)[1].lower() in AUDIO_EXTS and (folder / n).is_file())
@@ -273,7 +285,7 @@ def library(root):
             playlist = archives.playlist_for(folder, known) if folder != root else None
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
                             "path": rel(folder), "songs": songs, "extras": extras,
-                            "location": system.shown_path(folder.parent) if key else None,
+                            "location": system.shown_path(place) if key else None,
                             "playlist": {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None})
     return folders
 

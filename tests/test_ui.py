@@ -355,19 +355,21 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
     drive = tmp_path / "drive" / "Show"
     drive.mkdir(parents=True)
     synth.write(drive / "001 - A.wav", synth.sine(440, 1))
-    (tmp_path / "drive" / "secret.wav").write_bytes(b"s")
+    (tmp_path / "secret.wav").write_bytes(b"s")
     archives.ARCHIVE_DIR.mkdir(parents=True)
     (archives.ARCHIVE_DIR / "PLx.txt").write_text("site a\n")
     archives.remember("PLx", "https://example.com/playlist?list=PLx", "Show", folder=str(drive))
+    (key,) = ui.outside(root)
     (folder,) = get_json(port, "/api/library")["folders"]
-    assert folder["path"] == "@PLx" and folder["location"] == str(drive.parent)  # (WSL shows C:\... for /mnt/c)
-    assert folder["songs"][0]["path"] == "@PLx/001 - A.wav" and folder["playlist"]["id"] == "PLx"
-    assert request(port, "GET", "/api/audio?path=%40PLx/001%20-%20A.wav")[0].status == 200
-    assert request(port, "GET", "/api/audio?path=%40PLx/../secret.wav")[0].status == 403
-    assert request(port, "GET", "/api/audio?path=%40PLother/x.wav")[0].status == 403
+    assert folder["path"] == f"{key}/Show" and folder["location"] == str(drive.parent)
+    assert folder["songs"][0]["path"] == f"{key}/Show/001 - A.wav" and folder["playlist"]["id"] == "PLx"
+    quoted = key.replace("@", "%40")
+    assert request(port, "GET", f"/api/audio?path={quoted}/Show/001%20-%20A.wav")[0].status == 200
+    assert request(port, "GET", f"/api/audio?path={quoted}/../../secret.wav")[0].status == 403
+    assert request(port, "GET", "/api/audio?path=%40deadbeef/x.wav")[0].status == 403
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
-    job = json.loads(request(port, "POST", "/api/jobs", {"action": "key", "paths": ["@PLx/001 - A.wav"]})[1])
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "key", "paths": [f"{key}/Show/001 - A.wav"]})[1])
     wait_for(port, job["id"])
     assert ran[-1] == ["key", str((drive / "001 - A.wav").resolve())]
     other = tmp_path / "elsewhere"
@@ -403,3 +405,21 @@ def test_folder_on_an_unmounted_drive(server, monkeypatch):
     response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": "H:\\Mi unidad"})
     data = json.loads(content)
     assert response.status == 400 and data["command"] == "sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h"
+
+
+def test_singles_in_two_places(server, tmp_path):
+    from song_wizard import archives
+    port, root = server
+    (root / "Singles").mkdir()
+    (root / "Singles" / "Here.opus").write_bytes(b"x")
+    drive = tmp_path / "drive"
+    (drive / "Singles").mkdir(parents=True)
+    (drive / "Singles" / "There.opus").write_bytes(b"x")
+    (drive / "empty").mkdir()  # no audio: not listed
+    archives.ARCHIVE_DIR.mkdir(parents=True)
+    (archives.ARCHIVE_DIR / "singles.txt").write_text("site a\nsite b\n")
+    archives.remember(archives.SINGLES, None, None, folder=str(drive / "Singles"))
+    archives.remember(archives.SINGLES, None, None, folder=str(root / "Singles"))  # the latest single went here
+    folders = get_json(port, "/api/library")["folders"]
+    assert [(f["name"], f["location"], f["songs"][0]["name"]) for f in folders] == [
+        ("Singles", None, "Here.opus"), ("Singles", str(drive), "There.opus")]
