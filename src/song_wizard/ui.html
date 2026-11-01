@@ -489,12 +489,18 @@
 </dialog>
 
 <script>
-const token = new URLSearchParams(location.search).get("t") || "";
+// Links from before 0.10 had a token in them ("?t="): it isn't needed anymore, so it goes from the
+// address bar (and from a bookmark made from now on).
+if (new URLSearchParams(location.search).has("t")) {
+  const clean = new URL(location.href);
+  clean.searchParams.delete("t");
+  history.replaceState(null, "", clean.pathname + clean.search + clean.hash);
+}
 const $ = (id) => document.getElementById(id);
 const state = { folders: [], selected: new Set(), closedFolders: new Set(), openJob: null, logs: {}, lastDone: new Set() };
 
 async function api(path, body) {
-  const options = { headers: { "X-Token": token } };
+  const options = { headers: {} };
   if (body !== undefined) {
     options.method = "POST";
     options.headers["Content-Type"] = "application/json";
@@ -666,7 +672,7 @@ function renderLibrary() {
         folder.playlist ? el("button", { class: "small open", title: `Vuelve a mirar la playlist "${folder.playlist.title}" y baja solo los temas que se agregaron`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
         el("button", { class: folder.playlist ? "small" : "small open", title: "Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total",
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); window.open(`/setlist?folder=${encodeURIComponent(folder.path)}&t=${encodeURIComponent(token)}`, "_blank"); } }, "setlist"),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); window.open(`/setlist?folder=${encodeURIComponent(folder.path)}`, "_blank"); } }, "setlist"),
         el("button", { class: "small", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
@@ -1208,7 +1214,7 @@ const playerAudio = $("audio");
 const playerWave = new Wave($("player-wave"), { onSeek: (t) => { playerAudio.currentTime = t; } });
 
 function play(file) {
-  playerAudio.src = `/api/audio?path=${encodeURIComponent(file.path)}&t=${encodeURIComponent(token)}`;
+  playerAudio.src = `/api/audio?path=${encodeURIComponent(file.path)}`;
   $("now").textContent = file.name;
   $("player-play").disabled = false;
   playerWave.clear();
@@ -1316,7 +1322,7 @@ function loadSet(index) {
   $("practice-play").disabled = true;
   $("practice-status").textContent = "Cargando las pistas…";
   practice.tracks = set.tracks.map((t) => {
-    const audio = new Audio(`/api/audio?path=${encodeURIComponent(t.file.path)}&t=${encodeURIComponent(token)}`);
+    const audio = new Audio(`/api/audio?path=${encodeURIComponent(t.file.path)}`);
     audio.preload = "auto";
     audio.preservesPitch = true;
     const gain = ctx.createGain();
@@ -2359,7 +2365,7 @@ $("lyr-save").onclick = async () => {
     renderLyrics(); renderLibrary();
   } catch (e) { toast(e.message, 6000); }
 };
-$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}&t=${encodeURIComponent(token)}`, "_blank");
+$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}`, "_blank");
 $("lyr-close").onclick = () => $("lyrics").close();
 $("report-close").onclick = () => $("report").close();
 $("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(`No se pudo abrir: ${e.message}`));

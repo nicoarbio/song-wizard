@@ -66,6 +66,50 @@ def test_forbidden(server, token, host):
     assert request(port, "POST", "/api/jobs", {"action": "key", "paths": [""]}, token=token, host=host)[0].status == 403
 
 
+# What a browser sends, by where the request comes from.
+OWN_PAGE = {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors"}
+TYPED_IN = {"Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate"}
+OTHER_SITE = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "no-cors", "Origin": "https://evil.example"}
+# Another server on this computer, on another port: same site, but not the same origin.
+OTHER_PORT = {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "no-cors", "Origin": "http://127.0.0.1:3000"}
+
+
+def test_without_token_only_its_own_page(server):
+    port, _ = server
+    # Acting on a song that isn't there: 404 if the request is let in, 403 if not.
+    job = {"path": "nothing.opus"}
+    # The page itself, and what it asks for.
+    assert request(port, "GET", "/", token=None, headers=TYPED_IN)[0].status == 200
+    assert request(port, "GET", "/api/library", token=None, headers=OWN_PAGE)[0].status == 200
+    assert request(port, "POST", "/api/reaper", job, token=None, headers=OWN_PAGE)[0].status == 404
+    # Any other page in the browser can't do anything, nor read anything...
+    for headers in (OTHER_SITE, OTHER_PORT):
+        assert request(port, "POST", "/api/reaper", job, token=None, headers=headers)[0].status == 403
+        assert request(port, "POST", "/api/shutdown", {}, token=None, headers=headers)[0].status == 403
+        assert request(port, "GET", "/api/audio?path=x.wav", token=None, headers=headers)[0].status == 403
+        # ...not even with a link that opens it as a page, except for the page itself.
+        link = {**headers, "Sec-Fetch-Mode": "navigate"}
+        assert request(port, "GET", "/api/library", token=None, headers=link)[0].status == 403
+        assert request(port, "GET", "/", token=None, headers=link)[0].status == 200
+    # A typed-in address can only look, never act.
+    assert request(port, "POST", "/api/reaper", job, token=None, headers=TYPED_IN)[0].status == 403
+    # Browsers from before Sec-Fetch-Site: by Origin.
+    assert request(port, "POST", "/api/reaper", job, token=None, headers={"Origin": f"http://127.0.0.1:{port}"})[0].status == 404
+    assert request(port, "POST", "/api/reaper", job, token=None, headers={"Origin": f"http://localhost:{port}"})[0].status == 404
+    assert request(port, "POST", "/api/reaper", job, token=None, headers={"Origin": "http://127.0.0.1:3000"})[0].status == 403
+    # Nothing says where it comes from (not a browser, or a very old one): refused.
+    assert request(port, "POST", "/api/reaper", job, token=None)[0].status == 403
+    # Its own page, but under another name (DNS rebinding): refused.
+    assert request(port, "GET", "/api/library", token=None, host="evil.example:80",
+                   headers={**OWN_PAGE, "Origin": "http://evil.example"})[0].status == 403
+
+
+def test_links_from_before_still_work(server):
+    port, _ = server
+    assert request(port, "GET", f"/api/library?t={TOKEN}", token=None)[0].status == 200
+    assert request(port, "GET", "/api/library?t=wrong", token=None, headers=OWN_PAGE)[0].status == 403
+
+
 def test_localhost_host_allowed(server):
     port, _ = server
     assert request(port, "GET", "/api/library", host=f"localhost:{port}")[0].status == 200

@@ -65,7 +65,7 @@ def test_background_start_reuse_and_stop(music, monkeypatch, capsys):
     # Restart: a new server (new process, new link), opened in the browser.
     cli.main(["ui", "--restart", "--port", str(port)])
     again = ui.running()
-    assert again and again["pid"] != info["pid"] and again["url"] != info["url"] and opened[-1] == again["url"]
+    assert again and again["pid"] != info["pid"] and again["token"] != info["token"] and opened[-1] == again["url"]
     assert "closed" in capsys.readouterr().out
     cli.main(["ui", "--stop"])
     assert ui.running() is None and not ui.state_file().exists()

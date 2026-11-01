@@ -1,7 +1,9 @@
 """Local web interface: a page in the browser that runs the same commands as the terminal.
 
-It only listens on 127.0.0.1, and every request needs a random token that is in the URL the
-browser is opened with: without it, any web page open in the browser could send requests here.
+It only listens on 127.0.0.1, and only takes requests made by its own page: browsers say where
+each request comes from (Sec-Fetch-Site, or Origin), so any other web page open in the browser,
+which could otherwise send requests here, is refused. The terminal's own requests (ui --stop) carry
+a random token instead, kept in a file only the user can read.
 Each action runs the real CLI as a subprocess, one at a time, and the page polls its output.
 """
 
@@ -347,12 +349,28 @@ def make_handler(token, root, runner, port):
         def error(self, status, message):
             self.json({"error": message}, status)
 
-        def authorized(self, query):
-            # Host check against DNS rebinding; the token against any other page in the browser.
+        def authorized(self, query, page=False):
+            # The Host check is against DNS rebinding (another site's name pointed at 127.0.0.1).
             if self.headers.get("Host") not in allowed_hosts:
                 return False
+            # The terminal (and links from before 0.10, which had it in the URL).
             given = self.headers.get("X-Token") or query.get("t", [""])[0]
-            return secrets.compare_digest(given, token)
+            if given:
+                return secrets.compare_digest(given, token)
+            return self.from_this_page(page)
+
+        def from_this_page(self, page):
+            """Whether the browser says this request comes from the interface itself. Any other
+            page is refused, even another local server on another port (same-site, but not
+            same-origin)."""
+            site = self.headers.get("Sec-Fetch-Site")
+            if site:
+                if site == "same-origin" or (site == "none" and self.command == "GET"):
+                    return True  # "none": typed in, a bookmark, or opened by the terminal
+                # A link to the interface from somewhere else opens the page, and nothing more.
+                return page and self.command == "GET" and self.headers.get("Sec-Fetch-Mode") == "navigate"
+            # Browsers from before Sec-Fetch-Site (2020-2023) still send Origin on what matters.
+            return self.headers.get("Origin") in {f"http://{h}" for h in allowed_hosts}
 
         def resolve(self, name):
             """A path from the page, which must stay inside the music folder or, for "@<id>/...",
@@ -377,8 +395,8 @@ def make_handler(token, root, runner, port):
                 name, kind = STATIC[url.path]
                 body = resources.files("song_wizard").joinpath("static", name).read_bytes()
                 return self.send(HTTPStatus.OK, body, kind)
-            if not self.authorized(query):
-                return self.error(HTTPStatus.FORBIDDEN, "Abrí la interfaz con el link que muestra la terminal.")
+            if not self.authorized(query, page=url.path == "/"):
+                return self.error(HTTPStatus.FORBIDDEN, "Este pedido no viene de la interfaz de song-wizard.")
             if url.path == "/":
                 return self.send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
             if url.path == "/api/library":
@@ -503,7 +521,7 @@ def make_handler(token, root, runner, port):
         def do_POST(self):
             url = urlparse(self.path)
             if not self.authorized(parse_qs(url.query)):
-                return self.error(HTTPStatus.FORBIDDEN, "token inválido")
+                return self.error(HTTPStatus.FORBIDDEN, "Este pedido no viene de la interfaz de song-wizard.")
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             except ValueError:
@@ -872,7 +890,7 @@ def run(port=PORT, open_page=True, practice=None, foreground=False):
         print("The interface was already running.", flush=True)
     else:
         info = start_background(port)
-    url = info["url"] + (f"&practice={quote(practice_path)}" if practice_path else "")
+    url = with_practice(info["url"], practice_path)
     print(f"song-wizard interface: {url}", flush=True)
     print(f"Music folder: {root}", flush=True)
     print("It keeps running in the background; song-wizard ui --stop closes it (or \"apagar\" on the page).",
@@ -913,6 +931,14 @@ def stop(yes=False):
     return True
 
 
+def with_practice(url, practice_path):
+    """The interface's link, opening the practice player on a song if given. (A server started
+    by an older version has the token in its link already.)"""
+    if not practice_path:
+        return url
+    return url + ("&" if "?" in url else "?") + f"practice={quote(practice_path)}"
+
+
 def serve(root, port, open_page, practice_path):
     """The server itself, in this process until Ctrl+C, "--stop" or "apagar" on the page."""
     token = secrets.token_urlsafe(16)
@@ -929,10 +955,10 @@ def serve(root, port, open_page, practice_path):
     actual = server.server_address[1]
     if actual != candidate:  # port 0: the system picked one, the handler must know which
         server.RequestHandlerClass = make_handler(token, root, runner, actual)
-    url = f"http://127.0.0.1:{actual}/?t={token}"
+    url = f"http://127.0.0.1:{actual}/"
     write_state({"pid": os.getpid(), "port": actual, "token": token, "url": url, "root": str(root),
                  "nonce": os.environ.get(NONCE_ENV)})
-    page = url + (f"&practice={quote(practice_path)}" if practice_path else "")
+    page = with_practice(url, practice_path)
     # flush: when the output isn't a terminal it's buffered, and the link must show up right away.
     print(f"song-wizard interface: {page}", flush=True)
     print(f"Music folder: {root}", flush=True)
