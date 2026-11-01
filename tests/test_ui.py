@@ -383,3 +383,13 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
         assert request(port, "POST", "/api/jobs", bad)[0].status == 400
     monkeypatch.setattr(system, "pick_folder", lambda: "/picked")
     assert json.loads(request(port, "POST", "/api/pick-folder", {})[1]) == {"path": "/picked"}
+
+
+def test_icon_and_logo_need_no_token(server):
+    port, _ = server
+    response, content = request(port, "GET", "/favicon.ico", token=None)
+    assert response.status == 200 and response.getheader("Content-Type") == "image/x-icon" and content[:4] == b"\0\0\1\0"
+    response, content = request(port, "GET", "/static/logo.png", token=None)
+    assert response.status == 200 and content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert request(port, "GET", "/static/other.png", token=None)[0].status == 403
+    assert request(port, "GET", "/favicon.ico", token=None, host="evil.example:80")[0].status == 403

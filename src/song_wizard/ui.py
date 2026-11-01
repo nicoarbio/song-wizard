@@ -27,6 +27,7 @@ from .audio import AUDIO_EXTS, GENERATED, base_of
 from .paths import music_dir
 
 PORT = 8765
+STATIC = {"/favicon.ico": ("favicon.ico", "image/x-icon"), "/static/logo.png": ("logo.png", "image/png")}
 # Output of a job that is kept to show in the page.
 LOG_LINES = 2000
 
@@ -326,6 +327,11 @@ def make_handler(token, root, runner, port):
         def do_GET(self):
             url = urlparse(self.path)
             query = parse_qs(url.query)
+            # The icon and the logo: fixed files, asked for by the browser without the token.
+            if url.path in STATIC and self.headers.get("Host") in allowed_hosts:
+                name, kind = STATIC[url.path]
+                body = resources.files("song_wizard").joinpath("static", name).read_bytes()
+                return self.send(HTTPStatus.OK, body, kind)
             if not self.authorized(query):
                 return self.error(HTTPStatus.FORBIDDEN, "Abrí la interfaz con el link que muestra la terminal.")
             if url.path == "/":
