@@ -97,3 +97,29 @@ def test_unmounted_drive(playlist, monkeypatch):
     with pytest.raises(SystemExit) as e:
         archives.move("1", "/mnt/h/Mi unidad")
     assert "drvfs H:" in str(e.value)
+
+
+def test_a_place_that_isnt_there_is_shown(tmp_path, monkeypatch, capsys):
+    """Singles downloaded to a drive that isn't connected now (Google Drive's, on WSL after a
+    restart) used to just vanish from the library."""
+    from song_wizard import listing, ui
+    music = tmp_path / "music"
+    music.mkdir()
+    monkeypatch.setenv("SONG_WIZARD_DIR", str(music))
+    drive = tmp_path / "drive" / "song-wizard"
+    (drive / "Singles").mkdir(parents=True)
+    (drive / "Singles" / "Song.opus").write_bytes(b"x")
+    archives.ARCHIVE_DIR.mkdir(parents=True)
+    archives.remember(archives.SINGLES, None, None, folder=str(drive / "Singles"))
+    names = lambda: [(f["name"], bool(f.get("missing"))) for f in ui.library(music)]
+    assert names() == [("Singles", False)]
+    # Moved away by hand: said, with no drive to connect.
+    (tmp_path / "drive").rename(tmp_path / "elsewhere")
+    gone = ui.library(music)[-1]
+    assert names() == [("song-wizard", True)] and gone["missing"] == {"drive": None, "command": None}
+    # A Windows drive WSL doesn't see: with the command that connects it.
+    monkeypatch.setattr(system, "unmounted_drive", lambda path: "H")
+    gone = ui.library(music)[-1]
+    assert gone["missing"] == {"drive": "H", "command": "sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h"}
+    listing.run()
+    assert "(not available: WSL doesn't see drive H:. Connect it with: sudo mkdir -p /mnt/h" in capsys.readouterr().out

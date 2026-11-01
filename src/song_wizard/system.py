@@ -39,9 +39,12 @@ def unmounted_drive(path):
     return match[1].upper() if match and not os.path.ismount(f"/mnt/{match[1]}") else None
 
 
+def mount_command(letter):
+    return f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}"
+
+
 def mount_hint(letter):
-    return (f"Windows drive {letter}: isn't available in WSL. Mount it with: "
-            f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
+    return f"Windows drive {letter}: isn't available in WSL. Mount it with: {mount_command(letter)}"
 
 
 _shown = {}
@@ -52,7 +55,10 @@ def shown_path(path):
     path = str(path)
     if is_wsl() and re.match(r"^/mnt/[a-z]/", path) and shutil.which("wslpath"):
         if path not in _shown:
-            _shown[path] = windows_path(path) or path
+            # wslpath can't name a folder on a drive that isn't mounted (it gives a \\wsl.localhost
+            # path): say it the Windows way.
+            drive = unmounted_drive(path)
+            _shown[path] = (f"{drive}:\\" + path[7:].replace("/", "\\")) if drive else (windows_path(path) or path)
         return _shown[path]
     return path
 

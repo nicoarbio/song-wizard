@@ -680,12 +680,13 @@ function renderLibrary() {
   const box = $("library");
   box.replaceChildren();
   state.shown = [];  // every checkbox shown, in order (for shift+click)
-  const visible = state.folders.filter((f) => f.songs.length || f.extras.length);
+  const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing);
   if (!visible.length) {
     box.append(el("p", { class: "empty" }, "No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música."));
     return;
   }
   for (const folder of visible) {
+    if (folder.missing) { if (!filter) box.append(renderMissing(folder)); continue; }
     const songs = folder.songs.filter((s) => !filter || s.name.toLowerCase().includes(filter));
     if (filter && !songs.length) continue;
     const allChecked = songs.length && songs.every((s) => state.selected.has(s.path));
@@ -714,6 +715,20 @@ function renderLibrary() {
     }
     box.append(details);
   }
+}
+
+// A place downloads went to that isn't there now: said, instead of its songs just vanishing.
+function renderMissing(folder) {
+  const drive = folder.missing.drive;
+  return el("details", { class: "folder missing", open: true },
+    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, "no disponible")),
+    el("div", { class: "location" }, `en ${folder.location}`),
+    drive
+      ? el("p", { class: "hint" }, `WSL no ve la unidad ${drive}: (pasa con la de Google Drive después de reiniciar WSL), así que sus temas no aparecen. `,
+          el("button", { class: "small", onclick: () => showCommand(
+            `Corré este comando en la terminal de WSL (pide tu contraseña) y tocá "↻ actualizar". Para que se conecte sola cada vez, agregá la línea "${drive}: /mnt/${drive.toLowerCase()} drvfs defaults,nofail 0 0" a /etc/fstab.`,
+            folder.missing.command) }, "cómo conectarla"))
+      : el("p", { class: "hint" }, "No encuentro esta carpeta: si la moviste o la renombraste, sus temas no aparecen hasta que esté de nuevo ahí (para una playlist, \"song-wizard archives --move\" anota dónde está ahora)."));
 }
 
 function renderSong(song) {

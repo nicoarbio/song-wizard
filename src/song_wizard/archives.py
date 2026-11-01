@@ -96,15 +96,16 @@ def add_place(folder):
         places_file().write_text("".join(f"{p}\n" for p in [*known, folder]))
 
 
-def places():
+def places(missing=False):
     """Every folder downloads went into: the ones remembered, plus the parents of the folders the
-    archives recorded (for archives from before places were kept). Only those that exist."""
+    archives recorded (for archives from before places were kept). Only those that exist, unless
+    missing (a drive that isn't connected now, a folder moved by hand)."""
     found = places_file().read_text().splitlines() if places_file().exists() else []
     for path in sorted(ARCHIVE_DIR.glob("*.json")) if ARCHIVE_DIR.exists() else []:
         folder = read_meta(path.stem).get("folder")
         if folder:
             found.append(str(Path(folder).resolve().parent))
-    return [Path(p) for p in dict.fromkeys(found) if p and Path(p).is_dir()]
+    return [Path(p) for p in dict.fromkeys(found) if p and (missing or Path(p).is_dir())]
 
 
 def simple(name):

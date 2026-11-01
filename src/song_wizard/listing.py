@@ -20,6 +20,14 @@ def run(text=None, files=False):
     text = (text or "").lower()
     shown = 0
     for folder in library(root):
+        if folder.get("missing"):
+            if not text:
+                problem = folder["missing"]
+                print(f"\n{folder['location']}  (not available"
+                      + (f": WSL doesn't see drive {problem['drive']}:. Connect it with: {problem['command']})" if problem["drive"]
+                         else ": the folder isn't there anymore; if you moved it, song-wizard archives --move tells where)"))
+                shown += 1
+            continue
         here = folder_path(root, folder)
         songs = [s for s in folder["songs"] if not text or text in s["name"].lower() or text in folder["name"].lower()]
         if text and not songs:

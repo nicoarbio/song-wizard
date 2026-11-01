@@ -222,19 +222,20 @@ def folder_from(text):
     if letter := system.unmounted_drive(path):
         raise NeedsCommand(f"WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo este "
                            "comando en la terminal de WSL (pide tu contraseña) y probá de nuevo.",
-                           f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
+                           system.mount_command(letter))
     if not path.is_absolute() or not path.is_dir():
         raise ValueError(f"no existe la carpeta {text}")
     return str(path)
 
 
-def outside(root):
+def outside(root, missing=False):
     """Places outside the music folder where downloads went (a synced drive, say), like another
     music folder each: {"@<key>": folder}. The page names their files "@<key>/<folder>/<file>";
-    the key is a short hash of the place, so it stays the same between runs."""
+    the key is a short hash of the place, so it stays the same between runs. missing: also the
+    ones that aren't there now."""
     root = root.resolve()
     found = {}
-    for place in archives.places():
+    for place in archives.places(missing=missing):
         place = place.resolve()
         if place != root and root not in place.parents and place not in root.parents:
             found["@" + hashlib.sha1(str(place).encode()).hexdigest()[:8]] = place
@@ -258,7 +259,16 @@ def library(root):
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
     places = [(root, "", f) for f in [root, *subfolders]]
-    for key, place in sorted(outside(root).items(), key=lambda kv: str(kv[1]).lower()):
+    gone = []
+    for key, place in sorted(outside(root, missing=True).items(), key=lambda kv: str(kv[1]).lower()):
+        if not place.is_dir():
+            # Not hidden: its songs would just vanish from the library (a drive not connected
+            # now, like Google Drive's on WSL after a restart, or a folder moved by hand).
+            letter = system.unmounted_drive(place)
+            gone.append({"name": place.name, "path": key, "songs": [], "extras": [], "playlist": None,
+                         "location": system.shown_path(place),
+                         "missing": {"drive": letter, "command": system.mount_command(letter) if letter else None}})
+            continue
         inside = sorted((p for p in place.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower()) if place.is_dir() else []
         places += [(place, key, f) for f in [place, *inside] if with_audio(f)]
@@ -298,7 +308,7 @@ def library(root):
                             "path": rel(folder), "songs": songs, "extras": extras,
                             "location": system.shown_path(place) if key else None,
                             "playlist": {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None})
-    return folders
+    return folders + gone
 
 
 _reaper = {"at": 0.0, "installed": False}
