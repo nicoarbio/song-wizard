@@ -1,5 +1,5 @@
 """Rename a song and everything made from it: its other formats, stems and versions, its lyrics,
-and its lines in key.txt and bpm.txt."""
+its REAPER project (and the files it points to), and its lines in key.txt and bpm.txt."""
 
 import os
 import re
@@ -12,15 +12,22 @@ FORBIDDEN = set('\\/:*?"<>|')
 NUMBER = re.compile(r"^\d+ - ")
 
 
-# Files that go with a song without being audio: its lyrics and their printable page.
-COMPANIONS = (".lyrics.json", ".lyrics.html")
+# Files that go with a song without being audio: its lyrics and their printable page, and its
+# REAPER project and the backup REAPER keeps of it.
+COMPANIONS = (".lyrics.json", ".lyrics.html", ".rpp", ".rpp-bak")
+# REAPER's waveform cache, next to each audio file it opened: "Title (drums).wav.reapeaks".
+PEAKS = ".reapeaks"
 
 
 def group(folder, base):
-    """Every file in the folder that belongs to this song: its audio files and its lyrics."""
-    return sorted(n for n in os.listdir(folder)
-                  if ((os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base)
-                      or n in {base + c for c in COMPANIONS})
+    """Every file in the folder that belongs to this song: its audio files, its lyrics and its
+    REAPER project."""
+    names = os.listdir(folder)
+    audio = {n for n in names if os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base}
+    companions = {(base + c).lower() for c in COMPANIONS}
+    return sorted(n for n in names
+                  if (n in audio or n.lower() in companions
+                      or (n.lower().endswith(PEAKS) and n[:-len(PEAKS)] in audio))
                   and os.path.isfile(os.path.join(folder, n)))
 
 
@@ -61,11 +68,11 @@ def plan(path, new):
             clashes.append(target)
     if clashes:
         die("Nothing renamed: these already exist:\n" + "\n".join(f"  {c}" for c in clashes))
-    return folder, renames
+    return folder, renames, old, new
 
 
 def run(path, new):
-    folder, renames = plan(path, new)
+    folder, renames, old_base, new_base = plan(path, new)
     done = []
     try:
         for old, target in renames:
@@ -77,6 +84,12 @@ def run(path, new):
         die(f"Nothing renamed: {e}")
     for old, target in renames:
         print(f"  {old}  ->  {target}")
+    # A REAPER project points to the song's files by name: point it to the new names.
+    from . import reaper
+    for _, target in renames:
+        if target.lower().endswith((".rpp", ".rpp-bak")) and reaper.rename_inside(
+                os.path.join(folder, target), old_base, new_base):
+            print(f"  updated the files {target} points to")
     for command in ("key", "bpm", "click"):
         if results.rename(folder, command, dict(renames)):
             print(f"  updated {command}.txt")

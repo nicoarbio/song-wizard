@@ -1,6 +1,6 @@
 import pytest
 
-from song_wizard import archives, config, log, paths, report
+from song_wizard import archives, config, log, paths, reaper, report, ui
 
 
 @pytest.fixture(autouse=True)
@@ -18,4 +18,10 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv(log.OFF, "1")
     # Nor find (or stop) the real interface if it's running.
     monkeypatch.setenv("SONG_WIZARD_UI_STATE", str(data / "ui.json"))
+    # Nor REAPER: its settings, or opening it. Tests that need it installed or running say so.
+    monkeypatch.setattr(reaper, "ini_path", lambda: tmp_path / "REAPER" / "reaper.ini")
+    monkeypatch.setattr(reaper, "installed", lambda: False)
+    monkeypatch.setattr(reaper, "running", lambda: False)
+    monkeypatch.setattr(reaper, "STATE", data / "reaper.json")
+    monkeypatch.setattr(ui, "_reaper", {"at": 0.0, "installed": False})
     return tmp_path

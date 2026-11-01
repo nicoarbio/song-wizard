@@ -1,6 +1,6 @@
 [project]
 name = "song-wizard"
-version = "0.8.1"
+version = "0.9.0"
 description = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
 readme = "README.md"
 license = "AGPL-3.0-or-later"

@@ -26,6 +26,7 @@ DISPATCH = {
     "list": ([], "listing", "run"),
     "setlist": ([], "setlist", "run"),
     "lyrics": (["song.opus"], "lyrics", "run"),
+    "reaper": (["song.opus"], "reaper", "run"),
     "setup": ([], "setup", "run"),
 }
 

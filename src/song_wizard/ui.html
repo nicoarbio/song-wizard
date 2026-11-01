@@ -146,6 +146,21 @@
   .tracks .pct { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
   .tracks button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .song .head button.on { color: var(--accent); font-weight: 600; }
+  /* "más": the song's other actions (lyrics, rename, REAPER), in a menu under the button. */
+  .more { position: relative; }
+  .more > button.open { border-color: var(--accent); }
+  .more .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; vertical-align: middle; }
+  .more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 15em; max-width: 80vw; display: flex; flex-direction: column;
+               background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.14); padding: 4px; }
+  .more-menu button { text-align: left; background: none; border: 0; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+  .more-menu button:hover:not(:disabled), .more-menu button:focus-visible { background: var(--soft); outline: none; }
+  .more-menu .sub { display: block; font-size: 11px; color: var(--muted); }
+  .setting-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 8px 0; font-size: 13px; }
+  .setting-list dt { color: var(--muted); }
+  .setting-list dd { margin: 0; overflow-wrap: anywhere; }
+  .setting-list code, .reaper-setting code { font-size: 12px; background: var(--soft); padding: 1px 4px; border-radius: 4px; }
+  #reaper-changed { max-width: 640px; }
+  .more-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
   .practice-keys { color: var(--muted); font-size: 12px; }
   .practice-keys kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; font: 11px ui-monospace, Menlo, Consolas, monospace; }
   #practice-sync { font: 11px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
@@ -316,6 +331,11 @@
       </div>
       <div id="jobs"><p class="empty">Todavía no corriste nada.</p></div>
     </section>
+
+    <section id="reaper-box" hidden>
+      <h2>Reaper</h2>
+      <div id="reaper-setting"></div>
+    </section>
   </div>
 </main>
 
@@ -441,6 +461,16 @@
     <div class="row"><button class="primary small" id="lyr-save">guardar</button><button class="small" id="lyr-cancel">cancelar</button></div>
   </div>
   <p class="muted lyr-source" id="lyr-source"></p>
+</dialog>
+
+<dialog id="reaper-changed" aria-label="Cambié una preferencia de Reaper">
+  <h3>Cambié una preferencia de Reaper</h3>
+  <div id="reaper-changed-body"></div>
+  <p class="hint">Esto queda en el apartado <b>Reaper</b>, debajo de Trabajos: ahí lo podés volver a ver y restaurar cuando quieras.</p>
+  <div class="row" style="justify-content:flex-end">
+    <button id="reaper-changed-restore">restaurar como estaba</button>
+    <button class="primary" id="reaper-changed-ok" autofocus>entendido</button>
+  </div>
 </dialog>
 
 <dialog id="report">
@@ -662,9 +692,7 @@ function renderSong(song) {
       el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
       title, badges,
       el("button", { class: "small", title: "Practicar: mezclar los stems, bajar la velocidad y repetir un tramo", onclick: () => openPractice(song) }, "practicar"),
-      el("button", { class: "small" + (song.lyrics ? " on" : ""), title: song.lyrics ? "La letra, con sus colores y notas" : "Buscar o escribir la letra, para marcarla con colores y notas", onclick: () => openLyrics(song) }, song.lyrics ? "letra ✓" : "letra"),
-      state.renaming === song.path ? null : el("button", { class: "small", title: "Renombrar el tema (y sus stems, versiones y resultados)",
-        onclick: () => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); } }, "✎")));
+      state.renaming === song.path ? null : moreMenu(song)));
   if (song.files.length) {
     const open = songOpen(song);
     const n = song.files.length;
@@ -675,6 +703,126 @@ function renderSong(song) {
     if (open) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
   }
   return li;
+}
+
+// "más": lyrics, rename and the REAPER project, in a menu. One open at a time (state.menu is
+// that song's path), kept open across redraws; a click elsewhere or Escape closes it.
+function moreMenu(song) {
+  const open = state.menu === song.path;
+  const toggleMenu = (e) => { e.stopPropagation(); state.menu = open ? null : song.path; renderLibrary(); };
+  const pick = (action) => () => { state.menu = null; renderLibrary(); action(); };
+  const item = (label, sub, props) => el("button", { role: "menuitem", ...props }, label, sub ? el("span", { class: "sub" }, sub) : null);
+  const box = el("span", { class: "more" },
+    el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
+                   title: "Más acciones: la letra, renombrar, el proyecto de Reaper", onclick: toggleMenu },
+       "más ▾", song.lyrics || song.reaper ? el("span", { class: "dot", title: "Tiene letra o proyecto de Reaper" }) : null));
+  if (!open) return box;
+  const reaper = state.reaperInstalled;
+  const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
+    item(song.lyrics ? "Letra ✓" : "Letra", song.lyrics ? "con sus colores y notas" : "buscarla o escribirla, para marcarla",
+         { onclick: pick(() => openLyrics(song)) }),
+    item("Renombrar", "con sus stems, versiones y resultados",
+         { onclick: pick(() => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); }) }),
+    el("hr"),
+    song.reaper
+      ? item("Abrir en Reaper", reaper ? null : "No encontré Reaper instalado en esta computadora",
+             { disabled: !reaper, title: reaper ? `Abre ${song.name.replace(/\.[^.]+$/, "")}.rpp` : "No encontré Reaper instalado en esta computadora",
+               onclick: pick(() => reaperProject(song)) })
+      : item("Crear proyecto de Reaper", reaper ? "con los stems, el tempo y el click; y lo abre" : "Reaper no está instalado: solo se crea el archivo",
+             { onclick: pick(() => reaperProject(song)) }),
+    song.reaper ? item("Rehacer proyecto de Reaper", "el actual va a la papelera", { onclick: pick(() => reaperProject(song, true)) }) : null);
+  box.append(menu);
+  requestAnimationFrame(() => menu.querySelector("button:not(:disabled)")?.focus());
+  return box;
+}
+document.addEventListener("click", (e) => {
+  if (state.menu && !e.target.closest(".more")) { state.menu = null; renderLibrary(); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.menu) { state.menu = null; renderLibrary(); }
+});
+
+// The setting song-wizard changes in REAPER so takes are named after their song: what it was,
+// what it is, and putting it back. Shown in the "Reaper" box for as long as it matters, and in
+// a dialog when it's changed.
+const factory = (v) => v === null || v === undefined ? "el de fábrica de Reaper" : el("code", {}, v);
+function settingDetails(s) {
+  return el("dl", { class: "setting-list" },
+    el("dt", {}, "Preferencia"), el("dd", {}, 'Options › Preferences › Recording › "Recorded filenames". Vale para todos tus proyectos de Reaper, no solo los de song-wizard.'),
+    el("dt", {}, "Antes"), el("dd", {}, factory(s.before)),
+    el("dt", {}, "Ahora"), el("dd", {}, el("code", {}, s.takes)),
+    el("dt", {}, "Archivo"), el("dd", {}, s.ini || "?"),
+    s.backup ? el("dt", {}, "Copia de antes") : null, s.backup ? el("dd", {}, s.backup) : null);
+}
+function renderReaperSetting(s) {
+  state.reaperSetting = s;
+  const box = $("reaper-setting");
+  $("reaper-box").hidden = !(s.installed || s.exists || s.changed);
+  const button = (label, what, title) => el("button", { class: "small", title, onclick: () => reaperSetting(what) }, label);
+  const parts = [];
+  if (!s.installed) parts.push(el("p", { class: "hint" }, "No encontré Reaper instalado en esta computadora: los proyectos se pueden crear igual (desde \"más\" en cada tema), pero no abrir desde acá."));
+  if (s.ours && s.changed) {
+    parts.push(el("p", {}, `El ${s.changed} song-wizard cambió una preferencia de Reaper, para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca.`),
+               settingDetails(s),
+               el("div", { class: "row" }, button("restaurar como estaba", "restore", "Vuelve solo esa preferencia a como estaba (con Reaper cerrado); song-wizard no la vuelve a cambiar")),
+               el("p", { class: "hint" }, "Restaurar vuelve solo esa línea a como estaba, sin tocar nada más de Reaper. Después, las tomas nuevas no aparecen con su tema. A mano: en esa preferencia de Reaper, poné lo que dice \"Antes\" (o \"song-wizard reaper --setting restore\" en la terminal)."));
+  } else if (s.ours) {
+    parts.push(el("p", {}, "Reaper ya nombra las tomas como su tema, así que aparecen con él en la biblioteca."));
+  } else if (s.declined) {
+    parts.push(el("p", {}, `El ${s.restored} restauraste el nombre de las tomas de Reaper (`, factory(s.current), "). song-wizard no lo vuelve a cambiar, y las tomas nuevas no aparecen con su tema."),
+               el("div", { class: "row" }, button("volver a ajustarlo", "apply", "Que las tomas se llamen como su tema otra vez (con Reaper cerrado)")));
+  } else if (s.exists) {
+    parts.push(el("p", {}, "Para que las tomas que grabes se llamen como su tema y aparezcan con él, song-wizard cambia una preferencia de Reaper (con Reaper cerrado) la primera vez que creás o abrís un proyecto desde acá. Te avisa cuando lo hace, y lo podés restaurar desde este apartado."),
+               el("p", { class: "hint" }, 'Options › Preferences › Recording › "Recorded filenames": de ', factory(s.current), " a ", el("code", {}, s.takes), "."),
+               el("div", { class: "row" }, button("ajustarlo ahora", "apply", "Cambia esa preferencia ahora (con Reaper cerrado)")));
+  } else if (s.installed) {
+    parts.push(el("p", { class: "hint" }, "Reaper todavía no se abrió en esta computadora. Cuando crees o abras un proyecto desde acá, song-wizard ajusta el nombre de las tomas para que aparezcan con su tema, y te avisa."));
+  }
+  box.className = "reaper-setting";
+  box.replaceChildren(...parts);
+}
+async function loadReaperSetting() {
+  try { renderReaperSetting(await api("/api/reaper/setting")); } catch {}
+}
+async function reaperSetting(what) {
+  try {
+    const got = await api("/api/reaper/setting", { do: what });
+    renderReaperSetting(got);
+    if (got.done === "running") toast("Reaper está abierto: cerralo primero (guarda sus preferencias al cerrarse y pisaría el cambio).", 7000);
+    else if (got.done === "restored") toast("Listo: la preferencia de Reaper quedó como estaba.", 5000);
+    else if (got.done === "set") showSettingChanged(got);
+    else if (got.done === "not-changed") toast("song-wizard no había cambiado esa preferencia.");
+  } catch (e) {
+    toast(`No se pudo: ${e.message}`, 6000);
+  }
+}
+function showSettingChanged(s) {
+  renderReaperSetting({ ...state.reaperSetting, ...s });
+  $("reaper-changed-body").replaceChildren(
+    el("p", {}, 'Para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca, cambié esta preferencia de Reaper:'),
+    settingDetails(s),
+    el("p", { class: "hint" }, "Para volver atrás: \"restaurar como estaba\" (acá o en el apartado Reaper), o a mano en esa preferencia de Reaper poniendo lo que dice \"Antes\"."));
+  $("reaper-changed").showModal();
+}
+$("reaper-changed-ok").onclick = () => $("reaper-changed").close();
+$("reaper-changed-restore").onclick = () => { $("reaper-changed").close(); reaperSetting("restore"); };
+
+// Open the song's REAPER project, making it first if there's none (or remaking it: "redo").
+async function reaperProject(song, redo = false) {
+  if (redo && !confirm("El proyecto de Reaper actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora. ¿Seguir?")) return;
+  try {
+    const got = await api("/api/reaper", { path: song.path, redo });
+    const said = [got.created ? (redo ? `Rehice ${got.name}` : `Creé ${got.name}`) : null,
+                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : "Reaper no está instalado, así que no se abrió.")];
+    if (got.timing === "unaligned") said.push("El tempo sale de bpm.txt, pero el tema no quedó alineado a los compases: ajustá el click en practicar y rehacé el proyecto.");
+    if (got.timing === "no-tempo") said.push("No hay tempo detectado para este tema: el proyecto quedó a 120 BPM.");
+    if (got.takes === "running") said.push("Para que las tomas aparezcan con su tema, cerrá Reaper y volvé a abrir el proyecto desde acá (ver el apartado Reaper).");
+    toast(said.filter(Boolean).join(" "), said.filter(Boolean).length > 1 ? 9000 : 4000);
+    if (got.takes === "set") showSettingChanged(got.setting);
+    if (got.created) refresh();
+  } catch (e) {
+    toast(`No se pudo: ${e.message}`, 6000);
+  }
 }
 
 // Inline rename: Enter saves, Escape cancels. Stems, versions and key/bpm results follow the
@@ -1732,6 +1880,8 @@ async function refresh() {
     const lib = await api("/api/library");
     $("root").textContent = `Carpeta de música: ${lib.root}`;
     state.fileManager = lib.fileManager;
+    state.reaperInstalled = lib.reaper;
+    loadReaperSetting();
     $("open-root").hidden = false;
     $("open-root").title = `Abrir la carpeta de música en el ${lib.fileManager}`;
     state.folders = lib.folders;

@@ -27,7 +27,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
 from . import align, archives, log, paths, results, system
-from .audio import AUDIO_EXTS, GENERATED, base_of
+from .audio import AUDIO_EXTS, GENERATED, MAIN_FORMATS, base_of
 from .paths import music_dir
 
 PORT = 8765
@@ -153,7 +153,6 @@ def read_results(folder, command):
 
 # When a song exists in several formats ("Title.opus" and "Title.wav" from download --wav, or
 # "Title.mp3" from convert), the first of these is the song and the rest are its files.
-MAIN_FORMATS = [".opus", ".webm", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".mp3", ".aac", ".mp4", ".mkv"]
 
 
 DURATIONS = {}
@@ -270,6 +269,10 @@ def library(root):
             continue
         keys, bpms = read_results(folder, "key"), read_results(folder, "bpm")
         clicks = read_results(folder, "click")
+        try:
+            entries = {n.lower() for n in os.listdir(folder)}
+        except OSError:
+            entries = set()
         groups = collections.defaultdict(list)
         for n in names:
             groups[base_of(n)].append(n)
@@ -285,6 +288,7 @@ def library(root):
             songs.append({"name": main, "path": rel(folder / main),
                           "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
                           "lyrics": (folder / f"{base}.lyrics.json").is_file(),
+                          "reaper": f"{base}.rpp".lower() in entries,
                           "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
             playlist = archives.playlist_for(folder, known) if folder != root else None
@@ -293,6 +297,18 @@ def library(root):
                             "location": system.shown_path(place) if key else None,
                             "playlist": {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None})
     return folders
+
+
+_reaper = {"at": 0.0, "installed": False}
+
+
+def reaper_installed():
+    """Whether REAPER is installed, checked again at most once a minute (on WSL it can take a
+    Windows command)."""
+    from . import reaper
+    if not _reaper["at"] or time.monotonic() - _reaper["at"] > 60:
+        _reaper.update(at=time.monotonic(), installed=reaper.installed())
+    return _reaper["installed"]
 
 
 def file_entry(rel, path, keys, bpms):
@@ -366,7 +382,8 @@ def make_handler(token, root, runner, port):
             if url.path == "/":
                 return self.send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
             if url.path == "/api/library":
-                return self.json({"root": str(root), "folders": library(root), "fileManager": system.file_manager_name()})
+                return self.json({"root": str(root), "folders": library(root), "fileManager": system.file_manager_name(),
+                                  "reaper": reaper_installed()})
             if url.path == "/api/archives":
                 meta = {p["id"]: p for p in archives.playlists()}
                 return self.json([{"number": i, "id": a, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}",
@@ -381,6 +398,9 @@ def make_handler(token, root, runner, port):
                 return self.json(jobs)
             if url.path == "/api/audio":
                 return self.audio(query.get("path", [""])[0])
+            if url.path == "/api/reaper/setting":
+                from . import reaper
+                return self.json({**reaper.setting(), "installed": reaper_installed()})
             if url.path == "/api/info":
                 try:
                     path = self.resolve(query.get("path", [""])[0])
@@ -591,6 +611,15 @@ def make_handler(token, root, runner, port):
                 results.save(what, [(str(path), text)])
                 log.info("set %s by hand: %s -> %s", what, path.name, text)
                 return self.json({"text": text, "note": note})
+            if url.path == "/api/reaper/setting":
+                # Put back (or set again) the takes' names setting song-wizard changes in REAPER.
+                from . import reaper
+                if body.get("do") not in ("restore", "apply"):
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                done = reaper.restore() if body["do"] == "restore" else reaper.apply()
+                return self.json({"done": done, **reaper.setting(), "installed": reaper_installed()})
+            if url.path == "/api/reaper":
+                return self.reaper(body)
             if url.path == "/api/open":
                 return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
@@ -601,6 +630,26 @@ def make_handler(token, root, runner, port):
                 runner.cancel(job)
                 return self.json(job.summary(len(job.lines)))
             self.error(HTTPStatus.NOT_FOUND, "not found")
+
+        def reaper(self, body):
+            """Open the song's REAPER project, making it first if there's none (or "redo")."""
+            from . import reaper
+            try:
+                path = self.resolve(str(body["path"]))
+            except PermissionError:
+                return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+            except (KeyError, TypeError):
+                return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+            if not path.is_file():
+                return self.error(HTTPStatus.NOT_FOUND, "no existe")
+            try:
+                project, created, info = reaper.make(path, redo=bool(body.get("redo")))
+            except SystemExit:  # die() said why in the log: a stem without its song, say
+                return self.error(HTTPStatus.BAD_REQUEST, "No pude armar el proyecto de Reaper (el detalle está en el log).")
+            opened = bool(body.get("open", True)) and reaper.open_project(project)
+            log.info("reaper: %s %s%s", "created" if created else "opened", project.name, " and opened" if opened else "")
+            return self.json({"name": project.name, "created": created, "opened": opened, **info,
+                              "setting": reaper.setting() if info["takes"] == "set" else None})
 
         def open_folder(self, relative):
             try:

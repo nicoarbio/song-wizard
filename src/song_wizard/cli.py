@@ -26,6 +26,7 @@ examples:
   song-wizard rename "001 - Song (Official Video).opus" "Song"
   song-wizard delete "001 - Song.opus"
   song-wizard list cryin --files
+  song-wizard reaper "001 - Song.opus"
   song-wizard archives --update all
   song-wizard ui
   song-wizard report
@@ -223,6 +224,24 @@ def build_parser():
     p.add_argument("folder", nargs="?", default=".", help="the folder (default: the current one)")
     p.add_argument("--title", help="title on top (default: the playlist's or the folder's name)")
 
+    p = sub.add_parser("reaper", help="open the song's REAPER project, making it first if there's none",
+                       description='Opens "<song>.rpp" (next to the song) in REAPER. If there\'s none, makes it '
+                                   "first: a track per stem (the set the practice player starts with playing, the "
+                                   "other stems and the song itself muted), the tempo and meter of the practice "
+                                   "click with the song's first beat on a bar line, REAPER's own click, and a "
+                                   'track armed to record. Takes are named "<song> (record <date> <time>).wav" '
+                                   "so they go with their song: that's a REAPER setting for all projects, set in "
+                                   "reaper.ini when REAPER is closed (a copy of it is kept). An existing project "
+                                   "is never rewritten, unless --redo.")
+    p.add_argument("path", nargs="?", metavar="FILE", help="the song, or any file made from it")
+    p.add_argument("--setting", choices=["show", "restore", "apply"],
+                   help="the recorded takes' names setting song-wizard changes in REAPER: show it, put it back as "
+                        "it was (and don't change it again), or let song-wizard set it again")
+    p.add_argument("--redo", action="store_true",
+                   help="send the existing project to the trash and make a new one (e.g. after separating stems)")
+    p.add_argument("--no-open", action="store_true", help="just make it, don't open REAPER")
+    p.add_argument("--yes", action="store_true", help="with --redo: don't ask for confirmation")
+
     p = sub.add_parser("report", help="put together a report to ask for help when something fails",
                        description="Writes a text file with this computer's setup and the last lines of "
                                    "song-wizard's log (your home folder shows as ~), and opens a GitHub issue "
@@ -305,6 +324,14 @@ def dispatch(argv):
     elif args.command == "setlist":
         from . import setlist
         setlist.run(args.folder, name=args.title)
+    elif args.command == "reaper":
+        from . import reaper
+        if args.setting:
+            reaper.run_setting(args.setting)
+        elif args.path:
+            reaper.run(args.path, redo=args.redo, yes=args.yes, open_it=not args.no_open)
+        else:
+            sys.exit("song-wizard reaper: give a song, or --setting.")
     elif args.command == "report":
         from . import report
         report.run(yes=args.yes)

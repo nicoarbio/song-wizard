@@ -10,14 +10,20 @@ import sys
 import numpy as np
 import soundfile as sf
 
+# Of a song's own files (the download, a .wav copy, an .mp3), the one shown and used first.
+MAIN_FORMATS = [".opus", ".webm", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".mp3", ".aac", ".mp4", ".mkv"]
 AUDIO_EXTS = {".opus", ".webm", ".wav", ".flac", ".mp3", ".m4a", ".ogg", ".aac", ".mkv", ".mp4", ".aiff", ".aif"}
 
 # Files this tool writes: "Title (drums).wav", "Title (no drums).wav", "Title (other).wav",
 # "Title (+2).wav", "Title (80%).wav", "Title (80%, -2).wav" and "Title (click 120 BPM 4-4).wav",
+# takes recorded in REAPER ("Title (record 2026-11-01 19-05-12).wav"),
 # plus click tracks not made for a song ("Click 120 BPM 4-4.wav"). "(click)" and "(count-in)" files
 # from an earlier, experimental click command are skipped too.
 GENERATED = re.compile(r" \(((no )?(vocals|drums|bass|guitar)|other|[+-]\d+(\.\d+)?|\d+(\.\d+)?%(, [+-]\d+(\.\d+)?)?|click( \d+(\.\d+)? BPM \d+-\d+( x\d+)?)?)\)( \(count-in\))?$"
                        r"| \(count-in\)$"
+                       # Takes recorded in REAPER: "Title (record 2026-11-01 19-05-12).wav" (and "-001"... when
+                       # several tracks record at once).
+                       r"| \(record \d{4}-\d\d-\d\d \d\d-\d\d-\d\d\)(-\d+)?$"
                        r"|^Click \d+(\.\d+)? BPM \d+-\d+( x\d+)?$")
 
 
