@@ -108,7 +108,7 @@ Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dej
 | Qué | Dónde | Tamaño |
 |---|---|---|
 | song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
-| Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~1.3 GB si usás los cuatro instrumentos; se bajan la primera vez que se usa cada uno |
+| Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB si usás los cuatro instrumentos (el piano sale del mismo modelo que la guitarra), y 0.4 GB más para la batería en partes; se bajan la primera vez que se usa cada uno |
 | Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
 | Log (qué comandos corrieron y los errores, para resolver problemas) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB como máximo: lo más viejo se borra solo |
 | Reportes de `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | unos pocos KB cada uno; se pueden borrar |
@@ -374,7 +374,7 @@ Genera `Título (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` y `(other)`, dond
 - Cada instrumento se separa con el modelo que mejor lo hace: Mel-Band Roformer para la voz, Demucs `htdemucs_ft` para batería y bajo, y BS-Roformer SW (de 6 instrumentos) para la guitarra y el piano, que salen juntos de una sola pasada si se piden los dos.
 - Instrumento + resto suman **exactamente** el tema original, y todo queda alineado.
 - **El piano** es para temas con piano de verdad (acústico o eléctrico): los sintetizadores quedan en el resto, y en algunos temas se lleva otra cosa (por ejemplo, vientos). Por eso no entra en "Todos": se pide aparte (`--stem all --stem piano` da los dos).
-- La primera vez descarga los modelos (unos 1.5 GB en total si usás todos; el de guitarra y piano es el más grande, 700 MB).
+- La primera vez descarga los modelos: unos 2 GB para los cuatro instrumentos (el de voz pesa 870 MB y el de guitarra y piano, 670 MB; el piano no suma nada), y 420 MB más para la batería en partes.
 - La guitarra es la separación menos precisa: puede mezclarse algo de teclados o de otras guitarras. Hasta la 0.11 se separaba con Demucs `htdemucs_6s`, que además tomaba vientos y piano; los temas separados antes conservan esa guitarra hasta que se vuelva a separar.
 - **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `Título (kick).wav`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, más `(drums rest)`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
 - Se probaron también un modelo abierto de vientos (UVR `17_HP-Wind_Inst`) y el piano en temas sin piano: separan, pero no tan bien como el resto, así que por ahora no están.
@@ -539,7 +539,7 @@ El reporte no incluye audio. Tu carpeta personal aparece como `~` (por ejemplo `
 song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
 
 - **Sos responsable de lo que bajás y procesás.** Usalo solo con audio sobre el que tengas derechos o permiso de uso, y respetá los derechos de autor y los términos de servicio de cada sitio, que en general no permiten descargar contenido salvo con sus propias funciones. No compartas ni publiques los temas, stems o pistas que generes a partir de material ajeno.
-- **No apto para uso comercial.** Aunque el código de song-wizard es libre (ver [Licencia](#licencia)), algunas piezas que usa no lo permiten o no tienen una licencia clara: [diffq](https://github.com/facebookresearch/diffq) (una dependencia de audio-separator) tiene licencia CC BY-NC 4.0, que prohíbe el uso comercial; y los modelos de separación (Demucs, el Mel-Band Roformer de voz y los modelos de UVR) no indican la licencia de sus pesos entrenados. Cualquier uso comercial requiere revisar esas licencias por separado.
+- **No apto para uso comercial.** Aunque el código de song-wizard es libre (ver [Licencia](#licencia)), algunas piezas que usa no lo permiten o no tienen una licencia clara: [diffq](https://github.com/facebookresearch/diffq) (una dependencia de audio-separator) tiene licencia CC BY-NC 4.0, que prohíbe el uso comercial; y los modelos de separación (Demucs, el Mel-Band Roformer de voz, el BS-Roformer SW de guitarra y piano, y el MDX23C DrumSep de la batería en partes) no indican la licencia de sus pesos entrenados; en el caso del BS-Roformer SW, su propia página la marca como desconocida. song-wizard no incluye ningún modelo: los baja la primera vez que se usan, de los repositorios públicos donde los publicaron sus autores o el proyecto UVR. Cualquier uso comercial requiere revisar esas licencias por separado.
 - **Sin afiliación.** song-wizard no está afiliado ni respaldado por ninguna plataforma de audio o video ni por los proyectos que usa. Todas las marcas pertenecen a sus dueños.
 - **Sin garantías.** Se ofrece tal cual, sin garantía de ningún tipo, como establece su licencia.
 
@@ -553,8 +553,10 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 
 - [Ultimate Vocal Remover (UVR)](https://github.com/Anjok07/ultimatevocalremovergui), de Anjok07 y aufr33, y su colección de modelos de separación.
 - [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), que permite usar los modelos de UVR desde Python.
-- [Demucs](https://github.com/facebookresearch/demucs), de Meta: los modelos `htdemucs_ft` y `htdemucs_6s`.
-- [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, entrenado con el código de ZFTurbo.
+- [Demucs](https://github.com/facebookresearch/demucs), de Meta: el modelo `htdemucs_ft`, para batería y bajo.
+- [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, para la voz, entrenado con el código de [ZFTurbo](https://github.com/ZFTurbo/Music-Source-Separation-Training).
+- BS-Roformer SW, de jarredou: el modelo de 6 instrumentos que da la guitarra y el piano.
+- MDX23C DrumSep, de aufr33 y jarredou (con la arquitectura MDX23C, de ZFTurbo): la batería en partes.
 - [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
 - [LRCLIB](https://lrclib.net): base de letras abierta y comunitaria.
 - [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
