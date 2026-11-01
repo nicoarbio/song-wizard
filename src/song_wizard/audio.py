@@ -19,7 +19,7 @@ AUDIO_EXTS = {".opus", ".webm", ".wav", ".flac", ".mp3", ".m4a", ".ogg", ".aac",
 # takes recorded in REAPER ("Title (record 2026-11-01 19-05-12).wav"),
 # plus click tracks not made for a song ("Click 120 BPM 4-4.wav"). "(click)" and "(count-in)" files
 # from an earlier, experimental click command are skipped too.
-GENERATED = re.compile(r" \(((no )?(vocals|drums|bass|guitar)|other|[+-]\d+(\.\d+)?|\d+(\.\d+)?%(, [+-]\d+(\.\d+)?)?|click( \d+(\.\d+)? BPM \d+-\d+( x\d+)?)?)\)( \(count-in\))?$"
+GENERATED = re.compile(r" \(((no )?(vocals|drums|bass|guitar|piano)|other|[+-]\d+(\.\d+)?|\d+(\.\d+)?%(, [+-]\d+(\.\d+)?)?|click( \d+(\.\d+)? BPM \d+-\d+( x\d+)?)?)\)( \(count-in\))?$"
                        r"| \(count-in\)$"
                        # Takes recorded in REAPER: "Title (record 2026-11-01 19-05-12).wav" (and "-001"... when
                        # several tracks record at once).

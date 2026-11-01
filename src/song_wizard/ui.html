@@ -275,6 +275,7 @@
           <label><input type="checkbox" value="drums"> Batería</label>
           <label><input type="checkbox" value="bass"> Bajo</label>
           <label><input type="checkbox" value="guitar"> Guitarra</label>
+          <label title="Piano acústico o eléctrico. Los sintetizadores y los vientos pueden caer acá o quedarse en el resto. No entra en Todos: elegilo en los temas que tienen piano"><input type="checkbox" value="piano"> Piano</label>
           <label><input type="checkbox" value="all"> Todos</label>
         </div>
         <div class="row" style="margin-top:8px">
@@ -282,7 +283,7 @@
           <button data-needs="songs" data-only="songs" class="primary" id="do-separate">Separar</button>
         </div>
         <p class="hint why" data-why="do-separate"></p>
-        <p class="hint">Cada instrumento da dos archivos: el instrumento solo y el resto del tema. "Todos" da los 4 más "other", sin los "no X".</p>
+        <p class="hint">Cada instrumento da dos archivos: el instrumento solo y el resto del tema. "Todos" da voz, batería, bajo y guitarra más "other", sin los "no X". Piano no entra en "Todos": elegilo en los temas que tienen piano (los sintetizadores quedan en el resto).</p>
       </div>
 
       <div class="action">
@@ -1554,7 +1555,7 @@ $("trim-apply").onclick = () => {
 // live: each beat is placed on the audio clock from where the song is, so it lands right after
 // any jump, loop or speed change and stays crisp when slowed down (a click file would be
 // stretched along with the song and blur).
-const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", other: "Otros" };
+const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", piano: "Piano", other: "Otros" };
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
 const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
                    worst: 0, duration: 0, click: null, clickTrack: null, preroll: null };
@@ -1582,14 +1583,14 @@ function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 // instrument separated alone with the rest of the song, or the song by itself.
 function trackSets(song) {
   const base = song.name.replace(/\.[^.]+$/, "");
-  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar)|other)\\)\\.wav$`, "i");
+  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other)\\)\\.wav$`, "i");
   const found = {};
   for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
   const sets = [];
   if (FULL_SET.every((k) => found[k])) {
     sets.push({ label: "Todos los instrumentos", tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
   }
-  for (const k of ["vocals", "drums", "bass", "guitar"]) {
+  for (const k of ["vocals", "drums", "bass", "guitar", "piano"]) {
     if (found[k] && found[`no ${k}`]) {
       sets.push({ label: `${STEM_NAMES[k]} y el resto`, tracks: [{ name: STEM_NAMES[k], file: found[k] }, { name: `Sin ${STEM_NAMES[k].toLowerCase()}`, file: found[`no ${k}`] }] });
     }

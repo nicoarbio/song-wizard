@@ -43,12 +43,12 @@ def test_bpm_uncertain_only_plausible_tempos():
 
 
 GENERATED_NAMES = [
-    "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)",
+    "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)", "Song (piano)", "Song (no piano)",
     "Song (+2)", "Song (-1.5)", "Song (80%)", "Song (87.5%)", "Song (80%, -2)", "Song (120%, +1.5)", "Song (click)", "Song (drums) (count-in)", "Song (count-in)",
     "Click 120 BPM 4-4", "Click 92.5 BPM 6-8 x2", "Song (click 120 BPM 4-4)", "Song (80%) (click 96 BPM 3-4 x2)",
 ]
 ORIGINAL_NAMES = ["Song", "Song (Live)", "Song (feat. Someone)", "001 - Song (2019 Remaster)",
-                  "Click Track", "Song (piano)", "Song +2", "Song (80)", "Song (-80%)", "Song (click track)"]
+                  "Click Track", "Song (Piano)", "Song (Piano Version)", "Song +2", "Song (80)", "Song (-80%)", "Song (click track)"]
 
 
 @pytest.mark.parametrize("name", GENERATED_NAMES)
@@ -249,3 +249,13 @@ def test_playlist_for(tmp_path):
     assert archives.playlist_for(tmp_path / "Renamed")["id"] == "PLb"
     assert archives.playlist_for(tmp_path / "Other") is None  # PLb has its folder: no guessing
     assert archives.playlist_for(tmp_path / "Singles") is None
+
+
+def test_separate_choose():
+    from song_wizard import separate
+    # "all" is the four instruments (plus "other"); piano only when asked for, on top.
+    assert separate.choose(["all"]) == (["vocals", "drums", "bass", "guitar"], True)
+    assert separate.choose(["all", "piano"]) == (["vocals", "drums", "bass", "guitar", "piano"], True)
+    assert separate.choose(["piano", "guitar", "piano"]) == (["piano", "guitar"], False)
+    # Guitar and piano come from the same model: one pass for both.
+    assert separate.MODELS["guitar"][0] == separate.MODELS["piano"][0]

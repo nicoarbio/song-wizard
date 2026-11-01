@@ -3,6 +3,8 @@
 Each instrument uses the model that separates it best. "Rest" is the original mix minus
 the instrument, so instrument + rest always add back up to the exact original. With "all",
 "other" is the original minus the four instruments, so all five stems add back up to it too.
+Piano isn't part of "all": only worth it in songs with a real piano (synths stay in "other"),
+and its model is a big download.
 """
 
 import logging
@@ -23,9 +25,14 @@ MODELS = {
     "vocals": ("vocals_mel_band_roformer.ckpt", "vocals"),
     "drums": ("htdemucs_ft.yaml", "drums"),
     "bass": ("htdemucs_ft.yaml", "bass"),
-    "guitar": ("htdemucs_6s.yaml", "guitar"),
+    # BS-Roformer SW (6 stems): a cleaner guitar than Demucs 6s (which picked up winds and
+    # piano too, by ear), and a piano; both come out of one pass.
+    "guitar": ("BS-Roformer-SW.ckpt", "guitar"),
+    "piano": ("BS-Roformer-SW.ckpt", "piano"),
 }
 STEMS = list(MODELS)
+# What "all" separates (plus "other", the rest).
+EVERY = ["vocals", "drums", "bass", "guitar"]
 ALL = "all"
 
 # The models work at 44.1 kHz, so outputs are 44.1 kHz too.
@@ -48,10 +55,7 @@ def run(stems, paths, force_cpu=False):
         print(f"Warning: {warning}")
         log.info("warning: %s", warning)
 
-    # With all stems, the "no X" files would be redundant: muting a track gives the same.
-    every = ALL in stems
-    if every:
-        stems = STEMS
+    stems, every = choose(stems)
 
     by_model = defaultdict(list)
     for stem in dict.fromkeys(stems):
@@ -95,7 +99,8 @@ def run(stems, paths, force_cpu=False):
                     part, _ = sf.read(os.path.join(tmp, f"out-{name}.wav"), dtype="float32", always_2d=True)
                     part = fit(part.T / scale, mix.shape[1])
                     save(output_path(f, stem), part, SR)
-                    if not every:
+                    # With "all", muting a track does what "no X" would; piano isn't in "all".
+                    if not every or stem not in EVERY:
                         save(output_path(f, f"no {stem}"), mix - part, SR)
                     print(f"  {stem:<6}  {output_path(f, stem)}")
 
@@ -103,11 +108,20 @@ def run(stems, paths, force_cpu=False):
             for f, (scale, path) in mixes.items():
                 mix, _ = sf.read(path, dtype="float32", always_2d=True)
                 other = mix.T / scale
-                for stem in STEMS:
+                for stem in EVERY:
                     part, _ = sf.read(output_path(f, stem), dtype="float32", always_2d=True)
                     other -= part.T
                 save(output_path(f, "other"), other, SR)
                 print(f"  {'other':<6}  {output_path(f, 'other')}")
+
+
+def choose(stems):
+    """The instruments to separate, in order, and whether "all" was asked for (then the "no X"
+    files of its instruments would be redundant: muting a track gives the same)."""
+    every = ALL in stems
+    if every:
+        return [*EVERY, *(s for s in dict.fromkeys(stems) if s != ALL and s not in EVERY)], True
+    return list(dict.fromkeys(stems)), False
 
 
 def separator(model, wanted, device, tmp):

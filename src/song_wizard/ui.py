@@ -732,7 +732,7 @@ def make_handler(token, root, runner, port):
             if action == "bpm":
                 return f"Tempo: {label}", ["bpm", *force, *paths]
             if action == "separate":
-                stems = [s for s in body["stems"] if s in ("vocals", "drums", "bass", "guitar", "all")]
+                stems = [s for s in body["stems"] if s in ("vocals", "drums", "bass", "guitar", "piano", "all")]
                 if not stems:
                     raise ValueError("elegí al menos un instrumento")
                 args = ["separate", *[a for s in stems for a in ("--stem", s)]]

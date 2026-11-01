@@ -41,6 +41,13 @@ def test_tracks_every_stem(tmp_path):
     assert tracks[1][1] == f"{SONG} (drums).wav"
 
 
+def test_tracks_with_piano(tmp_path):
+    song = make_song(tmp_path / "p", ["vocals", "drums", "bass", "guitar", "other", "piano", "no piano"])
+    assert [(n, m) for n, _, m in reaper.tracks_for(song)][-3:] == [("Piano", True), ("Sin piano", True), ("Tema original", True)]
+    song = make_song(tmp_path / "q", ["piano", "no piano"])
+    assert [(n, m) for n, _, m in reaper.tracks_for(song)] == [("Piano", False), ("Sin piano", False), ("Tema original", True)]
+
+
 def test_tracks_one_instrument_or_none(tmp_path):
     song = make_song(tmp_path / "a", ["drums", "no drums"])
     assert [(n, m) for n, _, m in reaper.tracks_for(song)] == [("Batería", False), ("Sin batería", False), ("Tema original", True)]
