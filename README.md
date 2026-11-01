@@ -434,7 +434,7 @@ Se hace sobre el tema y todo lo generado a partir de él a la vez, para que siga
 
 El corte es exacto a la muestra, para que el tema y sus stems sigan alineados; los archivos comprimidos (como el `.opus`) se vuelven a codificar a una calidad alta, porque cortarlos sin hacerlo redondea a unos 20 ms. Primero escribe todos los archivos nuevos y solo si salen todos bien reemplaza los de antes, que van a la papelera. Pregunta antes, salvo con `--yes`.
 
-En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos manijas para arrastrar, y lo que queda marcado. La rueda del mouse acerca y aleja (con Shift se mueve a los costados), "ver el inicio" y "ver el fin" acercan alrededor de cada manija, y "▶ desde acá" y "▶ hasta acá" escuchan 5 segundos desde el inicio elegido o hasta el fin, para ajustar de oído. También se pueden escribir los tiempos exactos y el silencio.
+En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos manijas para arrastrar, y lo que queda marcado. La rueda del mouse acerca y aleja (con Shift se mueve a los costados), y debajo hay una barra con el tema entero, donde lo que queda está marcado y un recuadro muestra el tramo que se ve arriba: se arrastra para moverse, un clic salta a otra parte y la rueda sobre la barra mueve a los costados. "ver el inicio" y "ver el fin" acercan alrededor de cada manija, y "▶ desde acá" y "▶ hasta acá" escuchan 5 segundos desde el inicio elegido o hasta el fin, para ajustar de oído. También se pueden escribir los tiempos exactos y el silencio.
 
 ### Borrar
 

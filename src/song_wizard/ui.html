@@ -126,6 +126,9 @@
   #trim { max-width: min(900px, calc(100vw - 32px)); }
   #trim .trim-wave { height: 150px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: crosshair; margin: 8px 0 6px; }
   #trim .trim-wave.near { cursor: ew-resize; }
+  #trim .trim-nav { height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); cursor: pointer; margin: 0 0 6px; }
+  #trim .trim-nav.grab { cursor: grab; }
+  #trim .trim-nav.grabbing { cursor: grabbing; }
   #trim .row { margin: 6px 0; }
   #trim input[type=number] { width: 96px; }
   #trim .trim-sum { font-weight: 600; margin: 10px 0 4px; }
@@ -445,8 +448,9 @@
 
 <dialog id="trim" aria-label="Recortar">
   <div class="row" style="justify-content:space-between"><h3 id="trim-title">Recortar</h3><button class="small" id="trim-close">cerrar</button></div>
-  <p class="hint">Arrastrá las dos manijas, o escribí los tiempos. La rueda del mouse acerca y aleja (con Shift, se mueve a los costados); un clic en la onda escucha desde ahí.</p>
+  <p class="hint">Arrastrá las dos manijas, o escribí los tiempos. La rueda del mouse acerca y aleja (con Shift, se mueve a los costados); un clic en la onda escucha desde ahí. Abajo, el tema entero: arrastrá el recuadro para moverte.</p>
   <canvas class="wave trim-wave" id="trim-wave" aria-label="El tema: lo que queda está marcado"></canvas>
+  <canvas class="wave trim-nav" id="trim-nav" aria-label="El tema entero: lo marcado es lo que queda, y el recuadro, lo que se ve arriba; arrastralo para moverte"></canvas>
   <div class="row">
     <button class="small" id="trim-zoom-out" title="Alejar">−</button>
     <button class="small" id="trim-zoom-in" title="Acercar">+</button>
@@ -1294,6 +1298,18 @@ class Wave {
       }
       g.globalAlpha = 1;
     }
+    if (s.box) {
+      // The stretch shown in another view (the trim's navigation bar): a frame, not a fill.
+      const [p, q] = s.box, x0 = Math.max(1, x(p)), x1 = Math.min(w - 1, x(q));
+      g.globalAlpha = 0.1;
+      g.fillStyle = color("--ink");
+      g.fillRect(x0, 0, x1 - x0, h);
+      g.globalAlpha = 0.85;
+      g.strokeStyle = color("--ink");
+      g.lineWidth = 2;
+      g.strokeRect(x0, 1, Math.max(2, x1 - x0), h - 2);
+      g.globalAlpha = 1;
+    }
     if (position >= a && position <= b) {
       g.fillStyle = color("--ink");
       g.fillRect(Math.round(x(position)) - 1, 0, 2, h);
@@ -1330,6 +1346,9 @@ $("player-play").onclick = () => { if (playerAudio.src) playerAudio.paused ? pla
 // listens around each handle; "recortar" runs song-wizard trim on the song and everything made
 // from it.
 const trimWave = new Wave($("trim-wave"), { interactive: false });
+// The whole song under it, with a box on the stretch in view: drag the box to move along, or
+// click elsewhere to jump there.
+const trimNav = new Wave($("trim-nav"), { interactive: false });
 const trim = { song: null, duration: 0, start: 0, end: 0, view: [0, 0], overview: null, audio: null, stopAt: 0, raf: 0, timer: 0 };
 const trimRound = (t) => Math.round(t * 100) / 100;
 
@@ -1347,6 +1366,7 @@ async function openTrim(song) {
   $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, " (en proporción a su velocidad)") : null)),
     ...files.filter(take).map((n) => el("li", { class: "muted" }, n, " (toma de Reaper: queda como está)")));
   trimWave.clear();
+  trimNav.clear();
   $("trim").showModal();
   try {
     const info = await api(`/api/info?path=${encodeURIComponent(song.path)}`);
@@ -1366,6 +1386,8 @@ function setTrimView(a, b) {
   trim.view = [a, a + span];
   trimWave.view = trim.view;
   trimWave.set(trim.overview);
+  trimNav.set(trim.overview);
+  trimNav.update({ box: trim.view });
   // Zoomed in: a finer picture of just that stretch (the whole song's would be blocks).
   clearTimeout(trim.timer);
   if (span < d * 0.6) {
@@ -1380,6 +1402,7 @@ function setTrimView(a, b) {
 
 function renderTrim() {
   trimWave.update({ a: trim.start, b: trim.end, handles: true });
+  trimNav.update({ a: trim.start, b: trim.end });
   $("trim-start").value = trim.start.toFixed(2);
   $("trim-end").value = trim.end.toFixed(2);
   $("trim-start").max = $("trim-end").max = trim.duration.toFixed(2);
@@ -1438,6 +1461,37 @@ function trimNearEdge(e) {
     }
     const t = trimTimeAt(e), k = e.deltaY > 0 ? 1.3 : 1 / 1.3;
     setTrimView(t - (t - a) * k, t + (b - t) * k);
+  }, { passive: false });
+}
+{
+  const nav = $("trim-nav");
+  const timeAt = (e) => { const r = nav.getBoundingClientRect(); return trim.duration * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+  const inBox = (t) => t >= trim.view[0] && t <= trim.view[1];
+  let grab = null;
+  nav.addEventListener("pointerdown", (e) => {
+    if (!trim.duration) return;
+    const t = timeAt(e), [a, b] = trim.view;
+    if (!inBox(t)) setTrimView(t - (b - a) / 2, t + (b - a) / 2);  // jump there, then keep dragging
+    grab = { offset: t - trim.view[0] };
+    nav.setPointerCapture(e.pointerId);
+    nav.classList.add("grabbing");
+  });
+  nav.addEventListener("pointermove", (e) => {
+    if (!trim.duration) return;
+    const t = timeAt(e);
+    if (!grab) { nav.classList.toggle("grab", inBox(t)); return; }
+    const span = trim.view[1] - trim.view[0];
+    setTrimView(t - grab.offset, t - grab.offset + span);
+  });
+  const release = () => { grab = null; nav.classList.remove("grabbing"); };
+  nav.addEventListener("pointerup", release);
+  nav.addEventListener("pointercancel", release);
+  // The wheel on the bar moves along (on the waveform it zooms).
+  nav.addEventListener("wheel", (e) => {
+    if (!trim.duration) return;
+    e.preventDefault();
+    const [a, b] = trim.view, move = ((e.deltaY || e.deltaX) > 0 ? 0.15 : -0.15) * (b - a);
+    setTrimView(a + move, b + move);
   }, { passive: false });
 }
 const zoomTrim = (k, at) => { const [a, b] = trim.view, c = at ?? (a + b) / 2; setTrimView(c - (c - a) * k, c + (b - c) * k); };
