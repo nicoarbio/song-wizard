@@ -103,7 +103,15 @@
   th { color: var(--muted); font-weight: 600; }
   .player { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 20px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 14px; align-items: center; z-index: 3; }
   .player .now { flex: 0 1 35%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-  .player audio { flex: 1; min-width: 0; }
+  .player .player-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .player .now { flex: none; }
+  .player .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .wave { display: block; width: 100%; height: 34px; cursor: pointer; touch-action: none; }
+  .wave.big { height: 64px; margin: 4px 0 8px; }
+  .wave.zoom { height: 96px; margin: 8px 0 4px; cursor: ew-resize; background: var(--bg); border-radius: 6px; }
+  #pc-panel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
+  #pc-panel summary { cursor: pointer; font-weight: 600; }
+  #practice-count { color: var(--warn); }
   .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
   .toast.show { opacity: .92; }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); max-width: min(720px, calc(100vw - 32px)); width: 100%; padding: 18px 20px; }
@@ -252,8 +260,13 @@
 </main>
 
 <div class="player">
-  <span class="now" id="now">Elegí un archivo con ▶ para escucharlo</span>
-  <audio id="audio" controls preload="none"></audio>
+  <button class="primary" id="player-play" disabled title="Reproducir o pausar">▶</button>
+  <div class="player-main">
+    <span class="now" id="now">Elegí un archivo con ▶ para escucharlo</span>
+    <canvas class="wave" id="player-wave" aria-label="Posición: tocá para moverte"></canvas>
+  </div>
+  <span class="time" id="player-time">0:00 / 0:00</span>
+  <audio id="audio" preload="none"></audio>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -265,8 +278,9 @@
   <div class="transport">
     <button class="primary" id="practice-play" disabled>▶</button>
     <span class="time" id="practice-time">0:00 / 0:00</span>
-    <div class="seek"><div class="loop-range" id="practice-range" hidden></div><input type="range" id="practice-seek" min="0" max="0" step="0.05" value="0" aria-label="Posición"></div>
+    <b id="practice-count"></b>
   </div>
+  <canvas class="wave big" id="practice-wave" aria-label="Posición: tocá para moverte"></canvas>
   <div class="row">
     <label>Velocidad <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" aria-label="Velocidad"> <b id="practice-speed-value">100 %</b></label>
     <button class="small" id="practice-speed-reset">100 %</button>
@@ -280,9 +294,33 @@
     <button class="small" id="practice-clear">borrar</button>
   </div>
   <div class="tracks" id="practice-tracks"></div>
+  <details id="pc-panel">
+    <summary>Ajustar el click: <span id="pc-summary" class="muted"></span></summary>
+    <div class="row" style="margin-top:8px">
+      <label>BPM <input type="number" id="pc-bpm" step="0.01" min="20" max="400"></label>
+      <button class="small" id="pc-half" title="La mitad: si el detectado quedó al doble">÷2</button>
+      <button class="small" id="pc-double" title="El doble: si el detectado quedó a la mitad">×2</button>
+      <label>Compás <input type="text" id="pc-meter" size="4"></label>
+      <button class="small" id="pc-detect" title="Busca el tempo exacto y el primer golpe en el tema">detectar</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label>Primer golpe <input type="number" id="pc-first" step="0.001"> s</label>
+      <button class="small" id="pc-beat-back" title="Un tiempo antes">−1 tiempo</button>
+      <button class="small" id="pc-ms-back">−10 ms</button>
+      <button class="small" id="pc-ms-fwd">+10 ms</button>
+      <button class="small" id="pc-beat-fwd" title="Un tiempo después">+1 tiempo</button>
+      <button class="small" id="pc-listen" title="Desde el principio, con el click y la cuenta">escuchar el principio</button>
+    </div>
+    <canvas class="wave zoom" id="pc-wave" aria-label="Principio del tema: arrastrá para mover el click"></canvas>
+    <p class="hint">Arrastrá sobre el dibujo para que las líneas caigan en los golpes del tema; la marcada es el primer tiempo de cada compás.</p>
+    <div class="row">
+      <label>Cuenta antes de empezar <select id="pc-countin"><option value="0">no</option><option value="1" selected>1 compás</option><option value="2">2 compases</option></select></label>
+      <label><input type="checkbox" id="pc-resume"> también al seguir desde una pausa</label>
+    </div>
+  </details>
   <p class="practice-keys">
     <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
-    <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>5</kbd> silenciar una pista · <kbd>D</kbd> sincronía
+    <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>5</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>D</kbd> sincronía
   </p>
   <p id="practice-status" class="hint"></p>
   <p id="practice-sync" hidden></p>
@@ -339,13 +377,6 @@ function toast(text) {
   t.classList.add("show");
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => t.classList.remove("show"), 3500);
-}
-
-function play(file) {
-  const audio = $("audio");
-  audio.src = `/api/audio?path=${encodeURIComponent(file.path)}&t=${encodeURIComponent(token)}`;
-  $("now").textContent = file.name;
-  audio.play().catch(() => toast("El navegador no pudo reproducir ese formato."));
 }
 
 // What a selected path is: a song, one of its files (a stem, a transposed version...) or a
@@ -645,6 +676,149 @@ async function start(request) {
   }
 }
 
+// ---------- Waveform ----------
+// The audio's outline (from /api/peaks) on a canvas: the played part, an A-B range, beat lines
+// and the playhead. Clicking or dragging moves the playhead (onSeek); in grid mode (onGridDrag)
+// dragging moves the beat lines instead, to line them up with the music.
+const peaksCache = new Map();
+function loadPeaks(path, range) {
+  const key = range ? `${path}|${range[0]}|${range[1]}` : path;
+  if (!peaksCache.has(key)) {
+    const extra = range ? `&from=${range[0]}&to=${range[1]}&n=1600` : "&n=1500";
+    peaksCache.set(key, api(`/api/peaks?path=${encodeURIComponent(path)}${extra}`).catch((e) => { peaksCache.delete(key); throw e; }));
+  }
+  return peaksCache.get(key);
+}
+
+const mod = (k, n) => ((k % n) + n) % n;
+
+class Wave {
+  constructor(canvas, { onSeek, onGridDrag } = {}) {
+    this.canvas = canvas;
+    this.peaks = [];
+    this.from = 0;
+    this.seconds = 0;
+    this.view = null;  // [start, end] in seconds; null shows everything
+    this.state = {};
+    this.onSeek = onSeek;
+    this.onGridDrag = onGridDrag;
+    let drag = null;
+    const timeAt = (e) => {
+      const r = canvas.getBoundingClientRect(), [a, b] = this.range();
+      return a + (b - a) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!this.seconds) return;
+      canvas.setPointerCapture(e.pointerId);
+      drag = { last: timeAt(e) };
+      if (!this.onGridDrag) this.update({ preview: drag.last });
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const t = timeAt(e);
+      if (this.onGridDrag) this.onGridDrag(t - drag.last);
+      else this.update({ preview: t });
+      drag.last = t;
+    });
+    canvas.addEventListener("pointerup", (e) => {
+      if (!drag) return;
+      drag = null;
+      if (!this.onGridDrag) { this.state.preview = null; if (this.onSeek) this.onSeek(timeAt(e)); }
+    });
+    canvas.addEventListener("pointercancel", () => { drag = null; this.update({ preview: null }); });
+    new ResizeObserver(() => this.draw()).observe(canvas);
+  }
+
+  range() { return this.view || [this.from, this.from + this.seconds]; }
+
+  set(data) {
+    this.peaks = data.peaks;
+    this.from = data.from;
+    this.seconds = data.seconds;
+    this.max = Math.max(0.05, ...this.peaks);
+    this.draw();
+  }
+
+  clear() { this.peaks = []; this.seconds = 0; this.draw(); }
+
+  update(state) { Object.assign(this.state, state); this.draw(); }
+
+  draw() {
+    const c = this.canvas, dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    if (!w || !h) return;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+    const g = c.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const css = getComputedStyle(document.documentElement), color = (name) => css.getPropertyValue(name).trim();
+    const [a, b] = this.range(), x = (t) => (t - a) / (b - a || 1) * w, s = this.state;
+    const position = s.preview ?? s.position ?? -1;
+    if (this.peaks.length) {
+      const step = this.seconds / this.peaks.length, width = Math.max(1, w * step / (b - a || 1));
+      for (let i = 0; i < this.peaks.length; i++) {
+        const t = this.from + i * step;
+        if (t + step < a || t > b) continue;
+        const height = Math.max(1, this.peaks[i] / this.max * (h - 6));
+        g.fillStyle = t < position ? color("--accent") : color("--muted");
+        g.globalAlpha = t < position ? 0.9 : 0.45;
+        g.fillRect(x(t), (h - height) / 2, width > 2 ? width - 0.5 : width, height);
+      }
+      g.globalAlpha = 1;
+    }
+    if (s.a !== null && s.a !== undefined && s.b !== null && s.b !== undefined) {
+      g.fillStyle = color("--accent");
+      g.globalAlpha = 0.16;
+      g.fillRect(x(s.a), 0, x(s.b) - x(s.a), h);
+      g.globalAlpha = 0.8;
+      g.fillRect(x(s.a), 0, 1, h);
+      g.fillRect(x(s.b) - 1, 0, 1, h);
+      g.globalAlpha = 1;
+    }
+    // Beat lines, only where they don't crowd out the picture (a whole song shows bar lines
+    // only when bars are a few pixels apart).
+    const spacing = s.grid ? s.grid.period * (s.grid.barsOnly ? s.grid.perBar : 1) / (b - a || 1) * w : 0;
+    if (s.grid && spacing >= 6) {
+      const { first, period, perBar, barsOnly } = s.grid;
+      for (let k = Math.ceil((a - first) / period); first + k * period <= b; k++) {
+        const bar = mod(k, perBar) === 0;
+        if (barsOnly && !bar) continue;
+        g.fillStyle = color(bar ? "--warn" : "--muted");
+        g.globalAlpha = bar ? (barsOnly ? 0.45 : 0.9) : 0.5;
+        g.fillRect(Math.round(x(first + k * period)), 0, bar && !barsOnly ? 2 : 1, h);
+      }
+      g.globalAlpha = 1;
+    }
+    if (position >= a && position <= b) {
+      g.fillStyle = color("--ink");
+      g.fillRect(Math.round(x(position)) - 1, 0, 2, h);
+    }
+  }
+}
+
+// ---------- Bottom player ----------
+const playerAudio = $("audio");
+const playerWave = new Wave($("player-wave"), { onSeek: (t) => { playerAudio.currentTime = t; } });
+
+function play(file) {
+  playerAudio.src = `/api/audio?path=${encodeURIComponent(file.path)}&t=${encodeURIComponent(token)}`;
+  $("now").textContent = file.name;
+  $("player-play").disabled = false;
+  playerWave.clear();
+  playerWave.update({ position: 0 });
+  loadPeaks(file.path).then((d) => playerWave.set(d)).catch(() => {});
+  playerAudio.play().catch(() => toast("El navegador no pudo reproducir ese formato."));
+}
+
+function renderPlayer() {
+  const t = playerAudio.currentTime || 0, d = playerAudio.duration || 0;
+  $("player-play").textContent = playerAudio.paused ? "▶" : "⏸";
+  $("player-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(d).replace(/\.\d$/, "")}`;
+  playerWave.update({ position: t });
+  if (!playerAudio.paused) requestAnimationFrame(renderPlayer);
+}
+for (const event of ["play", "pause", "seeked", "loadedmetadata", "ended"]) playerAudio.addEventListener(event, renderPlayer);
+$("player-play").onclick = () => { if (playerAudio.src) playerAudio.paused ? playerAudio.play() : playerAudio.pause(); };
+
 // ---------- Practice player ----------
 // One <audio> per track, streamed from the server (decoding five 5-minute stems for Web Audio
 // would take ~500 MB of memory). Browsers keep elements that play together in step; the risky
@@ -652,9 +826,17 @@ async function start(request) {
 // them to the same spot and start them together. While playing, a track that drifts is nudged
 // back by playing it slightly faster or slower (inaudible with preservesPitch); only a large
 // gap is fixed with a jump.
+//
+// Every track goes through Web Audio (a gain per track), and so does the click, which is made
+// live: each beat is placed on the audio clock from where the song is, so it lands right after
+// any jump, loop or speed change and stays crisp when slowed down (a click file would be
+// stretched along with the song and blur).
 const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", other: "Otros" };
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
-const practice = { tracks: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false, worst: 0 };
+const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
+                   worst: 0, duration: 0, click: null, clickTrack: null, preroll: null };
+let audioContext = null;
+const context = () => audioContext || (audioContext = new AudioContext({ latencyHint: "interactive" }));
 
 function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -678,25 +860,32 @@ function trackSets(song) {
   return sets;
 }
 
+const practiceWave = new Wave($("practice-wave"), { onSeek: (t) => moveTo(t) });
+const clickWave = new Wave($("pc-wave"), { onGridDrag: (dt) => setClick({ first: practice.click.first + dt }) });
+
 function openPractice(song) {
-  $("audio").pause();
+  playerAudio.pause();
+  context().resume();  // allowed now: this runs from a click
   const sets = trackSets(song);
   practice.song = song;
   practice.sets = sets;
   $("practice-title").textContent = `Practicar: ${song.name.replace(/\.[^.]+$/, "")}`;
-  const select = $("practice-set");
-  select.replaceChildren(...sets.map((s, i) => el("option", { value: i }, s.label)));
+  $("practice-set").replaceChildren(...sets.map((s, i) => el("option", { value: i }, s.label)));
   $("practice-set-row").hidden = sets.length < 2;
   practice.a = practice.b = null;
   practice.loop = false;
   $("practice-speed").value = 100;
+  practice.click = clickSettings(song);
+  practiceWave.clear();
+  loadPeaks(song.path).then((d) => { if (practice.song === song) practiceWave.set(d); }).catch(() => {});
   loadSet(0);
+  renderClickPanel(true);
   $("practice").showModal();
 }
 
 function loadSet(index) {
   stopPractice();
-  const set = practice.sets[index];
+  const ctx = context(), set = practice.sets[index];
   $("practice-set").value = index;
   $("practice-play").disabled = true;
   $("practice-status").textContent = "Cargando las pistas…";
@@ -704,20 +893,29 @@ function loadSet(index) {
     const audio = new Audio(`/api/audio?path=${encodeURIComponent(t.file.path)}&t=${encodeURIComponent(token)}`);
     audio.preload = "auto";
     audio.preservesPitch = true;
-    return { ...t, audio, volume: 1, mute: false, solo: false };
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    ctx.createMediaElementSource(audio).connect(gain);
+    gain.connect(ctx.destination);
+    return { ...t, audio, gain, volume: 1, mute: false, solo: false };
   });
+  const clickGain = ctx.createGain();
+  clickGain.connect(ctx.destination);
+  practice.clickTrack = { name: "Click", click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
+  practice.mixer = [...practice.tracks, practice.clickTrack];
+  practice.gate = false;
   const ready = practice.tracks.map((t) => new Promise((resolve, reject) => {
     t.audio.addEventListener("canplay", resolve, { once: true });
     t.audio.addEventListener("error", () => reject(new Error(t.file.name)), { once: true });
   }));
   Promise.all(ready).then(() => {
-    const duration = Math.max(...practice.tracks.map((t) => t.audio.duration || 0));
-    $("practice-seek").max = duration;
+    practice.duration = Math.max(...practice.tracks.map((t) => t.audio.duration || 0));
     $("practice-play").disabled = false;
     $("practice-status").textContent = "";
     applySpeed();
     renderPractice();
   }).catch((e) => { $("practice-status").textContent = `El navegador no pudo abrir ${e.message}.`; });
+  applyVolumes();
   renderTracks();
   renderPractice();
 }
@@ -726,34 +924,66 @@ function stopPractice() {
   practice.playing = false;
   cancelAnimationFrame(practice.raf);
   clearInterval(practice.timer);
-  for (const t of practice.tracks) { t.audio.pause(); t.audio.removeAttribute("src"); t.audio.load(); }
+  endPreroll();
+  silenceClicks();
+  for (const t of practice.tracks) { t.audio.pause(); t.audio.removeAttribute("src"); t.audio.load(); t.gain.disconnect(); }
+  if (practice.clickTrack) practice.clickTrack.gain.disconnect();
   practice.tracks = [];
+  practice.mixer = [];
+  practice.clickTrack = null;
+  practice.duration = 0;
 }
 
-const clockTime = (s) => (s === null || isNaN(s)) ? "–" : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
-const now = () => practice.tracks.length ? practice.tracks[0].audio.currentTime : 0;
+const clockTime = (s) => (s === null || s === undefined || isNaN(s)) ? "–" : `${s < 0 ? "-" : ""}${Math.floor(Math.abs(s) / 60)}:${(Math.abs(s) % 60).toFixed(1).padStart(4, "0")}`;
+const now = () => practice.preroll ? practice.preroll.entry : practice.tracks.length ? practice.tracks[0].audio.currentTime : 0;
 const speed = () => parseInt($("practice-speed").value, 10) / 100;
+const median = (values) => { const s = [...values].sort((x, y) => x - y); return s[s.length >> 1]; };
 
 function renderTracks() {
   const box = $("practice-tracks");
   box.replaceChildren();
-  practice.tracks.forEach((t, i) => {
+  practice.mixer.forEach((t, i) => {
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": `Volumen de ${t.name}`,
       oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); renderTracks(); } });
     box.append(
-      el("span", { class: "name", title: t.file.name }, `${i + 1}. ${t.name}`),
+      el("span", { class: "name", title: t.click ? "El click, al tempo y compás de abajo" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
       el("span", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
-        el("button", { class: "small" + (t.mute ? " on" : ""), title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); } }, "M"),
+        el("button", { class: "small" + (t.mute ? " on" : ""), title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M"),
         el("button", { class: "small" + (t.solo ? " on" : ""), title: "Solo esta pista (se pueden sumar otras)", onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S")),
       vol,
       el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`));
   });
 }
 
-function applyVolumes() {
-  const solo = practice.tracks.some((t) => t.solo);
-  for (const t of practice.tracks) t.audio.volume = t.mute || (solo && !t.solo) ? 0 : t.volume;
+function level(t) {
+  const solo = practice.mixer.some((x) => x.solo);
+  return t.mute || (solo && !t.solo) ? 0 : t.volume;
 }
+
+// The tracks sound only while playing: a gate on their gains closes (in a few ms, no clicks)
+// before pausing or jumping and opens when the music comes in. A paused, sped-up track can
+// still let out a scrap of audio; the gate keeps it silent.
+function applyVolumes() {
+  const at = context().currentTime;
+  for (const t of practice.mixer) {
+    if (t.click || practice.gate) { t.gain.gain.cancelScheduledValues(at); t.gain.gain.setValueAtTime(level(t), at); }
+  }
+}
+function closeGate() {
+  const at = context().currentTime;
+  practice.gate = false;
+  for (const t of practice.tracks) { t.gain.gain.cancelScheduledValues(at); t.gain.gain.setTargetAtTime(0, at, 0.003); }
+}
+function openGate(at = context().currentTime) {
+  practice.gate = true;
+  for (const t of practice.tracks) {
+    t.gain.gain.cancelScheduledValues(context().currentTime);
+    t.gain.gain.setValueAtTime(0, context().currentTime);
+    t.gain.gain.setValueAtTime(level(t), Math.max(at, context().currentTime));
+  }
+}
+
+const clickAudible = () => practice.clickTrack && level(practice.clickTrack) > 0;
 
 function applySpeed() {
   for (const t of practice.tracks) t.audio.playbackRate = speed();
@@ -761,31 +991,29 @@ function applySpeed() {
 }
 
 function renderPractice() {
-  const t = now(), duration = parseFloat($("practice-seek").max) || 0;
+  const t = now(), duration = practice.duration;
   $("practice-play").textContent = practice.playing ? "⏸" : "▶";
   $("practice-play").title = practice.playing ? "Pausar" : "Reproducir";
-  if (!practice.dragging) $("practice-seek").value = t;
   $("practice-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(duration).replace(/\.\d$/, "")}`;
+  $("practice-count").textContent = practice.preroll ? "cuenta…" : "";
   $("practice-a-time").textContent = clockTime(practice.a);
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);
   $("practice-loop").disabled = practice.a === null || practice.b === null;
-  const range = $("practice-range");
-  range.hidden = practice.a === null || practice.b === null || !duration;
-  if (!range.hidden) {
-    range.style.left = `${100 * practice.a / duration}%`;
-    range.style.width = `${100 * (practice.b - practice.a) / duration}%`;
-  }
+  practiceWave.update({ position: t, a: practice.a, b: practice.b, grid: clickAudible() ? { ...grid(), barsOnly: true } : null });
+  if ($("pc-panel").open) clickWave.update({ position: t });
 }
 
 // Pause everything, put every track at `time`, wait until all are there, and start them
 // together if they were playing.
 async function moveTo(time) {
   if (practice.busy || !practice.tracks.length) return;
+  endPreroll();
   practice.busy = true;
+  resetSchedule();
   const resume = practice.playing;
-  const duration = parseFloat($("practice-seek").max) || 0;
-  time = Math.max(0, Math.min(time, Math.max(0, duration - 0.05)));
+  time = Math.max(0, Math.min(time, Math.max(0, practice.duration - 0.05)));
+  if (practice.gate) { closeGate(); await new Promise((r) => setTimeout(r, 15)); }
   for (const t of practice.tracks) t.audio.pause();
   await Promise.all(practice.tracks.map((t) => new Promise((resolve) => {
     if (Math.abs(t.audio.currentTime - time) < 0.001 && t.audio.readyState >= 3) return resolve();
@@ -793,7 +1021,7 @@ async function moveTo(time) {
     t.audio.currentTime = time;
   })));
   applySpeed();
-  if (resume) await Promise.all(practice.tracks.map((t) => t.audio.play()));
+  if (resume) { await Promise.all(practice.tracks.map((t) => t.audio.play())); openGate(); }
   practice.busy = false;
   renderPractice();
 }
@@ -802,18 +1030,31 @@ async function togglePlay() {
   if (!practice.tracks.length || $("practice-play").disabled) return;
   if (practice.playing) {
     practice.playing = false;
+    endPreroll();
+    silenceClicks();
+    closeGate();
+    await new Promise((r) => setTimeout(r, 15));
     for (const t of practice.tracks) t.audio.pause();
     cancelAnimationFrame(practice.raf);
     clearInterval(practice.timer);
     renderPractice();
     return;
   }
-  practice.playing = true;
-  const start = practice.loop && (now() < practice.a || now() >= practice.b) ? practice.a : now();
-  await moveTo(start >= parseFloat($("practice-seek").max) - 0.1 ? 0 : start);
+  let start = practice.loop && (now() < practice.a || now() >= practice.b) ? practice.a : now();
+  if (start >= practice.duration - 0.1) start = 0;
+  if (wantsCountIn(start)) {
+    await moveTo(start);
+    countIn(start);
+  } else {
+    practice.playing = true;
+    await moveTo(start);
+  }
   practice.worst = 0;
+  cancelAnimationFrame(practice.raf);
+  clearInterval(practice.timer);
   practice.raf = requestAnimationFrame(tick);
-  practice.timer = setInterval(keepInStep, 250);
+  practice.timer = setInterval(() => { keepInStep(); }, 250);
+  practice.scheduler = practice.scheduler || setInterval(scheduleClicks, 25);
 }
 
 // Every frame: the loop end (timeupdate fires only every ~250 ms, too late for a loop) and the
@@ -821,15 +1062,15 @@ async function togglePlay() {
 function tick() {
   if (!practice.playing) return;
   const t = now();
-  if (practice.loop && !practice.busy && t >= practice.b) moveTo(practice.a);
-  if (practice.tracks[0].audio.ended) { practice.playing = false; renderPractice(); return; }
+  if (practice.loop && !practice.busy && !practice.preroll && t >= practice.b) moveTo(practice.a);
+  if (!practice.preroll && practice.tracks[0].audio.ended) { practice.playing = false; renderPractice(); return; }
   renderPractice();
   practice.raf = requestAnimationFrame(tick);
 }
 
 function keepInStep() {
-  if (!practice.playing || practice.busy) return;
-  const ref = now(), base = speed();
+  if (!practice.playing || practice.busy || practice.preroll) return;
+  const ref = practice.tracks[0].audio.currentTime, base = speed();
   let worst = 0;
   for (const t of practice.tracks.slice(1)) {
     const behind = ref - t.audio.currentTime;  // seconds; > 0 means this track is late
@@ -840,7 +1081,7 @@ function keepInStep() {
   }
   practice.worst = Math.max(practice.worst, worst);
   const sync = $("practice-sync");
-  if (!sync.hidden) sync.textContent = `desfase entre pistas: ahora ${Math.round(worst * 1000)} ms · máximo ${Math.round(practice.worst * 1000)} ms`;
+  if (!sync.hidden) sync.textContent = `desfase entre pistas: ahora ${Math.round(worst * 1000)} ms · máximo ${Math.round(practice.worst * 1000)} ms · demora de arranque aprendida ${Math.round(startLatency() * 1000)} ms`;
 }
 
 function setSpeed(percent) {
@@ -858,13 +1099,208 @@ function mark(which) {
   renderPractice();
 }
 
+// ---------- Click ----------
+// Chromium (Brave, Chrome, Edge) delays a slowed-down track while it stretches it: measured,
+// click minus song, in ms (Edge 2026, two passes). Clicks are placed that much earlier. Other
+// browsers stretch differently and aren't compensated.
+const LAG_MS = [[0.5, 46], [0.6, 40], [0.7, 28], [0.75, 27], [0.8, 28], [0.9, 12], [1, -2], [1.1, -5], [1.25, -5], [1.5, -5]];
+const CHROMIUM = !!(navigator.userAgentData && navigator.userAgentData.brands.some((b) => /Chromium/.test(b.brand))) || /Chrome\//.test(navigator.userAgent);
+function songLag(rate) {
+  if (!CHROMIUM) return 0;
+  if (rate <= LAG_MS[0][0]) return LAG_MS[0][1] / 1000;
+  for (let i = 1; i < LAG_MS.length; i++) {
+    const [r1, l1] = LAG_MS[i], [r0, l0] = LAG_MS[i - 1];
+    if (rate <= r1) return (l0 + (l1 - l0) * (rate - r0) / (r1 - r0)) / 1000;
+  }
+  return LAG_MS[LAG_MS.length - 1][1] / 1000;
+}
+
+function clickSettings(song) {
+  const saved = song.click;
+  return { bpm: saved ? saved.bpm : bpmNumber(song.bpm) || 120, meter: saved ? saved.meter : "4/4",
+           first: saved ? saved.first : 0, saved: !!saved };
+}
+
+function grid() {
+  const c = practice.click || { bpm: 120, meter: "4/4", first: 0 };
+  return { first: c.first, period: 60 / c.bpm, perBar: Math.max(1, parseInt(c.meter, 10) || 4) };
+}
+
+let voices = [];
+function blip(when, accent) {
+  if (!practice.clickTrack) return;
+  const ctx = context(), o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = accent ? 1500 : 1000;
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(accent ? 0.9 : 0.55, when + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.035);
+  o.connect(g);
+  g.connect(practice.clickTrack.gain);
+  o.start(when);
+  o.stop(when + 0.04);
+  voices.push(o);
+  o.onended = () => { voices = voices.filter((v) => v !== o); };
+}
+function silenceClicks() { for (const v of voices) { try { v.stop(); } catch {} } voices = []; }
+
+// Where the song is on the audio clock: song time - rate * audio time, from the last second of
+// readings (the median drops the odd late one).
+const sched = { est: [], done: new Set() };
+function resetSchedule() { sched.est = []; sched.done = new Set(); silenceClicks(); }
+function scheduleClicks() {
+  if (!practice.playing || practice.busy || practice.preroll || !practice.tracks.length) return;
+  const ctx = context(), song = practice.tracks[0].audio.currentTime, rate = speed();
+  sched.est.push(song - rate * ctx.currentTime);
+  if (sched.est.length > 40) sched.est.shift();
+  if (sched.est.length < 3) return;
+  const offset = median(sched.est), { first, period, perBar } = grid(), lag = songLag(rate);
+  for (let k = Math.ceil((song - first) / period); first + k * period < song + 0.25 * rate; k++) {
+    if (sched.done.has(k)) continue;
+    sched.done.add(k);
+    const beat = first + k * period;
+    if (beat < 0) continue;
+    const when = (beat - offset) / rate - lag;
+    if (when > ctx.currentTime + 0.003) blip(when, mod(k, perBar) === 0);
+  }
+}
+
+// ---------- Count-in ----------
+// The count-in is the beats of the same grid before the point where the music comes in: from
+// the start, the bar(s) before the first beat (part of them may fall in the song's own
+// silence); after a pause, the bar(s) before the next beat. The song starts on cue; how late
+// play() really starts is measured each time and learned (kept in this browser).
+const COUNT_IN_KEY = "song-wizard:count-in";
+const LATENCY_KEY = "song-wizard:start-latency";
+const startLatency = () => { try { return parseFloat(localStorage.getItem(LATENCY_KEY)) || 0; } catch { return 0; } };
+function countInBars() { return parseInt($("pc-countin").value, 10) || 0; }
+function wantsCountIn(start) {
+  if (!countInBars() || !clickAudible()) return false;
+  return start <= Math.max(0, practice.click.first) + 0.05 || $("pc-resume").checked;
+}
+
+function countIn(entry) {
+  const ctx = context(), rate = speed(), { first, period, perBar } = grid(), lag = songLag(rate);
+  const j = Math.ceil((entry - first) / period - 1e-6);  // first beat at or after the entry
+  const from = first + (j - countInBars() * perBar) * period;
+  const t0 = ctx.currentTime + 0.15, at = (s) => t0 + (s - from) / rate;
+  // The count-in, plus the beats right after the entry: the regular scheduler needs a moment
+  // of readings before it places beats.
+  for (let k = j - countInBars() * perBar; first + k * period < entry + 0.3 * rate; k++) {
+    sched.done.add(k);
+    blip(at(first + k * period) - lag, mod(k, perBar) === 0);
+  }
+  const cue = at(entry);
+  practice.preroll = { entry, cue, timer: 0 };
+  practice.playing = true;
+  practice.preroll.timer = setTimeout(async () => {
+    if (!practice.preroll) return;
+    await Promise.all(practice.tracks.map((t) => t.audio.play()));
+    openGate(cue);
+    practice.preroll = null;
+    sched.est = [];
+    // Learn how late the song really came in.
+    setTimeout(() => {
+      if (sched.est.length < 6) return;
+      const actual = (entry - median(sched.est)) / rate;
+      const learned = Math.max(0, Math.min(0.25, startLatency() + 0.7 * (actual - cue)));
+      try { localStorage.setItem(LATENCY_KEY, String(learned)); } catch {}
+    }, 400);
+  }, Math.max(0, (cue - ctx.currentTime - startLatency()) * 1000));
+  renderPractice();
+}
+
+function endPreroll() {
+  if (practice.preroll) { clearTimeout(practice.preroll.timer); practice.preroll = null; }
+}
+
+// ---------- Click settings ----------
+let saveTimer = 0;
+function setClick(change, save = true) {
+  const c = practice.click;
+  Object.assign(c, change);
+  c.bpm = Math.max(20, Math.min(400, c.bpm));
+  const barLength = grid().period * grid().perBar;
+  c.first = Math.max(-barLength, Math.min(practice.duration || 3600, c.first));
+  resetSchedule();
+  renderClickPanel(false);
+  renderPractice();
+  if (save) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        practice.song.click = await api("/api/click-settings", { path: practice.song.path, bpm: c.bpm, meter: c.meter, first: c.first });
+        c.saved = true;
+      } catch (e) { toast(`No se pudo guardar el click: ${e.message}`); }
+    }, 500);
+  }
+}
+
+// The zoomed view shows the start of the song up to two bars past the first beat.
+function renderClickPanel(reload) {
+  const c = practice.click, { first, period, perBar } = grid();
+  for (const [id, value] of [["pc-bpm", c.bpm.toFixed(2)], ["pc-meter", c.meter], ["pc-first", c.first.toFixed(3)]]) {
+    if (document.activeElement !== $(id)) $(id).value = value;
+  }
+  $("pc-summary").textContent = c.saved ? `${c.bpm.toFixed(2)} BPM ${c.meter}, primer golpe en ${c.first.toFixed(3)} s` : "sin ajustar todavía";
+  const end = Math.max(6, first + 2 * perBar * period + period);
+  if (reload || !clickWave.view || end > clickWave.view[1] + 0.01 || end < clickWave.view[1] - 4) {
+    const view = [0, Math.ceil(end)];
+    clickWave.view = view;
+    loadPeaks(practice.song.path, view).then((d) => { if (clickWave.view === view) clickWave.set(d); }).catch(() => {});
+  }
+  clickWave.update({ grid: { first, period, perBar } });
+}
+
+$("pc-bpm").addEventListener("change", (e) => { const v = parseFloat(e.target.value); if (v > 0) setClick({ bpm: v }); });
+$("pc-meter").addEventListener("change", (e) => { if (/^\d+\/\d+$/.test(e.target.value.trim())) setClick({ meter: e.target.value.trim() }); else renderClickPanel(false); });
+$("pc-first").addEventListener("change", (e) => { const v = parseFloat(e.target.value); if (!isNaN(v)) setClick({ first: v }); });
+$("pc-double").onclick = () => setClick({ bpm: practice.click.bpm * 2 });
+$("pc-half").onclick = () => setClick({ bpm: practice.click.bpm / 2 });
+$("pc-beat-back").onclick = () => setClick({ first: practice.click.first - grid().period });
+$("pc-beat-fwd").onclick = () => setClick({ first: practice.click.first + grid().period });
+$("pc-ms-back").onclick = () => setClick({ first: practice.click.first - 0.01 });
+$("pc-ms-fwd").onclick = () => setClick({ first: practice.click.first + 0.01 });
+$("pc-detect").onclick = () => start({ action: "align", paths: [practice.song.path] });
+$("pc-listen").onclick = async () => {
+  if (practice.playing) await togglePlay();
+  practice.clickTrack.mute = false;
+  applyVolumes(); renderTracks();
+  await moveTo(0);
+  togglePlay();
+};
+(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COUNT_IN_KEY)) || {};
+    if (saved.bars !== undefined) $("pc-countin").value = saved.bars;
+    $("pc-resume").checked = !!saved.resume;
+  } catch {}
+})();
+for (const id of ["pc-countin", "pc-resume"]) {
+  $(id).addEventListener("change", () => {
+    try { localStorage.setItem(COUNT_IN_KEY, JSON.stringify({ bars: countInBars(), resume: $("pc-resume").checked })); } catch {}
+  });
+}
+
+// After "Detectar" (or anything else) changes the song's click.txt, take the new values.
+function syncPracticeClick() {
+  if (!$("practice").open || !practice.song) return;
+  for (const f of state.folders) for (const s of f.songs) {
+    if (s.path !== practice.song.path) continue;
+    const before = JSON.stringify(practice.song.click), after = JSON.stringify(s.click);
+    practice.song = s;
+    if (after !== before && s.click) {
+      setClick({ bpm: s.click.bpm, meter: s.click.meter, first: s.click.first, saved: true }, false);
+      if (practice.clickTrack) { practice.clickTrack.mute = false; applyVolumes(); renderTracks(); }
+      toast("El click quedó ajustado al tema.");
+    }
+  }
+}
+
 $("practice-play").onclick = togglePlay;
 $("practice-close").onclick = () => $("practice").close();
 // "close" arrives a moment later: if another song was opened meanwhile, keep its tracks.
 $("practice").addEventListener("close", () => { if (!$("practice").open) stopPractice(); });
 $("practice-set").onchange = (e) => loadSet(parseInt(e.target.value, 10));
-$("practice-seek").addEventListener("input", () => { practice.dragging = true; $("practice-time").textContent = `${clockTime(parseFloat($("practice-seek").value)).replace(/\.\d$/, "")} / …`; });
-$("practice-seek").addEventListener("change", (e) => { practice.dragging = false; moveTo(parseFloat(e.target.value)); });
 $("practice-speed").addEventListener("input", () => { $("practice-speed-value").textContent = `${$("practice-speed").value} %`; });
 $("practice-speed").addEventListener("change", () => moveTo(now()));
 $("practice-speed-reset").onclick = () => setSpeed(100);
@@ -876,11 +1312,12 @@ $("practice-clear").onclick = () => { practice.a = practice.b = null; practice.l
 // when the key goes up.
 $("practice").addEventListener("keyup", (e) => { if (e.key === " ") e.preventDefault(); });
 $("practice").addEventListener("keydown", (e) => {
-  if (e.target.tagName === "SELECT" || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" && e.target.type !== "range" && e.target.type !== "checkbox" || e.ctrlKey || e.metaKey || e.altKey) return;
   const key = e.key;
   const actions = {
     " ": togglePlay, "[": () => mark("a"), "]": () => mark("b"),
     "l": () => { if (practice.a !== null && practice.b !== null) { practice.loop = !practice.loop; renderPractice(); } },
+    "c": () => { if (practice.clickTrack) { practice.clickTrack.mute = !practice.clickTrack.mute; applyVolumes(); renderTracks(); renderPractice(); } },
     "ArrowLeft": () => moveTo(now() - 5), "ArrowRight": () => moveTo(now() + 5),
     "-": () => setSpeed(speed() * 100 - 5), "+": () => setSpeed(speed() * 100 + 5), "=": () => setSpeed(speed() * 100 + 5),
     "d": () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
@@ -931,6 +1368,7 @@ async function refresh() {
       ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
     for (const p of [...state.selected]) if (!existing.has(p)) state.selected.delete(p);
     renderLibrary(); renderSelection();
+    syncPracticeClick();
     renderArchives(await api("/api/archives"));
   } catch (e) {
     $("library").replaceChildren(el("p", { class: "empty" }, `No se pudo cargar: ${e.message}`));

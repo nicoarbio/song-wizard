@@ -6,6 +6,7 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
+import numpy as np
 import pytest
 import soundfile as sf
 
@@ -236,6 +237,39 @@ def test_click_for_one_song(server):
     (song,) = get_json(port, "/api/library")["folders"][-1]["songs"]
     assert [f["name"] for f in song["files"]] == ["001 - Song (click 120 BPM 4-4).wav"]
     assert request(port, "POST", "/api/jobs", {**body, "for": "../x.wav"})[0].status == 403
+
+
+def test_peaks(server):
+    port, root = server
+    synth.write(root / "tone.wav", synth.sine(440, 4, peak=0.5) * np.r_[np.ones(2 * synth.SR), np.zeros(2 * synth.SR)])
+    whole = get_json(port, "/api/peaks?path=tone.wav&n=100")
+    assert whole["from"] == 0 and whole["seconds"] == pytest.approx(4, abs=0.01) and len(whole["peaks"]) == 100
+    assert whole["peaks"][10] > 0.4 and whole["peaks"][90] == 0  # loud first half, silent second
+    part = get_json(port, "/api/peaks?path=tone.wav&n=50&from=1&to=3")
+    assert part["from"] == 1 and part["seconds"] == pytest.approx(2, abs=0.01)
+    assert part["peaks"][10] > 0.4 and part["peaks"][40] == 0
+    assert request(port, "GET", "/api/peaks?path=../x.wav")[0].status == 403
+    assert request(port, "GET", "/api/peaks?path=missing.wav")[0].status == 404
+    assert request(port, "GET", "/api/peaks?path=tone.wav&n=lots")[0].status == 400
+
+
+def test_click_settings(server, monkeypatch):
+    port, root = server
+    (root / "001 - Song.opus").write_bytes(b"x")
+    body = {"path": "001 - Song.opus", "bpm": 97.3, "meter": "3/4", "first": 1.25}
+    response, content = request(port, "POST", "/api/click-settings", body)
+    assert response.status == 200 and json.loads(content) == {"bpm": 97.3, "meter": "3/4", "first": 1.25}
+    (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
+    assert song["click"] == {"bpm": 97.3, "meter": "3/4", "first": 1.25}
+    for bad in [{**body, "bpm": 5}, {**body, "meter": "fast"}, {**body, "first": "x"}, {"path": "001 - Song.opus"}]:
+        assert request(port, "POST", "/api/click-settings", bad)[0].status == 400
+    assert request(port, "POST", "/api/click-settings", {**body, "path": "../x"})[0].status == 403
+    ran = []
+    monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "align", "paths": ["001 - Song.opus"]})[1])
+    assert job["title"] == "Tempo y primer golpe: 001 - Song.opus"
+    wait_for(port, job["id"])
+    assert ran == [["align", str((root / "001 - Song.opus").resolve())]]
 
 
 def test_failed_job(server):

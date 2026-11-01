@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from urllib.parse import parse_qs, urlparse
 
-from . import archives, log, system
+from . import align, archives, log, results, system
 from .audio import AUDIO_EXTS, GENERATED, base_of
 from .paths import music_dir
 
@@ -149,6 +149,38 @@ def read_results(folder, command):
 MAIN_FORMATS = [".opus", ".webm", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".mp3", ".aac", ".mp4", ".mkv"]
 
 
+PEAKS = collections.OrderedDict()
+
+
+def peaks(path, n, start=None, end=None):
+    """The audio's outline for drawing it: the loudest sample in each of n slices, of the whole
+    file or of start..end seconds. Remembered for the last files asked."""
+    key = (str(path), path.stat().st_mtime, n, start, end)
+    if key in PEAKS:
+        PEAKS.move_to_end(key)
+        return PEAKS[key]
+    import numpy as np
+
+    # Low rate for a whole song (enough for a picture); finer for a zoomed stretch.
+    sr = 8000 if start is None else 22050
+    command = ["ffmpeg", "-nostdin", "-v", "error"]
+    if start is not None:
+        command += ["-ss", f"{max(0.0, start):.3f}"]
+    command += ["-i", str(path)]
+    if start is not None and end is not None:
+        command += ["-t", f"{max(0.01, end - max(0.0, start)):.3f}"]
+    command += ["-vn", "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
+    samples = np.abs(np.frombuffer(subprocess.run(command, capture_output=True, check=True).stdout, dtype=np.float32))
+    edges = np.linspace(0, len(samples), n + 1).astype(int)
+    values = [float(samples[a:b].max()) if b > a else 0.0 for a, b in zip(edges[:-1], edges[1:])]
+    result = {"from": max(0.0, start or 0.0), "seconds": len(samples) / sr,
+              "peaks": [round(v, 4) for v in values]}
+    PEAKS[key] = result
+    while len(PEAKS) > 64:
+        PEAKS.popitem(last=False)
+    return result
+
+
 def library(root):
     """The music folder and the folders directly in it, with their songs and, for each song,
     the files generated from it (stems, transpositions, conversions)."""
@@ -165,6 +197,7 @@ def library(root):
         except OSError:
             continue
         keys, bpms = read_results(folder, "key"), read_results(folder, "bpm")
+        clicks = read_results(folder, "click")
         groups = collections.defaultdict(list)
         for n in names:
             groups[base_of(n)].append(n)
@@ -178,7 +211,7 @@ def library(root):
             main = min(originals, key=lambda n: MAIN_FORMATS.index(os.path.splitext(n)[1].lower())
                        if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
             songs.append({"name": main, "path": rel(root, folder / main),
-                          "key": keys.get(main), "bpm": bpms.get(main),
+                          "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
                           "files": [file_entry(root, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
             playlist = archives.playlist_for(folder, known) if folder != root else None
@@ -260,6 +293,22 @@ def make_handler(token, root, runner, port):
                 return self.json(jobs)
             if url.path == "/api/audio":
                 return self.audio(query.get("path", [""])[0])
+            if url.path == "/api/peaks":
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                    n = max(10, min(4000, int(query.get("n", ["1000"])[0])))
+                    start = float(query["from"][0]) if "from" in query else None
+                    end = float(query["to"][0]) if "to" in query else None
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                except ValueError:
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                try:
+                    return self.json(peaks(path, n, start, end))
+                except subprocess.CalledProcessError:
+                    return self.error(HTTPStatus.UNPROCESSABLE_ENTITY, "no se pudo leer el audio")
             self.error(HTTPStatus.NOT_FOUND, "not found")
 
         do_HEAD = do_GET
@@ -329,6 +378,21 @@ def make_handler(token, root, runner, port):
                 if not system.open_folder(report.REPORTS_DIR):
                     return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
                 return self.json({})
+            if url.path == "/api/click-settings":
+                try:
+                    path = self.resolve(str(body["path"]))
+                    bpm, first = float(body["bpm"]), float(body["first"])
+                    meter = str(body.get("meter", "4/4"))
+                    if not (20 <= bpm <= 400 and re.fullmatch(r"\d+/\d+", meter) and -60 < first < 3600):
+                        raise ValueError
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                except (KeyError, ValueError, TypeError):
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                results.save("click", [(str(path), align.describe(bpm, meter, first))])
+                return self.json(align.parse(align.describe(bpm, meter, first)))
             if url.path == "/api/open":
                 return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
@@ -355,7 +419,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "archives-delete"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "archives-delete"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             label = ", ".join(os.path.basename(p) or "carpeta principal" for p in paths)[:120]
@@ -384,6 +448,8 @@ def make_handler(token, root, runner, port):
                 percent, n = float(body["percent"]), float(body.get("semitones") or 0)
                 args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
                 return f"Velocidad {percent:g}%" + (f" y tono {n:+g}" if n else "") + f": {label}", args
+            if action == "align":
+                return f"Tempo y primer golpe: {label}", ["align", *paths]
             if action == "rename":
                 if len(paths) != 1:
                     raise ValueError("se renombra de a un tema")

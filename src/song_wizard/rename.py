@@ -72,6 +72,6 @@ def run(path, new):
         die(f"Nothing renamed: {e}")
     for old, target in renames:
         print(f"  {old}  ->  {target}")
-    for command in ("key", "bpm"):
+    for command in ("key", "bpm", "click"):
         if results.rename(folder, command, dict(renames)):
             print(f"  updated {command}.txt")

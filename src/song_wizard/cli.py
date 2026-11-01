@@ -15,6 +15,7 @@ examples:
   song-wizard key ~/Music/Show
   song-wizard bpm ~/Music/Show
   song-wizard click 120 --duration 4:30
+  song-wizard align "song.opus"
   song-wizard transpose -2 "song.opus"
   song-wizard speed 80 "song.opus"
   song-wizard separate --stem drums ~/Music/Show
@@ -75,6 +76,17 @@ def build_parser():
     p.add_argument("--for", dest="song", metavar="FILE",
                    help='name it after this song, "Title (click 120 BPM 4-4).wav", and save it next to it')
     p.add_argument("-o", "--output", metavar="PATH", help="output file or folder")
+
+    p = sub.add_parser("align", help="find a song's exact tempo and first beat, for a click that plays along",
+                       description="Detects the exact tempo (with decimals) and when the first beat falls, and "
+                                   "saves them in click.txt next to the song, where the practice player of "
+                                   '"song-wizard ui" reads them to play a click along with the song. --bpm and '
+                                   "--first set them by hand instead (a detected tempo can be half or double the "
+                                   "real one).")
+    p.add_argument("--bpm", type=float, help="tempo, instead of detecting it")
+    p.add_argument("--first", type=float, metavar="SECONDS", help="time of the first beat, instead of detecting it")
+    p.add_argument("--meter", default="4/4", help="time signature (default: 4/4)")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
@@ -211,6 +223,9 @@ def dispatch(argv):
         from . import click
         click.run(args.bpm, meter=args.meter, duration=args.duration, bars=args.bars, like=args.like,
                   subdivide=args.subdivide, output=args.output, song=args.song)
+    elif args.command == "align":
+        from . import align
+        align.run(args.paths, bpm=args.bpm, meter=args.meter, first=args.first)
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)

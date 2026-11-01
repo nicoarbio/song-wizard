@@ -13,6 +13,7 @@ DISPATCH = {
     "bpm": (["song.opus"], "bpm", "run"),
     "click": (["120"], "click", "run"),
     "transpose": (["--", "-2", "song.opus"], "transpose", "run"),
+    "align": (["song.opus"], "align", "run"),
     "speed": (["80", "song.opus"], "speed", "run"),
     "separate": (["--stem", "drums", "song.opus"], "separate", "run"),
     "convert": (["song.wav"], "convert", "run"),

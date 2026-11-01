@@ -133,9 +133,10 @@ song-wizard ui
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones. Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
-- **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
+- **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás la URL de un video o una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
+- **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos o de olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
@@ -148,7 +149,18 @@ Con "Todos" separado, el reproductor tiene las cinco pistas (voz, batería, bajo
 - Cada pista tiene su volumen, **M** para silenciarla y **S** para escuchar solo esa (se pueden sumar varias en solo).
 - La velocidad cambia mientras suena y el tono no cambia. Para guardar una versión más lenta como archivo, está [Cambiar la velocidad](#cambiar-la-velocidad).
 - Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y la marca se ve sobre la barra.
-- Con el teclado: espacio reproduce y pausa, `[` y `]` marcan A y B, `L` repite, las flechas saltan 5 segundos, `-` y `+` cambian la velocidad, y `1` a `5` silencian una pista. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos).
+- La barra muestra la forma de onda del tema: tocándola se salta a esa parte.
+- Con el teclado: espacio reproduce y pausa, `[` y `]` marcan A y B, `L` repite, las flechas saltan 5 segundos, `-` y `+` cambian la velocidad, `1` a `5` silencian una pista y `C` el click. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos).
+
+**El click.** La última pista del reproductor es un click que sigue al tema: cae en cada tiempo aunque saltes a cualquier parte, repitas un tramo o cambies la velocidad, y como lo genera el navegador en el momento, suena nítido también a velocidades bajas. Para que coincida con el tema hace falta su tempo exacto y dónde cae el primer golpe; se ajustan en "Ajustar el click":
+
+- "detectar" los busca en el tema (lo mismo que `song-wizard align`, ver abajo). Si el tempo quedó a la mitad o al doble del real, ÷2 y ×2 lo corrigen.
+- La vista ampliada muestra el principio del tema con las líneas del click encima (la marcada es el primer tiempo de cada compás): arrastrando sobre el dibujo se mueven hasta que caigan sobre los golpes. Para el ajuste fino, −10 ms y +10 ms; si el primer tiempo quedó en otro tiempo del compás, −1 tiempo y +1 tiempo. "escuchar el principio" lo reproduce con el click para comprobarlo de oído.
+- Se guarda solo, en `click.txt` en la carpeta del tema (como `key.txt` y `bpm.txt`), y `rename` lo renombra con el tema.
+
+**La cuenta.** Con el click encendido, al dar play desde el principio suena la cuenta (uno o dos compases, o ninguna) y la música entra en su tiempo: si el tema empieza con un silencio, parte de la cuenta cae sobre ese silencio, así que la música entra justo donde corresponde. Con "también al seguir desde una pausa", la cuenta suena también al retomar desde cualquier punto, para practicar una parte.
+
+Medido en Edge: el click cae a ~1 ms del tema, también después de saltar y a 125 %; la cuenta y la entrada de la música, a 3 ms. Por debajo de 100 % el navegador demora un poco el tema al estirarlo y song-wizard lo compensa en Brave, Chrome y Edge (en Firefox y Safari, todavía no); a esas velocidades el tema estirado igual "baila" unos ±15 ms de golpe a golpe, por cómo lo estira el navegador.
 
 Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
 
@@ -238,6 +250,16 @@ song-wizard click 90 --subdivide 2               # con corcheas
 - El compás: el número de arriba es la cantidad de clicks por compás (`4/4` = 4, `3/4` = 3, `6/8` = 6).
 - Es un click de tempo fijo: sirve para ensayar sin la grabación o a otro tempo. Si el tema original se grabó sin click (`bpm` dice `varies`), un click fijo se va a ir desfasando de la grabación.
 - Para mandarlo por WhatsApp: `song-wizard convert "Click 120 BPM 4-4.wav"`.
+
+### Tempo y primer golpe para el click
+
+```bash
+song-wizard align "tema.opus"                        # lo detecta
+song-wizard align --bpm 103.06 --first 1.554 "tema.opus"   # a mano
+song-wizard align "Música/Show"                     # todos los temas de la carpeta
+```
+
+Busca el tempo exacto (con decimales) y dónde cae el primer golpe, y lo guarda en `click.txt`, que el click del reproductor de práctica usa para acompañar al tema. `--meter` cambia el compás (4/4 si no se dice). Como cualquier detector de tempo, puede dar la mitad o el doble del real: se corrige con `--bpm` o con ÷2 y ×2 en la interfaz. Si el tempo del tema varía (grabado sin click), lo avisa: un click fijo se va a ir desfasando.
 
 ### Cambiar el tono
 
@@ -437,6 +459,11 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui`: practicar en Mac (Safari) | **No probado** | Safari tiene `preservesPitch`; falta ver que reproduzca los WAV de 32 bits float de los stems |
 | "buscar temas nuevos" de una playlist | Real (sobre una copia, sin tocar la carpeta real) | ✅ Con el registro de una playlist de 18 temas que tenía 10, bajó solo los 8 que faltaban, numerados 011 a 018; guarda la carpeta en el registro; los registros anteriores se reconocen por el nombre de la carpeta |
 | Click con el nombre del tema (`--like`, `--for` y desde la interfaz con un tema elegido) | Real | ✅ `001 - Tema (80%) (click 96 BPM 4-4).wav` queda al lado del tema y la biblioteca lo agrupa con sus archivos; `-o` sigue eligiendo dónde |
+| `align` sobre baterías sintéticas (90 a 137 BPM, con y sin silencio al principio) | Real | ✅ Tempo a ±0.02 BPM y primer golpe a ±1 ms; a 160 BPM da 80 (la mitad), que se corrige con ÷2/×2 o `--bpm` |
+| `align` sobre un tema real de 4:33 | Real | ✅ 103.06 BPM (`bpm` dice 103.1) y el primer golpe donde arranca el sonido en la forma de onda |
+| Click del reproductor contra el tema (Edge, sin sonido, grabando lo que sale) | Real | ✅ ~1 ms a 100 %, después de saltar y a 125 %; la cuenta de un compás, a 3 ms de su lugar, con la música entrando en su tiempo, también al retomar desde una pausa; al 75 %, −3 ms en promedio (±15 ms del tema estirado) |
+| Click del reproductor escuchándolo | **Falta** | Medido con el sonido apagado; falta escucharlo en el navegador de todos los días |
+| Forma de onda | Real | ✅ Un tema de 4:33 tarda ~2 s la primera vez (después queda guardada); el principio ampliado, 0.1 s |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |
