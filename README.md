@@ -225,11 +225,13 @@ Genera un click fijo, con el primer tiempo de cada compás acentuado:
 song-wizard click 120                            # 120 BPM, 4/4, 1 minuto
 song-wizard click 96 --meter 3/4 --bars 32       # 32 compases de 3/4
 song-wizard click 123 --duration 4:30            # 4 minutos y medio
-song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema
+song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema, y con su nombre
+song-wizard click 92 --bars 8 --for "tema.opus"  # con el nombre del tema, pero de 8 compases
 song-wizard click 90 --subdivide 2               # con corcheas
 ```
 
 - Genera `Click 120 BPM 4-4.wav` en la carpeta donde lo corrés; `-o` elige otro archivo o carpeta.
+- Con `--like` o `--for`, el click lleva el nombre del tema y queda a su lado: `tema (click 105.6 BPM 4-4).wav`. Así la interfaz lo muestra con los archivos del tema, y `rename` lo renombra junto con el resto. En la interfaz pasa lo mismo cuando hay un solo tema (o un archivo de un tema) elegido.
 - Acepta tempos con decimales, así podés usar el número exacto que da `song-wizard bpm`.
 - La duración se redondea hacia arriba a compases completos. Sin `--duration`, `--bars` ni `--like`, dura un minuto.
 - `--subdivide` agrega clicks más suaves entre tiempo y tiempo: `2` = corcheas, `3` = tresillos, `4` = semicorcheas.
@@ -434,6 +436,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui`: practicar escuchando, en el navegador de todos los días | **Falta** | Lo anterior se midió con el sonido apagado; falta escucharlo con stems reales |
 | `ui`: practicar en Mac (Safari) | **No probado** | Safari tiene `preservesPitch`; falta ver que reproduzca los WAV de 32 bits float de los stems |
 | "buscar temas nuevos" de una playlist | Real (sobre una copia, sin tocar la carpeta real) | ✅ Con el registro de una playlist de 18 temas que tenía 10, bajó solo los 8 que faltaban, numerados 011 a 018; guarda la carpeta en el registro; los registros anteriores se reconocen por el nombre de la carpeta |
+| Click con el nombre del tema (`--like`, `--for` y desde la interfaz con un tema elegido) | Real | ✅ `001 - Tema (80%) (click 96 BPM 4-4).wav` queda al lado del tema y la biblioteca lo agrupa con sus archivos; `-o` sigue eligiendo dónde |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

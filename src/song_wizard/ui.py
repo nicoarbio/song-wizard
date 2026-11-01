@@ -397,8 +397,10 @@ def make_handler(token, root, runner, port):
             if action == "click":
                 bpm = float(body["bpm"])
                 meter = str(body.get("meter", "4/4"))
-                folder = self.resolve(body.get("folder", ""))
-                args = ["click", f"{bpm:g}", "--meter", meter, "-o", str(folder)]
+                if body.get("for"):  # one song picked: named after it and saved next to it
+                    args = ["click", f"{bpm:g}", "--meter", meter, "--for", str(self.resolve(body["for"]))]
+                else:
+                    args = ["click", f"{bpm:g}", "--meter", meter, "-o", str(self.resolve(body.get("folder", "")))]
                 if body.get("like"):
                     args += ["--like", str(self.resolve(body["like"]))]
                 elif body.get("bars"):

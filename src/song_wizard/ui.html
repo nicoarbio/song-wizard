@@ -237,7 +237,7 @@
         <div class="row" style="margin-top:8px">
           <button id="do-click">Generar click</button>
         </div>
-        <p class="hint">Si lo elegido ya tiene tempo detectado, se usa ese BPM (en una versión con otra velocidad, ajustado). Se guarda en la carpeta del tema.</p>
+        <p class="hint">Si lo elegido ya tiene tempo detectado, se usa ese BPM (en una versión con otra velocidad, ajustado). Con un solo tema elegido, el click lleva su nombre y queda con sus archivos.</p>
       </div>
     </section>
 
@@ -1001,6 +1001,8 @@ $("do-click").onclick = () => {
   const where = first ? findPath(first) : null;
   const request = { action: "click", bpm: parseFloat($("click-bpm").value), meter: $("click-meter").value,
                     subdivide: parseInt($("click-sub").value, 10), folder: where ? where.folder.path : "" };
+  // One song (or one of its files) picked: the click is named after it and listed with it.
+  if (selectedPaths().length === 1 && where && where.song) request.for = first;
   if (mode === "like") {
     if (!first) return toast('Elegí un tema para "tan largo como el tema", o poné una duración.');
     request.like = first;

@@ -66,6 +66,21 @@ def test_click_like_a_song(tmp_path):
     assert len(click_onsets(track)[0]) == 12
 
 
+def test_click_named_after_its_song(tmp_path):
+    show = tmp_path / "Show"
+    show.mkdir()
+    song = synth.write(show / "001 - Song (80%).wav", synth.sine(440, 3))
+    click.run(96, like=str(song))  # --like names it after the song and saves it next to it
+    click.run(96, bars=2, subdivide=2, song=str(song))
+    assert sorted(os.listdir(show)) == ["001 - Song (80%) (click 96 BPM 4-4 x2).wav",
+                                       "001 - Song (80%) (click 96 BPM 4-4).wav", "001 - Song (80%).wav"]
+    assert all(audio.base_of(n) == "001 - Song" for n in os.listdir(show))
+    out = tmp_path / "out"
+    out.mkdir()
+    click.run(96, song=str(song), output=str(out))  # -o still decides where
+    assert os.listdir(out) == ["001 - Song (80%) (click 96 BPM 4-4).wav"]
+
+
 @pytest.mark.parametrize("args", [dict(bpm=10), dict(bpm=500), dict(bpm=120, subdivide=9), dict(bpm=120, bars=0)])
 def test_click_invalid(tmp_path, args):
     with pytest.raises(SystemExit):

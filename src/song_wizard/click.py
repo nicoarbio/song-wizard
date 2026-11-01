@@ -50,7 +50,9 @@ def tone(freq, gain):
     return (gain * np.sin(2 * np.pi * freq * t) * np.exp(-t / 0.006)).astype(np.float32)
 
 
-def run(bpm, meter="4/4", duration=None, bars=None, like=None, subdivide=1, output=None):
+def run(bpm, meter="4/4", duration=None, bars=None, like=None, subdivide=1, output=None, song=None):
+    """song: name the click after it ("Title (click 120 BPM 4-4).wav") and save it next to it, so
+    it's listed with the song. --like implies it unless an output is given."""
     if not 20 <= bpm <= 400:
         die("The tempo must be between 20 and 400 BPM.")
     if not 1 <= subdivide <= 8:
@@ -76,8 +78,16 @@ def run(bpm, meter="4/4", duration=None, bars=None, like=None, subdivide=1, outp
         s = sounds[kind]
         track[i:i + len(s)] += s
 
-    name = f"Click {bpm:g} BPM {per_bar}-{unit}" + (f" x{subdivide}" if subdivide > 1 else "") + ".wav"
-    out = name if output is None else (os.path.join(output, name) if os.path.isdir(output) else output)
+    label = f"{bpm:g} BPM {per_bar}-{unit}" + (f" x{subdivide}" if subdivide > 1 else "")
+    song = song or (like if output is None else None)
+    if song:
+        name = f"{os.path.splitext(os.path.basename(song))[0]} (click {label}).wav"
+        out = os.path.join(os.path.dirname(os.path.abspath(song)), name) if output is None else None
+    else:
+        name = f"Click {label}.wav"
+        out = name if output is None else None
+    if out is None:
+        out = os.path.join(output, name) if os.path.isdir(output) else output
     sf.write(out, track, SR, subtype="PCM_16")
     minutes, secs = divmod(bars * bar, 60)
     print(f"  {bpm:g} BPM  {meter}  {bars} bars ({int(minutes)}:{secs:05.2f})"

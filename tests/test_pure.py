@@ -45,10 +45,10 @@ def test_bpm_uncertain_only_plausible_tempos():
 GENERATED_NAMES = [
     "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)",
     "Song (+2)", "Song (-1.5)", "Song (80%)", "Song (87.5%)", "Song (80%, -2)", "Song (120%, +1.5)", "Song (click)", "Song (drums) (count-in)", "Song (count-in)",
-    "Click 120 BPM 4-4", "Click 92.5 BPM 6-8 x2",
+    "Click 120 BPM 4-4", "Click 92.5 BPM 6-8 x2", "Song (click 120 BPM 4-4)", "Song (80%) (click 96 BPM 3-4 x2)",
 ]
 ORIGINAL_NAMES = ["Song", "Song (Live)", "Song (feat. Someone)", "001 - Song (2019 Remaster)",
-                  "Click Track", "Song (piano)", "Song +2", "Song (80)", "Song (-80%)"]
+                  "Click Track", "Song (piano)", "Song +2", "Song (80)", "Song (-80%)", "Song (click track)"]
 
 
 @pytest.mark.parametrize("name", GENERATED_NAMES)
@@ -65,7 +65,8 @@ def test_not_generated(name):
     ("Song (drums).wav", "Song"), ("Song (no drums).wav", "Song"), ("Song (+2).wav", "Song"),
     ("Song (other).wav", "Song"), ("Song (drums) (count-in).wav", "Song"), ("Song (count-in).wav", "Song"),
     ("Song (80%).wav", "Song"), ("Song (drums) (80%, -2).wav", "Song"), ("Song.mp3", "Song"), ("Song (Live) (vocals).wav", "Song (Live)"),
-    ("Click 120 BPM 4-4.wav", "Click 120 BPM 4-4"),
+    ("Click 120 BPM 4-4.wav", "Click 120 BPM 4-4"), ("Song (click 120 BPM 4-4).wav", "Song"),
+    ("Song (drums) (80%) (click 96 BPM 4-4 x2).wav", "Song"),
 ])
 def test_base_of(name, base):
     assert ui.base_of(name) == base

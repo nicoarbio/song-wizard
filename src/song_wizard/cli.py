@@ -69,9 +69,11 @@ def build_parser():
     length = p.add_mutually_exclusive_group()
     length.add_argument("--duration", metavar="M:SS", help="length, e.g. 4:30 or 270 seconds (default: 1:00)")
     length.add_argument("--bars", type=int, help="length in bars")
-    length.add_argument("--like", metavar="FILE", help="as long as this song")
+    length.add_argument("--like", metavar="FILE", help="as long as this song (and named after it, like --for)")
     p.add_argument("--subdivide", type=int, default=1, metavar="N",
                    help="softer clicks between beats: 2 = eighths, 3 = triplets, 4 = sixteenths")
+    p.add_argument("--for", dest="song", metavar="FILE",
+                   help='name it after this song, "Title (click 120 BPM 4-4).wav", and save it next to it')
     p.add_argument("-o", "--output", metavar="PATH", help="output file or folder")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
@@ -208,7 +210,7 @@ def dispatch(argv):
     elif args.command == "click":
         from . import click
         click.run(args.bpm, meter=args.meter, duration=args.duration, bars=args.bars, like=args.like,
-                  subdivide=args.subdivide, output=args.output)
+                  subdivide=args.subdivide, output=args.output, song=args.song)
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)

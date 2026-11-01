@@ -226,6 +226,18 @@ def test_playlist_update(server, monkeypatch):
     assert ran == [["download", "--wav", url]]
 
 
+def test_click_for_one_song(server):
+    port, root = server
+    (root / "Show").mkdir()
+    synth.write(root / "Show" / "001 - Song.wav", synth.sine(440, 2))
+    body = {"action": "click", "bpm": 120, "like": "Show/001 - Song.wav", "for": "Show/001 - Song.wav", "folder": "Show"}
+    status, lines = wait_for(port, json.loads(request(port, "POST", "/api/jobs", body)[1])["id"])
+    assert status == "done", lines
+    (song,) = get_json(port, "/api/library")["folders"][-1]["songs"]
+    assert [f["name"] for f in song["files"]] == ["001 - Song (click 120 BPM 4-4).wav"]
+    assert request(port, "POST", "/api/jobs", {**body, "for": "../x.wav"})[0].status == 403
+
+
 def test_failed_job(server):
     port, root = server
     (root / "broken.wav").write_bytes(b"not audio")
