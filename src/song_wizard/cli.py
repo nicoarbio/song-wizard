@@ -11,7 +11,7 @@ DESCRIPTION = ("Prepare songs for band practice: download, key and tempo detecti
 
 EPILOG = """\
 examples:
-  song-wizard download "https://www.youtube.com/playlist?list=..."
+  song-wizard download "https://.../playlist?list=..."
   song-wizard key ~/Music/Show
   song-wizard bpm ~/Music/Show
   song-wizard click 120 --duration 4:30
@@ -36,14 +36,15 @@ def build_parser():
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
-    p = sub.add_parser("download", help="download audio from YouTube as original Opus (no re-encoding)",
-                       description="Download a video or playlist as original Opus, without re-encoding. "
-                                   "Playlists go to <Music>/<playlist name>/001 - Title.opus, single videos "
+    p = sub.add_parser("download", help="download the audio of a link (a song or a playlist), without re-encoding",
+                       description="Download the audio of a link, a single song or a playlist, in the best quality "
+                                   "available and without re-encoding. Playlists go to <Music>/<playlist "
+                                   "name>/001 - Title.opus, single songs "
                                    "to <Music>/Singles/. <Music> is $SONG_WIZARD_DIR if set, else your Music "
                                    "folder (the Windows one on WSL). An archive per playlist is kept: running "
                                    "it again only downloads new songs.")
     p.add_argument("--wav", action="store_true", help="also write a .wav next to each .opus")
-    p.add_argument("url", help="video or playlist URL")
+    p.add_argument("url", help="link to a song or a playlist")
     p.add_argument("ytdlp_args", nargs=argparse.REMAINDER, metavar="...",
                    help="extra yt-dlp options, e.g. --cookies-from-browser chrome")
 

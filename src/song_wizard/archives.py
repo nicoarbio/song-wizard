@@ -65,7 +65,7 @@ def read_meta(archive_id):
 
 
 def fetch_title(archive_id):
-    """Archives made before names were stored: ask YouTube once and keep the answer."""
+    """Archives made before names were stored: ask the site once and keep the answer."""
     url = f"https://www.youtube.com/playlist?list={archive_id}"
     out = subprocess.run([sys.executable, "-m", "yt_dlp", "--flat-playlist", "-I", "1",
                           "--print", "playlist_title", url], capture_output=True, text=True)
@@ -84,7 +84,7 @@ def entries():
     for path in ARCHIVE_DIR.glob("*.txt") if ARCHIVE_DIR.exists() else []:
         archive_id = path.stem
         if archive_id == SINGLES:
-            title = "Singles (single videos)"
+            title = "Singles (single links)"
         else:
             title = read_meta(archive_id).get("title") or fetch_title(archive_id) or f"(unknown name) {archive_id}"
         songs = sum(1 for line in path.read_text().splitlines() if line.strip())

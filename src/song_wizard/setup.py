@@ -25,7 +25,7 @@ def run():
     mac = sys.platform == "darwin"
     checks = [
         ("ffmpeg", bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))),
-        ("deno or node v20+ (YouTube JS challenges)", bool(shutil.which("deno")) or node_ok()),
+        ("deno or node v20+ (JavaScript challenges of some sites)", bool(shutil.which("deno")) or node_ok()),
         ("rubberband (transpose)", bool(shutil.which("rubberband"))),
         ("essentia (key)", importable("essentia")),
         ("uv (upgrade)", bool(shutil.which("uv"))),

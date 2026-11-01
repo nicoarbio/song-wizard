@@ -4,7 +4,7 @@
 
 Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales.
 
-- **download**: baja audio de YouTube en la mejor calidad disponible (Opus original, sin recomprimir).
+- **download**: baja el audio de un link (un tema o una playlist) en la mejor calidad disponible, sin recomprimir.
 - **key**: detecta la tonalidad.
 - **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
 - **click**: genera una pista de click fija, con el tempo, el compás y la duración que quieras.
@@ -27,15 +27,15 @@ song-wizard está escrito en Python, pero usa algunos programas externos que hay
 | Programa | Por qué hace falta | Cómo lo usa song-wizard |
 |---|---|---|
 | [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
-| [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio del video (y para generar los `.wav` con `--wav`). |
-| [**deno**](https://deno.com) | YouTube exige resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
+| [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio (y para generar los `.wav` con `--wav`). |
+| [**deno**](https://deno.com) | Algunos sitios exigen resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
 | [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).wav`; `speed` le pasa la velocidad y genera `Título (80%).wav`. |
 
 En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y `build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada. En Mac no hace falta, porque el compilador ya lo instala Homebrew.
 
 Las librerías de Python que hacen el trabajo pesado las instala uv automáticamente: [yt-dlp](https://github.com/yt-dlp/yt-dlp) para las descargas, [Essentia](https://essentia.upf.edu) para la tonalidad, y [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) y [PyTorch](https://pytorch.org) para separar instrumentos.
 
-Todo se procesa en tu computadora: song-wizard no manda tus archivos a ningún servidor. Solo se conecta a internet para bajar temas de YouTube, bajar los modelos de separación la primera vez y actualizarse.
+Todo se procesa en tu computadora: song-wizard no manda tus archivos a ningún servidor. Solo se conecta a internet para bajar los temas que le pidas, bajar los modelos de separación la primera vez y actualizarse.
 
 `song-wizard setup` revisa que estén todos instalados.
 
@@ -97,7 +97,7 @@ music_dir = "~/Ensayos"
 song-wizard upgrade
 ```
 
-Conviene hacerlo seguido: YouTube cambia a menudo y las descargas pueden dejar de andar hasta actualizar.
+Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dejar de andar hasta actualizar.
 
 ### Qué se guarda en tu computadora
 
@@ -134,7 +134,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones. Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
-- **Bajar**: pegás la URL de un video o una playlist arriba de todo.
+- **Bajar**: pegás el link de un tema o de una playlist arriba de todo.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
@@ -169,11 +169,11 @@ Todo lo que hace la interfaz se puede hacer también con los comandos de abajo, 
 ### Bajar temas
 
 ```bash
-song-wizard download "https://www.youtube.com/playlist?list=..."
-song-wizard download "https://www.youtube.com/watch?v=..."
+song-wizard download "https://.../playlist?list=..."   # una playlist
+song-wizard download "https://.../watch?v=..."         # un tema suelto
 ```
 
-- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Título.opus`, numeradas en orden. Los videos sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
+- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Título.opus`, numeradas en orden. Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
 - Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
@@ -189,7 +189,7 @@ song-wizard archives
 ```
    #  Playlist                 Songs  Last download
    1  Ensayo diciembre            11  2026-10-31 18:44
-   2  Singles (single videos)      1  2026-10-31 18:44
+   2  Singles (single links)       1  2026-10-31 18:44
 ```
 
 Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo: `song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y nunca borra los temas ya bajados.
@@ -357,7 +357,7 @@ Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav`
 
 La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
 
-Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué video se bajó, no el nombre del archivo.
+Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué link se bajó, no el nombre del archivo.
 
 ### Si algo falla
 
@@ -375,9 +375,9 @@ El reporte no incluye audio. Tu carpeta personal aparece como `~` (por ejemplo `
 
 song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
 
-- **Sos responsable de lo que bajás y procesás.** Usalo solo con audio sobre el que tengas derechos o permiso de uso, y respetá los derechos de autor y los [Términos de servicio de YouTube](https://www.youtube.com/t/terms), que no permiten descargar contenido salvo con las funciones de la propia plataforma. No compartas ni publiques los temas, stems o pistas que generes a partir de material ajeno.
+- **Sos responsable de lo que bajás y procesás.** Usalo solo con audio sobre el que tengas derechos o permiso de uso, y respetá los derechos de autor y los términos de servicio de cada sitio, que en general no permiten descargar contenido salvo con sus propias funciones. No compartas ni publiques los temas, stems o pistas que generes a partir de material ajeno.
 - **No apto para uso comercial.** Aunque el código de song-wizard es libre (ver [Licencia](#licencia)), algunas piezas que usa no lo permiten o no tienen una licencia clara: [diffq](https://github.com/facebookresearch/diffq) (una dependencia de audio-separator) tiene licencia CC BY-NC 4.0, que prohíbe el uso comercial; y los modelos de separación (Demucs, el Mel-Band Roformer de voz y los modelos de UVR) no indican la licencia de sus pesos entrenados. Cualquier uso comercial requiere revisar esas licencias por separado.
-- **Sin afiliación.** song-wizard no está afiliado ni respaldado por YouTube, Google, Meta, UVR ni ninguno de los proyectos o servicios mencionados. Todas las marcas pertenecen a sus dueños.
+- **Sin afiliación.** song-wizard no está afiliado ni respaldado por ninguna plataforma de audio o video ni por los proyectos que usa. Todas las marcas pertenecen a sus dueños.
 - **Sin garantías.** Se ofrece tal cual, sin garantía de ningún tipo, como establece su licencia.
 
 ## Licencia
@@ -431,13 +431,13 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 |---|---|---|
 | Instalar desde GitHub con `uv tool install` | Real | ✅ `setup` en verde |
 | `download` de una playlist de 11 temas, y volver a correrla | Real | ✅ La segunda vez reconoce los 11 y no baja nada |
-| `download` de un video suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
+| `download` de un tema suelto y con `SONG_WIZARD_DIR` | Real (sin descargar) | ✅ Rutas correctas |
 | `key` sobre 11 temas | Real | ✅ 9 con 4/4; los 2 dudosos marcan la alternativa (en ambos, la relativa o una quinta) |
 | `bpm` sobre 11 temas | Real | ✅ 8 estables, 2 con tempo variable (121-125 y 144-147) y 1 dudoso que sugiere la mitad |
 | `key` y `bpm` guardan `key.txt` / `bpm.txt`; volver a analizar un tema solo cambia su línea | Real | ✅ |
 | `download --no-download-archive` | Real (sin descargar) | ✅ Ignora el registro y no lo modifica |
-| `download` + `archives` (2 temas de una playlist y un video suelto) | Real | ✅ Guarda el nombre de la playlist; la lista muestra la playlist con 2 temas y los sueltos con 1 |
-| `archives` con un registro anterior, sin nombre guardado | Real | ✅ Busca el nombre en YouTube una vez y lo guarda |
+| `download` + `archives` (2 temas de una playlist y un tema suelto) | Real | ✅ Guarda el nombre de la playlist; la lista muestra la playlist con 2 temas y los sueltos con 1 |
+| `archives` con un registro anterior, sin nombre guardado | Real | ✅ Busca el nombre de la playlist una vez y lo guarda |
 | `archives --delete` con número inexistente, texto inválido o sin confirmar | Real | ✅ No borra nada y explica por qué |
 | `archives --delete all --yes` | Real | ✅ Borra los registros; los temas bajados quedan intactos |
 | `click` a 120 BPM 4/4, 96 BPM 3/4, 105.6 BPM durante 10 minutos, con tresillos y `--like` | Real | ✅ Cada golpe a 0.03 ms de su posición teórica (redondeo a la muestra), también a los 10 minutos; cantidad de golpes, acentos y subdivisiones correctos; `--like` cubre todo el tema |

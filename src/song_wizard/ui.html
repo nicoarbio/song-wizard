@@ -143,7 +143,7 @@
     <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden>abrir</button></div>
   </div>
   <form class="download" id="download">
-    <input type="url" id="url" placeholder="Pegá la URL de un video o una playlist de YouTube" required>
+    <input type="url" id="url" placeholder="Pegá el link de un tema o de una playlist" required>
     <label class="muted"><input type="checkbox" id="wav"> también .wav</label>
     <button class="primary" type="submit">Bajar</button>
   </form>
@@ -366,7 +366,7 @@ function el(tag, props = {}, ...children) {
     else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
     else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v === true ? "" : v);
   }
-  // Text only: file names come from YouTube titles and must never be parsed as HTML.
+  // Text only: file names come from downloaded titles and must never be parsed as HTML.
   for (const c of children.flat()) if (c !== null && c !== undefined) node.append(c instanceof Node ? c : String(c));
   return node;
 }
@@ -467,7 +467,7 @@ function renderLibrary() {
     const n = folder.songs.length;
     const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
       el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`),
-        folder.playlist ? el("button", { class: "small open", title: `Mira la playlist "${folder.playlist.title}" en YouTube y baja solo los temas que se agregaron`,
+        folder.playlist ? el("button", { class: "small open", title: `Vuelve a mirar la playlist "${folder.playlist.title}" y baja solo los temas que se agregaron`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
         el("button", { class: folder.playlist ? "small" : "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));

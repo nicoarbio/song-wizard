@@ -168,7 +168,7 @@ def test_archives_entries():
     make_archive(archives.SINGLES, None, 1)
     rows = archives.entries()
     assert [(r[0], r[1], r[2]) for r in rows] == [
-        ("PLa", "Alpha", 3), ("PLb", "beta", 2), ("singles", "Singles (single videos)", 1)]
+        ("PLa", "Alpha", 3), ("PLb", "beta", 2), ("singles", "Singles (single links)", 1)]
     assert json.loads((archives.ARCHIVE_DIR / "singles.json").read_text())["url"] is None
 
 
