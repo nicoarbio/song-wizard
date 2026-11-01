@@ -48,6 +48,14 @@ def test_tracks_with_piano(tmp_path):
     assert [(n, m) for n, _, m in reaper.tracks_for(song)] == [("Piano", False), ("Sin piano", False), ("Tema original", True)]
 
 
+def test_tracks_with_the_drum_kit(tmp_path):
+    kit = ["kick", "snare", "toms", "hihat", "ride", "crash", "drums rest"]
+    song = make_song(tmp_path / "k", ["drums", "no drums", *kit])
+    names = [(n, m) for n, _, m in reaper.tracks_for(song)]
+    assert names[:2] == [("Batería", False), ("Sin batería", False)]
+    assert names[2:9] == [(n, True) for n in ["Bombo", "Redoblante", "Toms", "Hi-hat", "Ride", "Crash", "Resto de la batería"]]
+
+
 def test_tracks_one_instrument_or_none(tmp_path):
     song = make_song(tmp_path / "a", ["drums", "no drums"])
     assert [(n, m) for n, _, m in reaper.tracks_for(song)] == [("Batería", False), ("Sin batería", False), ("Tema original", True)]

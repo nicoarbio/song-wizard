@@ -29,7 +29,10 @@ BACKUP = "reaper.ini.before-song-wizard"
 STATE = DATA_DIR / "reaper.json"
 # Recorded takes: "$project" is the project's file name, which is the song's.
 TAKES = "$project (record $year-$month-$day $hour-$minute-$second)"
-STEM_NAMES = {"vocals": "Voz", "drums": "Batería", "bass": "Bajo", "guitar": "Guitarra", "piano": "Piano", "other": "Otros"}
+STEM_NAMES = {"vocals": "Voz", "drums": "Batería", "bass": "Bajo", "guitar": "Guitarra", "piano": "Piano", "other": "Otros",
+              "kick": "Bombo", "snare": "Redoblante", "toms": "Toms", "hihat": "Hi-hat", "ride": "Ride", "crash": "Crash",
+              "drums rest": "Resto de la batería"}
+KIT = ["kick", "snare", "toms", "hihat", "ride", "crash", "drums rest"]
 FULL_SET = ["vocals", "drums", "bass", "guitar", "other"]
 
 
@@ -57,7 +60,7 @@ def tracks_for(song):
     other stems and the original song muted, so they're there to switch to."""
     song = Path(song)
     base = base_of(song.name)
-    stem = re.compile(rf"^{re.escape(base)} \(((?:no )?(?:vocals|drums|bass|guitar|piano)|other)\)\.wav$", re.I)
+    stem = re.compile(rf"^{re.escape(base)} \(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\)\.wav$", re.I)
     found = {}
     for n in sorted(os.listdir(song.parent)):
         if (m := stem.match(n)) and (song.parent / n).is_file():
@@ -68,7 +71,7 @@ def tracks_for(song):
     else:
         pair = next((k for k in ("vocals", "drums", "bass", "guitar", "piano") if k in found and f"no {k}" in found), None)
         playing = [pair, f"no {pair}"] if pair else []
-    order = [*FULL_SET, "piano", *(f"no {k}" for k in [*FULL_SET[:4], "piano"])]
+    order = [*FULL_SET, "piano", *(f"no {k}" for k in [*FULL_SET[:4], "piano"]), *KIT]
     tracks = [(name(k), found[k], False) for k in playing]
     tracks += [(name(k), found[k], True) for k in order if k in found and k not in playing]
     tracks.append(("Tema original", song.name, bool(playing)))

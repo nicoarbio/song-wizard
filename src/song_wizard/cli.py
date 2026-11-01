@@ -130,7 +130,10 @@ def build_parser():
     p.add_argument("--stem", action="append", required=True, choices=[*STEMS, ALL],
                    help='instrument to separate; repeat for several. "all" writes the four '
                         'instruments plus "Title (other).wav" (everything else: keys, synths, '
-                        'backing vocals...), without the "no X" files; the five add up to the original')
+                        'backing vocals...), without the "no X" files; the five add up to the original. '
+                        '"piano" isn\'t part of "all". "drumkit" splits the drums (separated first if '
+                        'missing) into kick, snare, toms, hihat, ride and crash, plus "drums rest"; '
+                        'together they add up to the drums')
     p.add_argument("--cpu", action="store_true",
                    help="use the CPU even if a GPU is available (slower, but avoids GPU problems)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")

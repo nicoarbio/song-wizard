@@ -275,6 +275,7 @@
           <label><input type="checkbox" value="drums"> Batería</label>
           <label><input type="checkbox" value="bass"> Bajo</label>
           <label><input type="checkbox" value="guitar"> Guitarra</label>
+          <label title="Separa la batería en bombo, redoblante, toms, hi-hat, ride y crash (más el resto de la batería). Si el tema todavía no tiene la batería separada, la separa primero"><input type="checkbox" value="drumkit"> Batería en partes</label>
           <label title="Piano acústico o eléctrico. Los sintetizadores y los vientos pueden caer acá o quedarse en el resto. No entra en Todos: elegilo en los temas que tienen piano"><input type="checkbox" value="piano"> Piano</label>
           <label><input type="checkbox" value="all"> Todos</label>
         </div>
@@ -423,7 +424,7 @@
   </details>
   <p class="practice-keys">
     <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
-    <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>5</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>D</kbd> sincronía
+    <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>9</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>D</kbd> sincronía
   </p>
   <p id="practice-status" class="hint"></p>
   <p id="practice-sync" hidden></p>
@@ -1555,7 +1556,9 @@ $("trim-apply").onclick = () => {
 // live: each beat is placed on the audio clock from where the song is, so it lands right after
 // any jump, loop or speed change and stays crisp when slowed down (a click file would be
 // stretched along with the song and blur).
-const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", piano: "Piano", other: "Otros" };
+const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", piano: "Piano", other: "Otros",
+                     kick: "Bombo", snare: "Redoblante", toms: "Toms", hihat: "Hi-hat", ride: "Ride", crash: "Crash", "drums rest": "Resto de la batería" };
+const KIT = ["kick", "snare", "toms", "hihat", "ride", "crash", "drums rest"];
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
 const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
                    worst: 0, duration: 0, click: null, clickTrack: null, preroll: null };
@@ -1579,16 +1582,24 @@ function setMasterVolume(value) {
 
 function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
-// The sets of tracks this song can be practiced with, best first: every stem ("Todos"), each
-// instrument separated alone with the rest of the song, or the song by itself.
+// The sets of tracks this song can be practiced with, best first: every stem ("Todos"), the
+// drums in pieces (with the other stems, or with the song without drums), each instrument
+// separated alone with the rest of the song, or the song by itself.
 function trackSets(song) {
   const base = song.name.replace(/\.[^.]+$/, "");
-  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other)\\)\\.wav$`, "i");
+  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\\)\\.wav$`, "i");
   const found = {};
   for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
   const sets = [];
   if (FULL_SET.every((k) => found[k])) {
     sets.push({ label: "Todos los instrumentos", tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
+  }
+  if (KIT.every((k) => found[k])) {
+    const kit = KIT.map((k) => ({ name: STEM_NAMES[k], file: found[k] }));
+    const others = FULL_SET.every((k) => found[k])
+      ? FULL_SET.filter((k) => k !== "drums").map((k) => ({ name: STEM_NAMES[k], file: found[k] }))
+      : found["no drums"] ? [{ name: "Sin batería", file: found["no drums"] }] : null;
+    if (others) sets.push({ label: "Batería en partes", tracks: [...kit, ...others] });
   }
   for (const k of ["vocals", "drums", "bass", "guitar", "piano"]) {
     if (found[k] && found[`no ${k}`]) {

@@ -106,3 +106,11 @@ def test_version_in_one_place():
     from song_wizard import __version__
     project = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
     assert project["project"]["version"] == __version__
+
+
+def test_separate_drumkit_option(monkeypatch):
+    from song_wizard import separate
+    calls = []
+    monkeypatch.setattr(separate, "run", lambda stems, paths, **k: calls.append(stems))
+    cli.main(["separate", "--stem", "drumkit", "song.opus"])
+    assert calls == [["drumkit"]]

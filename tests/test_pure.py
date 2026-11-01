@@ -43,7 +43,7 @@ def test_bpm_uncertain_only_plausible_tempos():
 
 
 GENERATED_NAMES = [
-    "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)", "Song (piano)", "Song (no piano)",
+    "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)", "Song (piano)", "Song (no piano)", "Song (kick)", "Song (hihat)", "Song (drums rest)",
     "Song (+2)", "Song (-1.5)", "Song (80%)", "Song (87.5%)", "Song (80%, -2)", "Song (120%, +1.5)", "Song (click)", "Song (drums) (count-in)", "Song (count-in)",
     "Click 120 BPM 4-4", "Click 92.5 BPM 6-8 x2", "Song (click 120 BPM 4-4)", "Song (80%) (click 96 BPM 3-4 x2)",
 ]
