@@ -26,6 +26,7 @@
   header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   header h1 .version { font-weight: 400; color: var(--muted); background: none; border-color: transparent; padding: 0 4px; }
   header h1 .version:hover { border-color: var(--line); }
+  header h1 .version.retired { color: var(--warn); }
   header .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
   header .brand img { flex: none; border-radius: 9px; }
   header .root { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -2263,11 +2264,13 @@ async function checkVersion(force = false) {
   try {
     const v = await api(`/api/version${force ? "?check=1" : ""}`);
     state.version = v;
-    $("version").textContent = `v${v.current}`;
-    $("upgrade").hidden = !v.newer;
-    $("upgrade").textContent = `actualizar a ${v.latest}`;
-    $("version").title = v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}` : "Es la última versión (tocá para buscar de nuevo)")
-                                  : "No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)";
+    $("version").textContent = v.retired ? `v${v.current} (retirada)` : `v${v.current}`;
+    $("version").classList.toggle("retired", Boolean(v.retired));
+    $("upgrade").hidden = !v.move;
+    $("upgrade").textContent = `${v.newer ? "actualizar" : "cambiar"} a ${v.latest}`;
+    $("version").title = v.retired ? `Esta versión fue retirada: ${v.retired}`
+      : v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}` : "Es la última versión (tocá para buscar de nuevo)")
+      : "No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)";
     if (force) toast(v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}.` : `Tenés la última versión (${v.current}).`) : "No pude consultar si hay una versión nueva (¿hay internet?).");
   } catch {}
 }
@@ -2276,8 +2279,9 @@ $("upgrade").onclick = async () => {
   const v = state.version;
   const busy = (state.jobs || []).some((j) => ["queued", "running"].includes(j.status));
   if (busy) { toast("Hay trabajos corriendo: actualizá cuando terminen.", 5000); return; }
-  if (!await askConfirm({ title: `¿Actualizar a song-wizard ${v.latest}?`, ok: "actualizar",
-                          text: [`Tenés la ${v.current}. Baja la versión nueva (y lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola.`] })) return;
+  if (!await askConfirm({ title: `¿${v.newer ? "Actualizar" : "Cambiar"} a song-wizard ${v.latest}?`, ok: v.newer ? "actualizar" : "cambiar",
+                          text: [v.retired ? `Tenés la ${v.current}, que fue retirada: ${v.retired}.` : `Tenés la ${v.current}.`,
+                                 "Baja esa versión (y lo nuevo de lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola."] })) return;
   try {
     const job = await api("/api/jobs", { action: "upgrade" });
     state.openJob = job.id;

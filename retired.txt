@@ -1,0 +1,4 @@
+# Versions of song-wizard that are no longer offered: song-wizard upgrade skips them and moves
+# whoever has one to the newest that isn't here; upgrade --to installs one only with --force.
+# One per line: the version, then why. The tag stays on GitHub.
+0.13.0  la práctica se trababa al saltar o pausar con muchas pistas (la batería en partes); arreglado en la 0.13.1

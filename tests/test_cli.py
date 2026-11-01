@@ -82,7 +82,7 @@ def test_upgrade(monkeypatch):
     from song_wizard import updates
     calls = []
     monkeypatch.setattr(updates, "upgrade", lambda: calls.append("upgrade") or 0)
-    monkeypatch.setattr(updates, "to", lambda v: calls.append(("to", v)) or 0)
+    monkeypatch.setattr(updates, "to", lambda v, force=False: calls.append(("to", v)) or 0)
     for args in (["upgrade"], ["upgrade", "--to", "0.12.0"]):
         with pytest.raises(SystemExit) as e:
             cli.main(args)

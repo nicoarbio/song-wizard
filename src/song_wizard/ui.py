@@ -315,20 +315,24 @@ def library(root):
     return folders + gone
 
 
-_latest = {"at": 0.0, "version": None}
+_latest = {"at": 0.0, "version": None, "retired": {}}
 # Tells one start of the server from the next: after a restart the page reloads when it changes
 # (a quick restart may never look down to it, and the version can be the same).
 SERVER_ID = secrets.token_hex(6)
 
 
 def version_info(force=False):
-    """This version and the newest published one, checked at most every 6 hours (or now)."""
+    """This version and the newest one on offer, checked at most every 6 hours (or now); and why
+    this one was retired, if it was (then "move" offers the one on offer, even if older)."""
     from . import __version__, updates
     if force or not _latest["at"] or time.monotonic() - _latest["at"] > 6 * 3600:
-        found = updates.latest()
+        good, held = updates.offered()
+        found = good[-1] if good else None
         # A failed check (no internet) is tried again on the next page load, not in 6 hours.
-        _latest.update(at=time.monotonic() if found else 0.0, version=found)
-    return {"current": __version__, "latest": _latest["version"], "newer": updates.newer(_latest["version"] or ""),
+        _latest.update(at=time.monotonic() if found else 0.0, version=found, retired=held)
+    found, why = _latest["version"], _latest["retired"].get(__version__)
+    return {"current": __version__, "latest": found, "newer": updates.newer(found or ""),
+            "retired": why, "move": bool(found and (updates.newer(found) or (why and found != __version__))),
             "server": SERVER_ID}
 
 

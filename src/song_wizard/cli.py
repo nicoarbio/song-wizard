@@ -272,11 +272,14 @@ def build_parser():
                        description="Installs the newest published version of song-wizard (each one is a vX.Y.Z "
                                    "tag on GitHub) if there's a newer one, and the newest of what it uses (yt-dlp "
                                    "above all). --list shows the published versions; --to installs a given one, "
-                                   "older ones included.")
+                                   "older ones included. Versions retired for a bad bug (retired.txt on GitHub) "
+                                   "aren't offered, and whoever has one is moved off it.")
     which = p.add_mutually_exclusive_group()
     which.add_argument("--check", action="store_true", help="only tell whether there's a newer song-wizard")
     which.add_argument("--list", action="store_true", help="list the published versions")
     which.add_argument("--to", metavar="VERSION", help="install this version (e.g. 0.12.0), newer or older")
+    p.add_argument("--all", action="store_true", help="with --list: also the retired versions, with why")
+    p.add_argument("--force", action="store_true", help="with --to: install it even if it was retired")
     return parser
 
 
@@ -402,13 +405,13 @@ def dispatch(argv):
         setup.run()
     elif args.command == "upgrade" and (args.check or args.list):
         from . import updates
-        updates.check() if args.check else updates.show()
+        updates.check() if args.check else updates.show(everything=args.all)
     elif args.command == "upgrade":
         # Everything this needs is loaded before the install replaces the files: importing one
         # afterwards would mix this version's modules, already in memory, with the new ones
         # (0.6.0 → 0.15.0 failed that way, after a good install).
         from . import ui, updates
-        code = updates.to(args.to) if args.to else updates.upgrade()
+        code = updates.to(args.to, force=args.force) if args.to else updates.upgrade()
         if code == 0 and ui.running():
             print("The interface is still running the version from before: song-wizard ui --restart "
                   "opens the new one.")

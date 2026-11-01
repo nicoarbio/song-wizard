@@ -28,8 +28,13 @@ REFS = (b"001e# service=git-upload-pack\n0000"
         b"003f6666 refs/tags/v0.2.0\n003f7777 refs/tags/experiment\n0000")
 
 
+def github(retired=b""):
+    """A fake GitHub: the tags, and retired.txt."""
+    return lambda req, timeout: Answer(REFS if "info/refs" in req.full_url else retired)
+
+
 def test_versions_from_the_tags(monkeypatch):
-    monkeypatch.setattr(updates.urllib.request, "urlopen", lambda req, timeout: Answer(REFS))
+    monkeypatch.setattr(updates.urllib.request, "urlopen", github())
     assert updates.versions() == ["0.2.0", "0.9.0", "0.10.0"] and updates.latest() == "0.10.0"
 
     def offline(req, timeout):
@@ -39,7 +44,7 @@ def test_versions_from_the_tags(monkeypatch):
 
 
 def test_list_upgrade_and_to(monkeypatch, capsys):
-    monkeypatch.setattr(updates.urllib.request, "urlopen", lambda req, timeout: Answer(REFS))
+    monkeypatch.setattr(updates.urllib.request, "urlopen", github())
     monkeypatch.setattr(updates, "__version__", "0.9.0")
     monkeypatch.setattr(updates, "source", lambda: "git")
     ran = []
@@ -67,18 +72,19 @@ def test_list_upgrade_and_to(monkeypatch, capsys):
 
 @pytest.mark.parametrize("found, says", [("99.0.0", "99.0.0 is out"), (__version__, "up to date"), (None, "Couldn't check")])
 def test_upgrade_check(monkeypatch, capsys, found, says):
-    monkeypatch.setattr(updates, "latest", lambda: found)
+    monkeypatch.setattr(updates, "offered", lambda: ([found] if found else None, {}))
     cli.main(["upgrade", "--check"])
     assert says in capsys.readouterr().out
 
 
 def test_interface(server, monkeypatch):  # noqa: F811
     port, root = server
-    monkeypatch.setattr(ui, "_latest", {"at": 0.0, "version": None})
+    monkeypatch.setattr(ui, "_latest", {"at": 0.0, "version": None, "retired": {}})
     asked = []
-    monkeypatch.setattr(updates, "latest", lambda: asked.append(1) or "99.0.0")
+    monkeypatch.setattr(updates, "offered", lambda: asked.append(1) or (["98.0.0", "99.0.0"], {}))
     got = json.loads(request(port, "GET", "/api/version")[1])
-    assert got == {"current": __version__, "latest": "99.0.0", "newer": True, "server": ui.SERVER_ID}
+    assert got == {"current": __version__, "latest": "99.0.0", "newer": True, "retired": None, "move": True,
+                   "server": ui.SERVER_ID}
     request(port, "GET", "/api/version")
     assert len(asked) == 1  # remembered for a while...
     request(port, "GET", "/api/version?check=1")
@@ -113,3 +119,47 @@ def test_upgrade_loads_what_it_needs_before_installing(tmp_path):
     env = {**__import__("os").environ, "SONG_WIZARD_UI_STATE": str(tmp_path / "ui.json")}
     out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
     assert "ui loaded: True" in out.stdout, out.stdout + out.stderr
+
+
+RETIRED_TXT = b"# version  why\n0.10.0  the practice player stalled with many tracks\nv0.2.0\n\nnot a line\n"
+
+
+def test_retired_versions(monkeypatch, capsys):
+    monkeypatch.setattr(updates.urllib.request, "urlopen", github(RETIRED_TXT))
+    monkeypatch.setattr(updates, "source", lambda: "git")
+    ran = []
+    monkeypatch.setattr(updates, "uv", lambda *args: ran.append(args) or 0)
+    assert updates.retired() == {"0.10.0": "the practice player stalled with many tracks", "0.2.0": "retired"}
+    # Not offered: the newest on offer is the newest that isn't retired.
+    assert updates.latest() == "0.9.0"
+    updates.show()
+    out = capsys.readouterr().out
+    assert "0.10.0" not in out and "2 retired versions not shown" in out
+    updates.show(everything=True)
+    assert "0.10.0  retired: the practice player stalled" in capsys.readouterr().out
+    # Not installed without --force.
+    with pytest.raises(SystemExit):
+        updates.to("0.10.0")
+    assert updates.to("0.10.0", force=True) == 0 and ran[-1][-1].endswith("@v0.10.0")
+    # Whoever has a retired one is told, and upgrade moves them off it, even to an older one.
+    monkeypatch.setattr(updates, "__version__", "0.10.0")
+    updates.check()
+    assert "0.10.0 was retired: the practice player stalled" in capsys.readouterr().out
+    assert updates.upgrade() == 0 and ran[-1][-1].endswith("@v0.9.0")
+
+
+def test_retired_list_unreadable_holds_nothing_back(monkeypatch):
+    def flaky(req, timeout):
+        if "retired" in req.full_url:
+            raise OSError("no network")
+        return Answer(REFS)
+    monkeypatch.setattr(updates.urllib.request, "urlopen", flaky)
+    assert updates.latest() == "0.10.0"
+
+
+def test_interface_retired(server, monkeypatch):  # noqa: F811
+    port, _ = server
+    monkeypatch.setattr(ui, "_latest", {"at": 0.0, "version": None, "retired": {}})
+    monkeypatch.setattr(updates, "offered", lambda: (["0.1.0"], {__version__: "a bad bug"}))
+    got = json.loads(request(port, "GET", "/api/version")[1])
+    assert got["retired"] == "a bad bug" and got["move"] and not got["newer"] and got["latest"] == "0.1.0"
