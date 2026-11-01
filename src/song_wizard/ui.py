@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 import signal
+import socketserver
 import subprocess
 import sys
 import threading
@@ -699,6 +700,12 @@ def make_handler(token, root, runner, port):
 
 
 class Server(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer looks up the address's full host name here (reverse DNS), which on a Mac can
+        # hang for half a minute or more; it's only used in a header nobody needs. Skip it.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
     def handle_error(self, request, client_address):
         log.logger.exception("interface: error answering a request")
         super().handle_error(request, client_address)

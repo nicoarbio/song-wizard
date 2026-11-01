@@ -4,7 +4,6 @@ import http.client
 import json
 import threading
 import time
-from http.server import ThreadingHTTPServer
 
 import numpy as np
 import pytest
@@ -22,7 +21,7 @@ def server(tmp_path):
     root = tmp_path / "music"
     root.mkdir()
     runner = ui.Runner()
-    httpd = ThreadingHTTPServer(("127.0.0.1", 0), ui.make_handler(TOKEN, root, runner, 0))
+    httpd = ui.Server(("127.0.0.1", 0), ui.make_handler(TOKEN, root, runner, 0))
     port = httpd.server_address[1]
     httpd.RequestHandlerClass = ui.make_handler(TOKEN, root, runner, port)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()

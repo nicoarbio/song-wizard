@@ -27,6 +27,16 @@ def music(tmp_path, monkeypatch):
     ui.stop(yes=True)
 
 
+def test_binding_skips_the_host_name_lookup(monkeypatch):
+    """HTTPServer looks up the host name of 127.0.0.1 when binding; on the Mac CI runner that hung
+    every background start for more than 30 s, before the server printed anything."""
+    def hang(*args):
+        raise AssertionError("looked up the host name")
+    monkeypatch.setattr(ui.socketserver.socket, "getfqdn", hang)
+    server = ui.Server(("127.0.0.1", 0), ui.make_handler("t", ui.Path("."), ui.Runner(), 0))
+    server.server_close()
+
+
 def test_nothing_running(capsys):
     assert ui.running() is None
     ui.stop()
