@@ -315,6 +315,35 @@ def library(root):
     return folders + gone
 
 
+_latest = {"at": 0.0, "version": None}
+# Tells one start of the server from the next: after a restart the page reloads when it changes
+# (a quick restart may never look down to it, and the version can be the same).
+SERVER_ID = secrets.token_hex(6)
+
+
+def version_info(force=False):
+    """This version and the newest published one, checked at most every 6 hours (or now)."""
+    from . import __version__, updates
+    if force or not _latest["at"] or time.monotonic() - _latest["at"] > 6 * 3600:
+        found = updates.latest()
+        # A failed check (no internet) is tried again on the next page load, not in 6 hours.
+        _latest.update(at=time.monotonic() if found else 0.0, version=found)
+    return {"current": __version__, "latest": _latest["version"], "newer": updates.newer(_latest["version"] or ""),
+            "server": SERVER_ID}
+
+
+def restart(port):
+    """Close this server and start it again on the same port, from a process of its own (this
+    one can't outlive itself). It runs the installed song-wizard, so after an upgrade the new
+    one starts."""
+    out = server_output()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out.with_name("interface-restart.txt"), "w") as f:
+        subprocess.Popen([sys.executable, "-m", "song_wizard", "ui", "--restart", "--yes", "--no-browser",
+                          "--port", str(port)], stdin=subprocess.DEVNULL, stdout=f, stderr=f,
+                         start_new_session=True, cwd=str(Path.home()))
+
+
 _reaper = {"at": 0.0, "installed": False}
 
 
@@ -430,6 +459,8 @@ def make_handler(token, root, runner, port):
                 return self.json(jobs)
             if url.path == "/api/audio":
                 return self.audio(query.get("path", [""])[0])
+            if url.path == "/api/version":
+                return self.json(version_info(force="check" in query))
             if url.path == "/api/reaper/setting":
                 from . import reaper
                 return self.json({**reaper.setting(), "installed": reaper_installed()})
@@ -652,6 +683,16 @@ def make_handler(token, root, runner, port):
                 results.save(what, [(str(path), text)])
                 log.info("set %s by hand: %s -> %s", what, path.name, text)
                 return self.json({"text": text, "note": note})
+            if url.path == "/api/restart":
+                # After an upgrade: a separate process closes this server and starts the new one on
+                # the same port (from the upgraded install); the page reloads once it answers.
+                with runner.lock:
+                    busy = [j.title for j in runner.jobs.values() if j.status in ("queued", "running")]
+                if busy:
+                    return self.error(HTTPStatus.CONFLICT, f"Todavía está corriendo: {'; '.join(busy)}.")
+                log.info("interface: restarting from the page")
+                restart(port)
+                return self.json({})
             if url.path == "/api/reaper/setting":
                 # Put back (or set again) the takes' names setting song-wizard changes in REAPER.
                 from . import reaper
@@ -707,7 +748,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move", "trim"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -733,6 +774,8 @@ def make_handler(token, root, runner, port):
                 if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
                     raise ValueError("playlist inválida")
                 return f"Mover {body.get('title') or which} a {to}", ["archives", "--move", which, to]
+            if action == "upgrade":
+                return "Actualizar song-wizard", ["upgrade"]
             if not paths and action not in ("click", "archives-delete"):
                 raise ValueError("no hay archivos elegidos")
             force = ["--force"] if body.get("force") else []

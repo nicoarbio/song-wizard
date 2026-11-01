@@ -136,3 +136,23 @@ def test_shutdown_from_the_page(music, monkeypatch):
     info = ui.running()
     assert ui.ask(info["port"], "wrong", "POST", "/api/shutdown")[0] == 403
     assert ui.running()
+
+
+def test_restart_from_the_page(music, monkeypatch):
+    """After an upgrade the page asks the server to restart: a new server process comes up on the
+    same port (so the open page just reloads), with no new browser window."""
+    opened = []
+    monkeypatch.setattr(ui.system, "open_url", opened.append)
+    port = free_port()
+    cli.main(["ui", "--port", str(port), "--no-browser"])
+    info = ui.running()
+    status, _ = ui.ask(port, info["token"], "POST", "/api/restart")
+    assert status == 200
+    deadline = time.time() + 30
+    again = None
+    while time.time() < deadline:
+        again = ui.running()
+        if again and again["pid"] != info["pid"]:
+            break
+        time.sleep(0.3)
+    assert again and again["pid"] != info["pid"] and again["port"] == port and not opened

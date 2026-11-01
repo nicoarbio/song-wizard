@@ -270,7 +270,8 @@ def build_parser():
 
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
-    sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
+    p = sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
+    p.add_argument("--check", action="store_true", help="only tell whether there's a newer song-wizard")
     return parser
 
 
@@ -394,6 +395,9 @@ def dispatch(argv):
     elif args.command == "setup":
         from . import setup
         setup.run()
+    elif args.command == "upgrade" and args.check:
+        from . import updates
+        updates.check()
     elif args.command == "upgrade":
         if not shutil.which("uv"):
             sys.exit("uv is missing; reinstall song-wizard following the README.")

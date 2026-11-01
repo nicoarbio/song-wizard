@@ -23,7 +23,9 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
-  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  header h1 .version { font-weight: 400; color: var(--muted); background: none; border-color: transparent; padding: 0 4px; }
+  header h1 .version:hover { border-color: var(--line); }
   header .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
   header .brand img { flex: none; border-radius: 9px; }
   header .root { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -217,12 +219,13 @@
 </style>
 </head>
 <body>
-<div class="offline" id="offline" hidden>La interfaz está apagada. Para usarla de nuevo, en la terminal: <code>song-wizard ui</code> (abre una página nueva; esta podés cerrarla).</div>
+<div class="offline" id="offline" hidden>La interfaz está apagada. Para usarla de nuevo, en la terminal: <code>song-wizard ui</code> (o recargá esta página si ya está andando).</div>
+<div class="offline" id="restarting" hidden>Reiniciando song-wizard… esta página se recarga sola cuando esté lista.</div>
 <header>
   <div class="brand">
     <img src="/static/logo.png" alt="" width="40" height="40">
     <div>
-    <h1>song-wizard</h1>
+    <h1>song-wizard <button class="small version" id="version" title="Buscar si hay una versión nueva"></button> <button class="small primary" id="upgrade" hidden></button></h1>
     <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden>abrir</button></div>
     </div>
   </div>
@@ -2246,12 +2249,66 @@ async function poll() {
     poll.failures = 0;
     $("offline").hidden = true;
   } catch (e) {
-    // Twice in a row: the server is gone (closed, or opened again with a new link).
+    // Twice in a row: the server is gone (closed, or restarting after an upgrade).
     poll.failures = (poll.failures || 0) + 1;
-    if (poll.failures >= 2) $("offline").hidden = false;
+    if (poll.failures >= 2 && !state.restarting) $("offline").hidden = false;
     poll.timer = setTimeout(poll, 5000);
   }
 }
+
+// ---------- Version and upgrade ----------
+// The version up top; if a newer one is out, a button that upgrades (a job like any other) and
+// then restarts the interface, and this same page reloads once the new one answers.
+async function checkVersion(force = false) {
+  try {
+    const v = await api(`/api/version${force ? "?check=1" : ""}`);
+    state.version = v;
+    $("version").textContent = `v${v.current}`;
+    $("upgrade").hidden = !v.newer;
+    $("upgrade").textContent = `actualizar a ${v.latest}`;
+    $("version").title = v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}` : "Es la última versión (tocá para buscar de nuevo)")
+                                  : "No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)";
+    if (force) toast(v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}.` : `Tenés la última versión (${v.current}).`) : "No pude consultar si hay una versión nueva (¿hay internet?).");
+  } catch {}
+}
+$("version").onclick = () => checkVersion(true);
+$("upgrade").onclick = async () => {
+  const v = state.version;
+  const busy = (state.jobs || []).some((j) => ["queued", "running"].includes(j.status));
+  if (busy) { toast("Hay trabajos corriendo: actualizá cuando terminen.", 5000); return; }
+  if (!await askConfirm({ title: `¿Actualizar a song-wizard ${v.latest}?`, ok: "actualizar",
+                          text: [`Tenés la ${v.current}. Baja la versión nueva (y lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola.`] })) return;
+  try {
+    const job = await api("/api/jobs", { action: "upgrade" });
+    state.openJob = job.id;
+    poll();
+    $("upgrade").disabled = true;
+    $("upgrade").textContent = "actualizando…";
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const found = (await api(`/api/jobs?job=0`)).find((j) => j.id === job.id);
+      if (!found || found.status === "running" || found.status === "queued") continue;
+      if (found.status !== "done") { toast("No se pudo actualizar: el detalle está en Trabajos.", 8000); checkVersion(); $("upgrade").disabled = false; return; }
+      break;
+    }
+    state.restarting = true;
+    $("restarting").hidden = false;
+    await api("/api/restart", {});
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1000));
+      try {
+        // Another start of the server answering: the new one is up.
+        if ((await api("/api/version")).server !== v.server) { location.reload(); return; }
+      } catch {}
+    }
+    $("restarting").textContent = "La interfaz no volvió sola: en la terminal, song-wizard ui, y recargá esta página.";
+  } catch (e) {
+    toast(`No se pudo: ${e.message}`, 6000);
+    $("upgrade").disabled = false;
+  }
+};
+checkVersion();
 
 $("shutdown").onclick = async () => {
   const busy = state.jobs && state.jobs.filter((j) => ["queued", "running"].includes(j.status));
