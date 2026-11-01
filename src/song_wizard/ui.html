@@ -1354,6 +1354,7 @@ const trimRound = (t) => Math.round(t * 100) / 100;
 
 async function openTrim(song) {
   trim.song = song;
+  playerAudio.pause();  // the bottom player would play over what's being trimmed
   $("trim-title").textContent = `Recortar: ${song.name.replace(/\.[^.]+$/, "")}`;
   $("trim-pad-start").value = 0;
   $("trim-pad-end").value = 0;
@@ -1511,6 +1512,7 @@ function trimListen(from, to) {
     trim.audio.dataset.path = trim.song.path;
   }
   const a = trim.audio;
+  playerAudio.pause();
   trim.stopAt = Math.min(to, trim.duration);
   a.currentTime = Math.max(0, from);
   a.play().catch(() => toast("El navegador no pudo reproducir el tema."));
