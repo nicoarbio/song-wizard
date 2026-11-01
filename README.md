@@ -161,6 +161,7 @@ Con "Todos" separado, el reproductor tiene las cinco pistas (voz, batería, bajo
 - **Tono**: sube o baja el tema hasta 6 semitonos sin cambiar la velocidad, por ejemplo para probar otra tonalidad para el que canta; si el tema tiene tonalidad detectada, muestra a cuál queda (Am → Gm). El click no cambia y sigue a tiempo. Al cambiarlo hay un instante de silencio. Es calidad de ensayo: para una versión prolija como archivo (por ejemplo para compartir), está [Cambiar el tono](#cambiar-el-tono), que suena mejor.
 - Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y la marca se ve sobre la barra.
 - La barra muestra la forma de onda del tema: tocándola se salta a esa parte.
+- **Letra**: debajo de "Ajustar el click" está la letra del tema, con sus colores y notas, y se puede marcar ahí mismo con el mouse. Si la letra vino con tiempos, la línea que suena se resalta y la letra avanza sola (si la moviste con la rueda, espera unos segundos antes de seguir). Si el tema no tiene letra, se puede buscar desde ahí.
 - Con el teclado: espacio reproduce y pausa, `[` y `]` marcan A y B, `L` repite, las flechas saltan 5 segundos, `-` y `+` cambian la velocidad, `1` a `5` silencian una pista y `C` el click. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos).
 
 **El click.** La última pista del reproductor es un click que sigue al tema: cae en cada tiempo aunque saltes a cualquier parte, repitas un tramo o cambies la velocidad, y como lo genera el navegador en el momento, suena nítido también a velocidades bajas. Para que coincida con el tema hace falta su tempo exacto y dónde cae el primer golpe; se ajustan en "Ajustar el click":
@@ -438,8 +439,10 @@ Busca la letra de cada tema en una base de letras abierta, por el nombre del arc
 
 En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
 
-- **Colores**: marcás un pedazo con el mouse y tocás un color; "sin color" lo saca. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
-- **Notas**: "nota" agrega un comentario a la línea marcada ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
+- **Marcadores**: como un resaltador de PDF. Elegís un color (o las teclas 1 a 5) y el cursor pasa a ser un marcador de ese color: arrastrás sobre la letra y queda pintada al soltar, o hacés clic en una palabra. Toma palabras enteras. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
+- **Goma** (G): arrastrando saca el color, y con un clic borra toda la marca que tocás.
+- **Nota** (N): clic en una línea para escribirle un comentario ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
+- Esc suelta la herramienta y Ctrl+Z (o "deshacer") vuelve atrás.
 - **Escribir o pegar**: para corregir la letra o cargarla a mano. Las líneas que no cambies conservan sus colores y notas.
 - **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`.
 
@@ -588,7 +591,8 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui` de fondo: arrancar, reusar y apagar | Real (datos de prueba) | ✅ La terminal queda libre al instante; el servidor sigue después de cerrar la terminal que lo abrió; otro `ui` reusa el mismo; `--stop` lo cierra (pregunta si hay un trabajo corriendo); "apagar" en Edge lo cierra y la página avisa que está apagada; el archivo con la clave queda legible solo por el usuario. **Falta probar** cerrar todas las terminales de WSL |
 | Tono en vivo en el reproductor (de -6 a +6 semitonos) | Real (audio sintético) | ✅ Tonos puros de 98 y 440 Hz llegan a la frecuencia pedida con un error menor a 3 cents; lo demás queda por debajo de -73 dB y el nivel se mantiene. El retardo es el mismo para todos los tonos (±1.5 ms). En Edge, grabando dentro del navegador, la música y el click quedan a 1 ms (tono 0), 4 ms (-3) y 2 ms (+3). **Falta escucharlo con temas reales** y comparar con `transpose` |
 | `lyrics` contra la base de letras real (con archivos de prueba con nombre y duración de un tema conocido, y uno inventado) | Real | ✅ Encuentra la del tema conocido con la duración más cercana (275 s contra 276 s) y con tiempos; la del inventado no aparece y lo dice; si la base no responde (503) reintenta una vez y sigue con el resto |
-| Letra en la interfaz: colores, nota, leyenda e imprimir | Real (Edge, con un script) | ✅ Un pedazo de una línea y otro de dos líneas se pintan y se guardan; la nota y la leyenda se guardan; la hoja para imprimir muestra todo con sus colores |
+| Letra en la interfaz: marcadores, goma, nota, deshacer, leyenda e imprimir | Real (Edge, con un script) | ✅ Arrastrar a mitad de palabra toma la palabra entera (sin espacios en los bordes); dos líneas de una vez; clic en una palabra la pinta; clic con la goma borra esa marca; Ctrl+Z deshace; la nota y la leyenda se guardan; la hoja para imprimir muestra todo con sus colores |
+| Letra en el reproductor de práctica | Real (Edge, con un script) | ✅ Aparece debajo del click con sus marcas y se puede marcar ahí; con la letra con tiempos, a los 75 s queda resaltada la línea que suena en ese momento |
 | `setlist` sobre la playlist real | Real (solo lectura, sin guardar en la carpeta) | ✅ Los 23 temas en orden con tonalidad, tempo y duración, total 1:40:00; impreso a PDF desde Edge entra en una A4 |
 | `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |

@@ -140,7 +140,7 @@
   .seek { position: relative; flex: 1 1 260px; display: flex; align-items: center; }
   .seek input { width: 100%; }
   .seek .loop-range { position: absolute; top: 50%; height: 6px; margin-top: -3px; background: var(--accent); opacity: .25; border-radius: 3px; pointer-events: none; }
-  .tracks { display: grid; grid-template-columns: minmax(90px, 140px) auto 1fr 44px; gap: 6px 10px; align-items: center; margin: 12px 0; }
+  .tracks { user-select: none; display: grid; grid-template-columns: minmax(90px, 140px) auto 1fr 44px; gap: 6px 10px; align-items: center; margin: 12px 0; }
   .tracks .name { font-weight: 600; overflow-wrap: anywhere; }
   .tracks .vol { width: 100%; }
   .tracks .pct { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -157,8 +157,18 @@
   .lyr-tools .swatch { display: inline-flex; gap: 4px; align-items: center; }
   .lyr-tools .swatch button { width: 26px; height: 22px; padding: 0; border: 1px solid var(--line); }
   .lyr-tools .swatch input { width: 9em; font-size: 12px; }
+  .lyr-tools .swatch button { width: 30px; height: 26px; border-radius: 6px; transition: transform .08s; }
+  .lyr-tools .swatch.active button { outline: 3px solid var(--ink); outline-offset: 1px; transform: scale(1.1); }
+  .lyr-tools .tool.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .lyr-body ::selection { background: var(--sel, Highlight); color: #111; }
+  .lyr-body.tool-paint, .lyr-body.tool-erase { user-select: text; }
+  .lyr-body.tool-note .lyr-line { cursor: copy; }
+  .lyr-body.tool-note .lyr-line:hover { background: var(--soft); }
   .lyr-body { max-height: 58vh; overflow: auto; font-size: 16px; line-height: 1.6; padding: 6px 2px; border-top: 1px solid var(--line); }
-  .lyr-line { min-height: 1.6em; }
+  .lyr-line { min-height: 1.6em; border-radius: 4px; transition: background .2s; }
+  .lyr-line.now { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); }
+  #pl-slot .lyr-body { max-height: 38vh; position: relative; }
+  #pl-panel { margin-top: 8px; }
   .lyr-line mark { color: #111; border-radius: 2px; padding: 0 1px; }
   .lyr-note { margin-left: 10px; font-size: 13px; font-style: italic; color: var(--warn); cursor: pointer; }
   .lyr-note::before { content: "← "; }
@@ -367,6 +377,10 @@
       <label>Cuenta antes de empezar <select id="pc-countin"><option value="0">no</option><option value="1" selected>1 compás</option><option value="2">2 compases</option></select></label>
       <label><input type="checkbox" id="pc-resume"> también al seguir desde una pausa</label>
     </div>
+  </details>
+  <details id="pl-panel">
+    <summary>Letra <span id="pl-summary" class="muted"></span></summary>
+    <div id="pl-slot"></div>
   </details>
   <p class="practice-keys">
     <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
@@ -1138,6 +1152,7 @@ function openPractice(song) {
   loadPeaks(song.path).then((d) => { if (practice.song === song) practiceWave.set(d); }).catch(() => {});
   loadSet(0);
   renderClickPanel(true);
+  loadPracticeLyrics(song);
   $("practice").showModal();
 }
 
@@ -1209,7 +1224,8 @@ function renderTracks() {
     el("span", { class: "pct" }, `${all} %`));
   practice.mixer.forEach((t, i) => {
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": `Volumen de ${t.name}`,
-      oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); renderTracks(); } });
+      // Only the number changes: redrawing the mixer would take the slider out from under the mouse.
+      oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); e.target.nextSibling.textContent = `${e.target.value} %`; } });
     box.append(
       el("span", { class: "name", title: t.click ? "El click, al tempo y compás de abajo" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
       el("span", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
@@ -1265,6 +1281,7 @@ function renderPractice() {
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);
   $("practice-loop").disabled = practice.a === null || practice.b === null;
+  followLyrics(t);
   practiceWave.update({ position: t, a: practice.a, b: practice.b, grid: clickAudible() ? { ...grid(), barsOnly: true } : null });
   if ($("pc-panel").open) clickWave.update({ position: t });
 }
@@ -1778,10 +1795,11 @@ $("open-root").onclick = () => openFolder("");
 $("report-open").onclick = openReport;
 
 // ---- Lyrics: highlights by color and notes per line, saved next to the song ----
-const lyr = { song: null, data: null, colors: [], sel: null, noting: null, timer: 0 };
+const lyr = { song: null, data: null, colors: [], noting: null, timer: 0, tool: null, history: [] };
 
 async function openLyrics(song) {
-  lyr.song = song; lyr.data = null; lyr.sel = null; lyr.noting = null;
+  lyr.song = song; lyr.data = null; lyr.noting = null; lyr.history = []; lyr.where = "dialog"; lyr.timeline = null;
+  $("lyrics").insertBefore($("lyr-view"), $("lyr-editor"));
   $("lyr-title").textContent = `Letra: ${song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "")}`;
   $("lyr-editor").hidden = true; $("lyr-view").hidden = false;
   $("lyr-body").replaceChildren(el("p", { class: "empty-lyrics" }, "Cargando…"));
@@ -1814,22 +1832,45 @@ function renderLyrics() {
   $("lyr-print").disabled = !d;
   $("lyr-fetch").textContent = d ? "buscar de nuevo" : "buscar la letra";
   $("lyr-source").textContent = d && d.source ? `Fuente: ${d.source === "pasted" ? "escrita o pegada a mano" : d.source}` : "";
-  const keep = (e) => e.preventDefault();  // keep the text selected while clicking a tool
   if (d) {
-    for (const c of lyr.colors) {
-      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: c.name, "aria-label": `Qué significa el ${c.name}`,
+    // Tools, like a PDF highlighter: pick one, then drag over the text.
+    for (const [n, c] of lyr.colors.entries()) {
+      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: `${c.name}: ¿qué es?`, "aria-label": `Qué significa el ${c.name}`,
         onchange: (e) => { d.legend = { ...(d.legend || {}), [c.id]: e.target.value }; saveLyrics(); } });
-      tools.append(el("span", { class: "swatch" },
-        el("button", { style: `background:${c.shade}`, title: `Pintar de ${c.name}`, onmousedown: keep, onclick: () => paintLyrics(c.id) }), input));
+      tools.append(el("span", { class: "swatch" + (lyr.tool === c.id ? " active" : "") },
+        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: `Marcador ${c.name} (${n + 1})`,
+          onmousedown: (e) => e.preventDefault(), onclick: () => pickTool(c.id) }), input));
     }
-    tools.append(el("button", { class: "small", onmousedown: keep, onclick: () => paintLyrics(null), title: "Sacar el color de lo marcado" }, "sin color"),
-                 el("button", { class: "small", onmousedown: keep, onclick: () => startNote(), title: "Agregar o cambiar la nota de la línea marcada" }, "nota"));
+    tools.append(
+      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: "Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color (G)",
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, "goma"),
+      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: "Nota: hacé clic en una línea para escribirle un comentario (N)",
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, "nota"),
+      el("button", { class: "small", title: "Deshacer el último cambio (Ctrl+Z)", disabled: !lyr.history.length, onclick: undoLyrics }, "deshacer"));
   }
-  $("lyr-hint").hidden = !d;
+  const inPractice = lyr.where === "practice";
+  const toolName = lyr.tool === "erase" ? "Goma" : lyr.tool === "note" ? "Nota" : lyr.tool ? `Marcador ${(lyr.colors.find((c) => c.id === lyr.tool) || {}).name}` : null;
+  $("lyr-hint").textContent = inPractice
+    ? (lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar." : toolName ? `${toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.`
+       : "Elegí un marcador y pasalo por la letra, o clic en una palabra." + (lyr.timeline ? " La línea que suena se resalta sola." : ""))
+    : !toolName
+    ? "Elegí un marcador (un color, o las teclas 1 a 5) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo."
+    : lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta."
+    : `${toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta, Ctrl+Z deshace.`;
   const body = $("lyr-body");
+  body.className = "lyr-body" + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
+  const tint = lyr.tool && lyr.tool !== "erase" && lyr.tool !== "note" ? (lyr.colors.find((c) => c.id === lyr.tool) || {}).shade : null;
+  body.style.setProperty("--sel", tint || (lyr.tool === "erase" ? "#ddd" : "Highlight"));
+  if (tint) body.style.cursor = `url("${markerCursor(tint)}") 3 21, text`;
+  else if (lyr.tool === "erase") body.style.cursor = `url("${eraserCursor()}") 4 20, text`;
+  else body.style.cursor = "";
+  $("lyr-hint").hidden = !d;
   body.replaceChildren();
   if (!d) {
-    body.append(el("p", { class: "empty-lyrics" }, "Este tema todavía no tiene letra. \"buscar la letra\" la busca por su nombre y duración; si no aparece, \"escribir o pegar\"."));
+    body.append(el("p", { class: "empty-lyrics" },
+      lyr.where === "practice" ? "Este tema todavía no tiene letra. " : "Este tema todavía no tiene letra. \"buscar la letra\" la busca por su nombre y duración; si no aparece, \"escribir o pegar\". ",
+      lyr.where === "practice" ? el("button", { class: "small", onclick: fetchLyrics }, "buscar la letra") : null,
+      lyr.where === "practice" ? " (para escribirla o pegarla: \"letra\" en la biblioteca)" : null));
     return;
   }
   const lines = d.text.split("\n");
@@ -1838,6 +1879,7 @@ function renderLyrics() {
     const text = el("span", { class: "lyr-text" }, lyricRuns(line, marks).map(([t, c]) => c ? el("mark", { style: `background:${shade[c]}` }, t) : t));
     const row = el("div", { class: "lyr-line", "data-line": i }, text);
     const note = (d.notes || {})[i];
+    if (i === lyr.nowLine) row.classList.add("now");
     if (lyr.noting === i) row.append(noteBox(i, note || ""));
     else if (note) row.append(el("span", { class: "lyr-note", title: "Tocá para cambiarla (vacía la borra)", onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
     body.append(row);
@@ -1847,7 +1889,7 @@ function renderLyrics() {
 function noteBox(i, value) {
   const input = el("input", { type: "text", value, placeholder: "nota para esta línea", "aria-label": "Nota" });
   const done = (save) => {
-    if (save) { lyr.data.notes = { ...(lyr.data.notes || {}) }; if (input.value.trim()) lyr.data.notes[i] = input.value.trim(); else delete lyr.data.notes[i]; saveLyrics(); }
+    if (save) { rememberLyrics(); lyr.data.notes = { ...(lyr.data.notes || {}) }; if (input.value.trim()) lyr.data.notes[i] = input.value.trim(); else delete lyr.data.notes[i]; saveLyrics(); }
     lyr.noting = null; renderLyrics();
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") done(true); if (e.key === "Escape") { e.preventDefault(); done(false); } });
@@ -1867,27 +1909,142 @@ function lyricPoint(node, offset) {
   const len = text.textContent.length;
   return { line: parseInt(row.dataset.line, 10), at: Math.min(range.toString().length, len) };
 }
-document.addEventListener("selectionchange", () => {
-  const s = window.getSelection();
-  if (!s.rangeCount || !$("lyrics").open) return;
-  const r = s.getRangeAt(0);
-  if (!$("lyr-body").contains(r.commonAncestorContainer)) return;
-  const a = lyricPoint(r.startContainer, r.startOffset), b = lyricPoint(r.endContainer, r.endOffset);
-  lyr.sel = a && b ? { a, b, collapsed: r.collapsed } : null;
-});
+// The lyrics in the practice player, below the click: the same view, and with timed lyrics the
+// line being sung is lit and kept in sight (unless you scrolled them a moment ago).
+async function loadPracticeLyrics(song) {
+  lyr.song = song; lyr.data = null; lyr.noting = null; lyr.history = []; lyr.tool = null; lyr.where = "practice";
+  lyr.timeline = null; lyr.nowLine = null;
+  $("pl-slot").append($("lyr-view"));
+  $("pl-summary").textContent = "";
+  try {
+    const got = await api(`/api/lyrics?path=${encodeURIComponent(song.path)}`);
+    if (lyr.song !== song) return;
+    lyr.colors = got.colors;
+    lyr.data = got.lyrics;
+  } catch (e) { $("pl-summary").textContent = ""; }
+  buildTimeline();
+  $("pl-summary").textContent = !lyr.data ? "(todavía no tiene)" : lyr.timeline ? "(sigue al tema)" : "";
+  renderLyrics();
+}
 
-function paintLyrics(color) {
-  const d = lyr.data, sel = lyr.sel;
-  if (!d || !sel || (sel.collapsed)) { toast("Primero marcá un pedazo de la letra con el mouse."); return; }
-  const lines = d.text.split("\n");
-  const marks = d.marks || [];
-  const out = marks.filter((m) => m.line < sel.a.line || m.line > sel.b.line);
-  for (let i = sel.a.line; i <= sel.b.line; i++) {
-    const line = lines[i];
-    const colors = new Array(line.length).fill(null);
-    for (const m of marks) if (m.line === i) for (let k = m.from; k < Math.min(m.to, line.length); k++) colors[k] = m.color;
-    const from = i === sel.a.line ? sel.a.at : 0, to = i === sel.b.line ? sel.b.at : line.length;
-    for (let k = from; k < to; k++) colors[k] = color;
+const plain = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+// Timed lines matched to the lines of the text, in order: [[seconds, line number]].
+function buildTimeline() {
+  const d = lyr.data;
+  lyr.timeline = null;
+  if (!d || !d.synced || !d.synced.length) return;
+  const lines = d.text.split("\n"), out = [];
+  let j = 0;
+  for (const [t, words] of d.synced) {
+    if (!plain(words)) continue;
+    for (let k = j; k < Math.min(lines.length, j + 8); k++) {
+      if (plain(lines[k]) === plain(words)) { out.push([t, k]); j = k + 1; break; }
+    }
+  }
+  lyr.timeline = out.length ? out : null;
+}
+
+function followLyrics(t) {
+  if (lyr.where !== "practice" || !lyr.timeline || !$("pl-panel").open) return;
+  let line = null;
+  for (const [at, k] of lyr.timeline) { if (at <= t + 0.15) line = k; else break; }
+  if (line === lyr.nowLine) return;
+  lyr.nowLine = line;
+  const body = $("lyr-body");
+  for (const row of body.querySelectorAll(".lyr-line.now")) row.classList.remove("now");
+  const row = line === null ? null : body.querySelector(`.lyr-line[data-line="${line}"]`);
+  if (!row) return;
+  row.classList.add("now");
+  if (Date.now() - (lyr.scrolled || 0) > 4000) body.scrollTo({ top: row.offsetTop - body.clientHeight / 3, behavior: "smooth" });
+}
+for (const ev of ["wheel", "touchmove"]) $("lyr-body").addEventListener(ev, () => { lyr.scrolled = Date.now(); }, { passive: true });
+
+// Highlighter and eraser cursors, drawn in the marker's color.
+function markerCursor(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path d="M3 21l1.5-4.5L15 6l3 3L7.5 19.5z" fill="${color}" stroke="#222" stroke-width="1.2"/><path d="M15 6l2.5-2.5 3 3L18 9z" fill="#444"/></svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+function eraserCursor() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path d="M4 20l-1-4 10-10 6 6-8 8z" fill="#f8c8d0" stroke="#222" stroke-width="1.2"/><path d="M9 10l6 6" stroke="#222"/></svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
+function pickTool(tool) {
+  // A color picked with text already selected paints it right away.
+  const sel = currentLyricSelection();
+  lyr.tool = lyr.tool === tool ? null : tool;
+  if (lyr.tool && lyr.tool !== "note" && sel && !sel.collapsed) applyTool(sel);
+  else renderLyrics();
+}
+
+function currentLyricSelection() {
+  const s = window.getSelection();
+  if (!s.rangeCount) return null;
+  const r = s.getRangeAt(0);
+  if (!$("lyr-body").contains(r.commonAncestorContainer)) return null;
+  const a = lyricPoint(r.startContainer, r.startOffset), b = lyricPoint(r.endContainer, r.endOffset);
+  return a && b ? { a, b, collapsed: r.collapsed } : null;
+}
+
+// Whole words: a highlight that starts or ends mid-word takes the whole word.
+const WORD = /[\p{L}\p{N}'’]/u;
+function snapToWords(lines, sel) {
+  let { line: la, at: from } = sel.a, { line: lb, at: to } = sel.b;
+  // A drag that ends at the very start of a line belongs to the line before.
+  if (lb > la && to === 0) { lb -= 1; to = lines[lb].length; }
+  while (from > 0 && WORD.test(lines[la][from - 1]) && WORD.test(lines[la][from] || "")) from--;
+  while (to < lines[lb].length && WORD.test(lines[lb][to]) && to > 0 && WORD.test(lines[lb][to - 1])) to++;
+  if (sel.collapsed || (la === lb && from === to)) {  // a click: the word under it
+    while (from > 0 && WORD.test(lines[la][from - 1])) from--;
+    to = from;
+    while (to < lines[la].length && WORD.test(lines[la][to])) to++;
+  }
+  // No spaces hanging at either end.
+  while (from < lines[la].length && /\s/.test(lines[la][from]) && (la < lb || from < to)) from++;
+  while (to > 0 && /\s/.test(lines[lb][to - 1]) && (la < lb || to > from)) to--;
+  return { a: { line: la, at: from }, b: { line: lb, at: to } };
+}
+
+function rememberLyrics() {
+  lyr.history.push(JSON.stringify({ marks: lyr.data.marks || [], notes: lyr.data.notes || {} }));
+  if (lyr.history.length > 100) lyr.history.shift();
+}
+function undoLyrics() {
+  if (!lyr.history.length) return;
+  Object.assign(lyr.data, JSON.parse(lyr.history.pop()));
+  saveLyrics();
+  renderLyrics();
+}
+
+function colorsOfLine(line, i, marks) {
+  const colors = new Array(line.length).fill(null);
+  for (const m of marks) if (m.line === i) for (let k = m.from; k < Math.min(m.to, line.length); k++) colors[k] = m.color;
+  return colors;
+}
+
+function applyTool(sel) {
+  const d = lyr.data, lines = d.text.split("\n"), marks = d.marks || [];
+  const color = lyr.tool === "erase" ? null : lyr.tool;
+  let range;
+  if (lyr.tool === "erase" && sel.collapsed) {
+    // A click with the eraser: the whole highlight under it.
+    const i = sel.a.line, colors = colorsOfLine(lines[i], i, marks), at = Math.min(sel.a.at, lines[i].length - 1);
+    const c = colors[at] || colors[at - 1];
+    if (!c) { window.getSelection().removeAllRanges(); return renderLyrics(); }
+    let from = colors[at] ? at : at - 1, to = from;
+    while (from > 0 && colors[from - 1] === c) from--;
+    while (to < lines[i].length && colors[to] === c) to++;
+    range = { a: { line: i, at: from }, b: { line: i, at: to } };
+  } else {
+    range = snapToWords(lines, sel);
+  }
+  if (range.a.line === range.b.line && range.a.at >= range.b.at) { window.getSelection().removeAllRanges(); return renderLyrics(); }
+  rememberLyrics();
+  const out = marks.filter((m) => m.line < range.a.line || m.line > range.b.line);
+  for (let i = range.a.line; i <= range.b.line; i++) {
+    const line = lines[i], colors = colorsOfLine(line, i, marks);
+    const from = i === range.a.line ? range.a.at : 0, to = i === range.b.line ? range.b.at : line.length;
+    for (let k = from; k < to; k++) colors[k] = /\s/.test(line[k]) && (k === 0 || k === line.length - 1) ? colors[k] : color;
     for (let k = 0; k < line.length;) {
       if (!colors[k]) { k++; continue; }
       let e = k; while (e < line.length && colors[e] === colors[k]) e++;
@@ -1897,17 +2054,32 @@ function paintLyrics(color) {
   }
   d.marks = out;
   window.getSelection().removeAllRanges();
-  lyr.sel = null;
   saveLyrics();
   renderLyrics();
 }
 
-function startNote() {
-  if (!lyr.data) return;
-  if (!lyr.sel) { toast("Primero tocá o marcá la línea de la nota."); return; }
-  lyr.noting = lyr.sel.a.line;
+// With a marker or the eraser, letting go of the mouse applies it.
+$("lyr-body").addEventListener("mouseup", (e) => {
+  if (!lyr.data || !lyr.tool || lyr.tool === "note" || e.target.closest(".note-box, .lyr-note")) return;
+  setTimeout(() => { const sel = currentLyricSelection(); if (sel) applyTool(sel); }, 0);
+});
+$("lyr-body").addEventListener("click", (e) => {
+  if (lyr.tool !== "note" || e.target.closest(".note-box, .lyr-note")) return;
+  const row = e.target.closest(".lyr-line");
+  if (!row) return;
+  lyr.noting = parseInt(row.dataset.line, 10);
   renderLyrics();
-}
+});
+$("lyrics").addEventListener("keydown", (e) => {
+  if (!lyr.data || e.target.matches("input, textarea")) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); undoLyrics(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^[1-5]$/.test(k) && lyr.colors[+k - 1]) { e.preventDefault(); pickTool(lyr.colors[+k - 1].id); }
+  else if (k === "g") { e.preventDefault(); pickTool("erase"); }
+  else if (k === "n") { e.preventDefault(); pickTool("note"); }
+  else if (k === "escape" && lyr.tool) { e.preventDefault(); lyr.tool = null; renderLyrics(); }  // the dialog stays open
+});
 
 function saveLyrics() {
   clearTimeout(lyr.timer);
@@ -1918,7 +2090,8 @@ function saveLyrics() {
   }, 300);
 }
 
-$("lyr-fetch").onclick = async () => {
+$("lyr-fetch").onclick = () => fetchLyrics();
+async function fetchLyrics() {
   const d = lyr.data;
   if (d && ((d.marks || []).length || Object.keys(d.notes || {}).length) &&
       !confirm("Buscar de nuevo reemplaza la letra, y se pierden sus colores y notas (la leyenda queda). ¿Seguir?")) return;
@@ -1926,10 +2099,12 @@ $("lyr-fetch").onclick = async () => {
   try {
     lyr.data = await api("/api/lyrics/fetch", { path: lyr.song.path });
     lyr.song.lyrics = true;
+    lyr.history = [];
+    buildTimeline();
     renderLyrics(); renderLibrary();
   } catch (e) { toast(e.message, 7000); }
   $("lyr-fetch").disabled = false;
-};
+}
 $("lyr-edit").onclick = () => {
   $("lyr-text").value = lyr.data ? lyr.data.text : "";
   $("lyr-view").hidden = true; $("lyr-editor").hidden = false;
@@ -1948,6 +2123,7 @@ $("lyr-save").onclick = async () => {
   try {
     lyr.data = await api("/api/lyrics", { path: lyr.song.path, lyrics: data });
     lyr.song.lyrics = true;
+    buildTimeline();
     $("lyr-editor").hidden = true; $("lyr-view").hidden = false;
     renderLyrics(); renderLibrary();
   } catch (e) { toast(e.message, 6000); }
