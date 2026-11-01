@@ -8,6 +8,8 @@ import datetime
 import os
 from collections import defaultdict
 
+# Results typed in by hand end with this; detecting again leaves them alone unless forced.
+HAND = "set by hand"
 HEADER = "# song-wizard {command}, updated {date}. One line per song: file name, tab, result.\n"
 
 
@@ -23,6 +25,12 @@ def save(command, results):
         lines.update(new)
         written.append(write(folder, command, lines))
     return written
+
+
+def by_hand(path, command):
+    """The result saved for this file if it was set by hand, else None."""
+    text = read(os.path.dirname(os.path.abspath(path)), command).get(os.path.basename(path))
+    return text if text and text.endswith(HAND) else None
 
 
 def rename(folder, command, names):

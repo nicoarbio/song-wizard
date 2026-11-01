@@ -72,6 +72,13 @@
   .song .rename-box input { flex: 1; min-width: 0; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
   .badge.warn { color: var(--warn); }
+  button.badge { border: 0; font: inherit; font-size: 11px; line-height: inherit; height: auto; cursor: pointer; }
+  button.badge:hover { outline: 1px solid var(--accent); }
+  .badge.hand::after { content: " ✍"; }
+  .badge.ghost { background: transparent; color: var(--muted); outline: 1px dashed var(--line); opacity: 0; }
+  .song .head:hover .badge.ghost, .badge.ghost:focus { opacity: 1; }
+  .set-box { display: inline-flex; gap: 4px; align-items: center; }
+  .set-box input { width: 10em; font-size: 12px; }
   .files { list-style: none; margin: 4px 0 0 26px; padding: 0; font-size: 13px; }
   .why { color: var(--warn); }
   .why:empty { display: none; }
@@ -409,12 +416,12 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
-function toast(text) {
+function toast(text, ms = 3500) {
   const t = $("toast");
   t.textContent = text;
   t.classList.add("show");
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => t.classList.remove("show"), 3500);
+  toast.timer = setTimeout(() => t.classList.remove("show"), ms);
 }
 
 // What a selected path is: a song, one of its files (a stem, a transposed version...) or a
@@ -477,11 +484,53 @@ function toggle(path) {
   };
 }
 
-function badgesFor(item) {
+// The key and tempo badges: a click lets you type the right one over what was detected (saved as
+// "set by hand", which detecting again leaves alone). Songs not analyzed yet show a faint badge
+// on hover, to type it in directly.
+const HAND = "set by hand";
+function badgesFor(item, ghosts = false) {
   const badges = [];
-  if (item.key) badges.push(el("span", { class: "badge" + (item.key.includes("uncertain") ? " warn" : ""), title: item.key }, item.key.split(/\s+/)[0]));
-  if (item.bpm) badges.push(el("span", { class: "badge" + (/uncertain|varies/.test(item.bpm) ? " warn" : ""), title: item.bpm }, `${bpmNumber(item.bpm)} BPM`));
+  for (const what of ["key", "bpm"]) {
+    const text = item[what];
+    if (state.setting && state.setting.path === item.path && state.setting.what === what) { badges.push(setBox(item, what)); continue; }
+    if (!text && !ghosts) continue;
+    const hand = !!text && text.endsWith(HAND);
+    const doubt = !!text && !hand && (what === "key" ? text.includes("uncertain") : /uncertain|varies/.test(text));
+    const label = !text ? (what === "key" ? "tono?" : "BPM?") : what === "key" ? text.split(/\s+/)[0] : `${bpmNumber(text)} BPM`;
+    const name = what === "key" ? "la tonalidad" : "el tempo";
+    const title = !text ? `Escribir ${name} a mano` : hand ? `Puesto a mano. Clic para cambiarlo` : `${text}\nClic para corregir ${name} a mano`;
+    badges.push(el("button", { class: "badge" + (doubt ? " warn" : "") + (hand ? " hand" : "") + (text ? "" : " ghost"), title,
+      onclick: () => { state.setting = { path: item.path, what }; state.settingDraft = undefined; renderLibrary(); } }, label));
+  }
   return badges;
+}
+
+function setBox(item, what) {
+  const text = item[what];
+  const first = state.settingDraft === undefined;
+  if (first) state.settingDraft = !text ? "" : what === "key" ? text.split(/\s+/)[0] : String(bpmNumber(text));
+  const input = el("input", { type: "text", value: state.settingDraft, "aria-label": what === "key" ? "Tonalidad" : "Tempo",
+    placeholder: what === "key" ? "Am, C#, La menor" : "BPM, ej. 120",
+    oninput: (e) => { state.settingDraft = e.target.value; } });
+  const close = () => { state.setting = null; state.settingDraft = undefined; renderLibrary(); };
+  const save = async () => {
+    const value = input.value.trim();
+    if (!value) return close();
+    try {
+      const done = await api("/api/set-result", { path: item.path, what, value });
+      item[what] = done.text;
+      close();
+      if (done.note) toast(done.note, 9000);
+      refresh();
+    } catch (err) { toast(err.message, 6000); input.focus(); }
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
+  requestAnimationFrame(() => { input.focus(); if (first) input.select(); });
+  return el("span", { class: "set-box" }, input,
+    el("button", { class: "small primary", onclick: save }, "guardar"),
+    el("button", { class: "small", title: "Volver a detectarlo desde el audio (reemplaza lo puesto a mano)",
+      onclick: () => { close(); start({ action: what, paths: [item.path], force: true }); } }, "detectar"),
+    el("button", { class: "small", onclick: close }, "cancelar"));
 }
 
 function bpmNumber(text) {
@@ -532,7 +581,7 @@ function renderSong(song) {
   const check = el("input", { type: "checkbox", title: "Elegir el tema (con Shift, todos desde el último elegido)", onclick: toggle(song.path) });
   state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
-  const badges = badgesFor(song);
+  const badges = badgesFor(song, true);
   const title = state.renaming === song.path ? renameBox(song) : el("span", { class: "title" }, song.name);
   const li = el("li", { class: "song" },
     el("div", { class: "head" }, check,

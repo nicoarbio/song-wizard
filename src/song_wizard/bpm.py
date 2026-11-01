@@ -1,12 +1,13 @@
 """Tempo detection with Essentia, plus how steady the tempo is across the song."""
 
 import os
+import re
 import subprocess
 
 import numpy as np
 
-from . import results
-from .audio import expand, load
+from . import align, results
+from .audio import die, expand, load
 
 # Tempo is measured over sliding windows of this many beats.
 WINDOW = 8
@@ -44,9 +45,45 @@ def describe(bpm, low, high, confidence):
     return "steady", True
 
 
-def run(paths):
+def parse(text):
+    """A tempo as typed ("120", "98.5", "120 BPM", "98,5") -> float, or None outside 20-400."""
+    match = re.fullmatch(r"(\d+(?:[.,]\d+)?)\s*(?:bpm)?", (text or "").strip(), re.IGNORECASE)
+    value = float(match[1].replace(",", ".")) if match else None
+    return value if value and 20 <= value <= 400 else None
+
+
+def click_note(path, bpm):
+    """A warning when the practice click saved for this song (click.txt) is at another tempo."""
+    folder, name = os.path.split(os.path.abspath(path))
+    click = align.parse(results.read(folder, "click").get(name))
+    if click and abs(click["bpm"] - bpm) > 0.5:
+        return (f"the practice click is still at {click['bpm']:.2f} BPM: adjust it in the practice "
+                f"player or with song-wizard align")
+    return None
+
+
+def set_by_hand(paths, text):
+    value = parse(str(text))
+    if value is None:
+        die(f'"{text}" is not a tempo: a number of BPM between 20 and 400.')
+    result = f"{value:.1f} BPM  {results.HAND}"
+    done = [(f, result) for f in expand(paths, skip_generated=True)]
+    for f, _ in done:
+        note = click_note(f, value)
+        print(f"  {value:6.1f} BPM  {os.path.basename(f)}" + (f"  ({note})" if note else ""))
+    for out in results.save("bpm", done):
+        print(f"Saved to {out}")
+
+
+def run(paths, value=None, force=False):
+    if value is not None:
+        return set_by_hand(paths, value)
     found = []
     for f in expand(paths, skip_generated=True):
+        kept = None if force else results.by_hand(f, "bpm")
+        if kept:
+            print(f"  {kept.split()[0]:>6} BPM  {os.path.basename(f)}  set by hand, kept (--force detects it again)")
+            continue
         try:
             audio, _ = load(f, sr=44100, mono=True)
         except subprocess.CalledProcessError:

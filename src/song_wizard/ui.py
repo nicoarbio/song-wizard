@@ -489,6 +489,36 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.NOT_FOUND, "no existe")
                 results.save("click", [(str(path), align.describe(bpm, meter, first))])
                 return self.json(align.parse(align.describe(bpm, meter, first)))
+            if url.path == "/api/set-result":
+                # A key or tempo typed in the library, over what was detected.
+                from . import bpm as tempo, key as keys
+                try:
+                    path = self.resolve(str(body["path"]))
+                    what, value = body["what"], str(body["value"])
+                    if what not in ("key", "bpm"):
+                        raise ValueError
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                except (KeyError, ValueError, TypeError):
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                note = None
+                if what == "key":
+                    found = keys.parse(value)
+                    if not found:
+                        return self.error(HTTPStatus.BAD_REQUEST, f'"{value}" no es una tonalidad: probá Am, C#, Bb mayor o La menor')
+                    text = keys.describe(*found, results.HAND)
+                else:
+                    number = tempo.parse(value)
+                    if number is None:
+                        return self.error(HTTPStatus.BAD_REQUEST, f'"{value}" no es un tempo: un número de BPM entre 20 y 400')
+                    text = f"{number:.1f} BPM  {results.HAND}"
+                    if tempo.click_note(path, number):
+                        note = "El click de práctica de este tema sigue ajustado al tempo anterior: corregilo en practicar → ajustar el click."
+                results.save(what, [(str(path), text)])
+                log.info("set %s by hand: %s -> %s", what, path.name, text)
+                return self.json({"text": text, "note": note})
             if url.path == "/api/open":
                 return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
@@ -543,10 +573,11 @@ def make_handler(token, root, runner, port):
                 return f"Mover {body.get('title') or which} a {to}", ["archives", "--move", which, to]
             if not paths and action not in ("click", "archives-delete"):
                 raise ValueError("no hay archivos elegidos")
+            force = ["--force"] if body.get("force") else []
             if action == "key":
-                return f"Tonalidad: {label}", ["key", *paths]
+                return f"Tonalidad: {label}", ["key", *force, *paths]
             if action == "bpm":
-                return f"Tempo: {label}", ["bpm", *paths]
+                return f"Tempo: {label}", ["bpm", *force, *paths]
             if action == "separate":
                 stems = [s for s in body["stems"] if s in ("vocals", "drums", "bass", "guitar", "all")]
                 if not stems:

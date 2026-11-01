@@ -136,7 +136,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
@@ -182,6 +182,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Playlists bajadas: mover, olvidar | `song-wizard archives` (`--move N CARPETA`, `--delete N`) |
 | "abrir" | `song-wizard open` (la carpeta de música, o la que digas) |
 | Tonalidad, Tempo | `song-wizard key`, `song-wizard bpm` |
+| Tocar la tonalidad o el tempo para corregirlos | `song-wizard key --set Am TEMA`, `song-wizard bpm --set 120 TEMA` |
 | Separar instrumentos | `song-wizard separate --stem ...` |
 | Cambiar el tono, Cambiar la velocidad | `song-wizard transpose`, `song-wizard speed` |
 | Convertir para compartir | `song-wizard convert` |
@@ -259,6 +260,18 @@ Los resultados también quedan en `bpm.txt`, en la carpeta de los temas, igual q
 - `steady`: el tempo se mantiene fijo, como cuando se graba con click.
 - `varies`: el tempo cambia a lo largo del tema (muchos temas de los 80 y 90 se grabaron sin click). Se muestra el rango en el que se mueve; un click fijo se va a ir desfasando.
 - `uncertain`: la detección no es confiable. Lo más común es que el detector marque el doble o la mitad del tempo real, por eso se sugiere la alternativa.
+
+### Corregir la tonalidad o el tempo a mano
+
+Si la detección se equivocó (o ya sabés cómo es el tema), lo escribís vos y queda en lugar de lo detectado. En la interfaz, tocando la tonalidad o el tempo del tema (si todavía no se analizó, aparecen "tono?" y "BPM?" al pasar el mouse); en la terminal:
+
+```bash
+song-wizard key --set Am "tema.opus"
+song-wizard key --set "Sib mayor" "tema.opus"   # también en español: La menor, Fa#m, Do
+song-wizard bpm --set 98.5 "tema.opus"
+```
+
+Queda marcado "set by hand" en `key.txt` / `bpm.txt` (✍ en la interfaz), y volver a analizar la carpeta no lo pisa. Para detectarlo de nuevo desde el audio: `--force`, o "detectar" en la interfaz. Si el tema tiene el click de práctica ajustado a otro tempo, avisa para que lo corrijas en [Practicar](#practicar).
 
 ### Pista de click
 
@@ -459,7 +472,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
-- `key.txt` y `bpm.txt`, la configuración, la carpeta de música y los registros de `archives`.
+- `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
 - `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
 
 `separate` no corre en las pruebas automáticas porque necesita bajar los modelos (1.3 GB); se puede probar a mano con `uv run pytest -m slow`, que verifica que instrumento + resto sumen el original. Para correr las pruebas en tu computadora, desde la carpeta del proyecto: `uv run pytest`.
@@ -519,6 +532,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `ui`: "elegir…" (selector de carpetas del sistema) | **No probado** | Abre el selector de Windows, del Finder o de zenity; falta probarlo a mano |
 | `list`, `archives` (con la columna de carpeta) sobre la biblioteca real | Real (solo lectura) | ✅ Cada tema con su tonalidad, tempo y cantidad de archivos; `--files` los lista; las playlists dicen dónde están (Música y Drive) |
 | `archives --update`, `open` | Simulada | ✅ Busca temas nuevos en las playlists elegidas (o `all`) con su `--wav`; los temas sueltos no tienen playlist y lo avisa; `open` abre la carpeta del archivo dado |
+| Tonalidad y tempo a mano (`--set`, y tocando el badge en la interfaz) | Real (datos de prueba) | ✅ En Edge: tocar el tempo, escribir 100 y Enter lo guarda en `bpm.txt` marcado a mano y lo muestra con ✍; los temas sin analizar muestran "tono?" / "BPM?" al pasar el mouse; volver a correr `key`/`bpm` lo mantiene y `--force` lo reemplaza |
 | `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |

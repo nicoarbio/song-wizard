@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from . import system
+from . import results, system
 from .paths import music_dir
 
 
@@ -28,10 +28,11 @@ def run(text=None, files=False):
         print(f"\n{system.shown_path(here)}  ({len(folder['songs'])} song{'s' if len(folder['songs']) != 1 else ''}){playlist}")
         for song in songs:
             details = []
+            hand = f" ({results.HAND})"
             if song["key"]:
-                details.append(song["key"].split()[0])
+                details.append(song["key"].split()[0] + (hand if song["key"].endswith(results.HAND) else ""))
             if song["bpm"]:
-                details.append(song["bpm"].split("  ")[0])
+                details.append(song["bpm"].split("  ")[0] + (hand if song["bpm"].endswith(results.HAND) else ""))
             if song["click"]:
                 c = song["click"]
                 details.append(f"click {c['bpm']:.2f} BPM {c['meter']} from {c['first']:.3f} s")

@@ -60,12 +60,18 @@ def build_parser():
                                    "lower counts are worth checking by ear. The most common mix-up is with "
                                    "the relative key, which is always shown.")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--set", metavar="KEY", help="don't detect: save this key for the songs (Am, C#, 'Bb major'); "
+                                                  "detecting again keeps it unless --force")
+    p.add_argument("--force", action="store_true", help="detect again also where the key was set by hand")
 
     p = sub.add_parser("bpm", help="detect the tempo of songs",
                        description="Detect the tempo of each song and how steady it is. Songs recorded without "
                                    "a click drift, so a range is shown instead. Like any tempo detector it can "
                                    "land on half or double the real tempo; uncertain results say so.")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--set", metavar="BPM", help="don't detect: save this tempo for the songs (120 or 98.5); "
+                                                  "detecting again keeps it unless --force")
+    p.add_argument("--force", action="store_true", help="detect again also where the tempo was set by hand")
 
     p = sub.add_parser("click", help="make a steady click track at a given tempo, meter and length",
                        description='Writes "Click 120 BPM 4-4.wav" in the current folder (or where -o says), '
@@ -235,10 +241,10 @@ def dispatch(argv):
                      to=system.local_path(args.to) if args.to else None)
     elif args.command == "key":
         from . import key
-        key.run(args.paths)
+        key.run(args.paths, value=args.set, force=args.force)
     elif args.command == "bpm":
         from . import bpm
-        bpm.run(args.paths)
+        bpm.run(args.paths, value=args.set, force=args.force)
     elif args.command == "convert":
         from . import convert
         convert.run(args.paths, fmt=args.format, overwrite=args.overwrite)
