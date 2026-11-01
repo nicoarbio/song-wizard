@@ -4,7 +4,9 @@ deleting the song take along.
 
 The file: {"text": the lyrics, "synced": [[seconds, line], ...] or null (when the database has them
 timed), "marks": [{"line", "from", "to", "color"}] (highlighted characters of a line),
-"notes": {line number: note}, "legend": {color: what it means}, "source": where it came from}."""
+"notes": {line number: note}, "times": {line number: seconds} (when each line starts, set by hand
+in the practice player; taken from "synced" until then), "legend": {color: what it means},
+"source": where it came from}."""
 
 import json
 import os
@@ -54,11 +56,16 @@ def clean(data):
             raise ValueError("note")
         if v.strip():
             notes[str(int(k))] = v.strip()
+    times = {}
+    for k, v in (data.get("times") or {}).items():
+        if not 0 <= int(k) < len(lines) or not 0 <= float(v) < 36000:
+            raise ValueError("time")
+        times[str(int(k))] = round(float(v), 2)
     legend = {c: str(v)[:60] for c, v in (data.get("legend") or {}).items() if c in COLORS and str(v).strip()}
     synced = data.get("synced")
     if synced is not None:
         synced = [[float(t), str(line)] for t, line in synced]
-    return {"text": data["text"], "synced": synced, "marks": marks, "notes": notes, "legend": legend,
+    return {"text": data["text"], "synced": synced, "marks": marks, "notes": notes, "times": times, "legend": legend,
             "source": str(data.get("source") or "")[:200]}
 
 
@@ -147,8 +154,9 @@ def run(paths, text_from=None, force=False, export_page=False):
         text = sys.stdin.read() if text_from == "-" else Path(text_from).read_text(encoding="utf-8")
         for song in songs:
             old = load(song) or {}
-            keep = old.get("text") == text  # same text: keep the marks and notes
+            keep = old.get("text") == text  # same text: keep the marks, notes and times
             save(song, {"text": text, "synced": None, "marks": old.get("marks", []) if keep else [],
+                        "times": old.get("times", {}) if keep else {},
                         "notes": old.get("notes", {}) if keep else {}, "legend": old.get("legend", {}), "source": "pasted"})
             print(f"  saved  {path_for(song).name}")
         return

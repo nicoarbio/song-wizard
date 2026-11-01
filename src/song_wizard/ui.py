@@ -501,8 +501,11 @@ def make_handler(token, root, runner, port):
                 # "apagar" on the page, or song-wizard ui --stop. Not from this request's thread:
                 # shutdown() waits for serve_forever, which waits for this request.
                 log.info("interface: closed from %s", "the page" if self.headers.get("Referer") else "the terminal")
+                # Answer first: closing right away could cut the answer short.
+                self.json({})
+                self.wfile.flush()
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
-                return self.json({})
+                return
             if url.path == "/api/report":
                 from . import report
                 path, text, link = report.build()
@@ -735,7 +738,7 @@ def ask(port, token, method, path, timeout=3):
         data = json.loads(response.read() or b"null")
         conn.close()
         return response.status, data
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return None
 
 

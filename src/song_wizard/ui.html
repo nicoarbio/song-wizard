@@ -168,6 +168,11 @@
   .lyr-line { min-height: 1.6em; border-radius: 4px; transition: background .2s; }
   .lyr-line.now { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); }
   #pl-slot .lyr-body { max-height: 38vh; position: relative; }
+  .lyr-time { user-select: none; display: inline-flex; gap: 2px; width: 6.2em; margin-right: 8px; vertical-align: baseline; }
+  .lyr-time button { font-size: 11px; padding: 0 5px; height: 20px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .lyr-time.unset button { opacity: .55; }
+  .lyr-time .x { width: 18px; padding: 0; opacity: 0; }
+  .lyr-line:hover .lyr-time .x { opacity: 1; }
   #pl-panel { margin-top: 8px; }
   .lyr-line mark { color: #111; border-radius: 2px; padding: 0 1px; }
   .lyr-note { margin-left: 10px; font-size: 13px; font-style: italic; color: var(--warn); cursor: pointer; }
@@ -1656,6 +1661,7 @@ $("practice").addEventListener("keydown", (e) => {
     "ArrowLeft": () => moveTo(now() - 5), "ArrowRight": () => moveTo(now() + 5),
     "-": () => setSpeed(speed() * 100 - 5), "+": () => setSpeed(speed() * 100 + 5), "=": () => setSpeed(speed() * 100 + 5),
     "d": () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
+    "t": tapNextLine,
   };
   const track = /^[1-9]$/.test(key) ? practice.tracks[parseInt(key, 10) - 1] : null;
   if (track) { e.preventDefault(); track.mute = !track.mute; applyVolumes(); renderTracks(); return; }
@@ -1847,10 +1853,20 @@ function renderLyrics() {
       el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: "Nota: hacé clic en una línea para escribirle un comentario (N)",
         onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, "nota"),
       el("button", { class: "small", title: "Deshacer el último cambio (Ctrl+Z)", disabled: !lyr.history.length, onclick: undoLyrics }, "deshacer"));
+    if (lyr.where === "practice") {
+      tools.append(el("button", { class: "small tool" + (lyr.showTimes ? " active" : ""), "aria-pressed": String(!!lyr.showTimes),
+        title: "Mostrar la columna con el momento en que empieza cada línea, para ponerlos o corregirlos",
+        onclick: () => { lyr.showTimes = !lyr.showTimes; try { localStorage.setItem("song-wizard:lyric-times", lyr.showTimes ? "1" : ""); } catch {} renderLyrics(); } }, "tiempos"));
+      if (lyr.showTimes) tools.append(
+        el("button", { class: "small", title: "Todos los tiempos medio segundo antes", onclick: () => shiftTimes(-0.5) }, "−0.5 s"),
+        el("button", { class: "small", title: "Todos los tiempos medio segundo después", onclick: () => shiftTimes(0.5) }, "+0.5 s"));
+    }
   }
   const inPractice = lyr.where === "practice";
   const toolName = lyr.tool === "erase" ? "Goma" : lyr.tool === "note" ? "Nota" : lyr.tool ? `Marcador ${(lyr.colors.find((c) => c.id === lyr.tool) || {}).name}` : null;
-  $("lyr-hint").textContent = inPractice
+  $("lyr-hint").textContent = inPractice && lyr.showTimes && !lyr.tool
+    ? "Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse (o la tecla T para la siguiente). × lo borra. Doble clic en una línea: ir a ese momento."
+    : inPractice
     ? (lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar." : toolName ? `${toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.`
        : "Elegí un marcador y pasalo por la letra, o clic en una palabra." + (lyr.timeline ? " La línea que suena se resalta sola." : ""))
     : !toolName
@@ -1858,7 +1874,7 @@ function renderLyrics() {
     : lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta."
     : `${toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta, Ctrl+Z deshace.`;
   const body = $("lyr-body");
-  body.className = "lyr-body" + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
+  body.className = "lyr-body" + (lyr.where === "practice" && lyr.showTimes ? " with-times" : "") + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
   const tint = lyr.tool && lyr.tool !== "erase" && lyr.tool !== "note" ? (lyr.colors.find((c) => c.id === lyr.tool) || {}).shade : null;
   body.style.setProperty("--sel", tint || (lyr.tool === "erase" ? "#ddd" : "Highlight"));
   if (tint) body.style.cursor = `url("${markerCursor(tint)}") 3 21, text`;
@@ -1880,6 +1896,14 @@ function renderLyrics() {
     const row = el("div", { class: "lyr-line", "data-line": i }, text);
     const note = (d.notes || {})[i];
     if (i === lyr.nowLine) row.classList.add("now");
+    if (lyr.where === "practice" && lyr.showTimes) {
+      const at = (d.times || {})[i];
+      row.prepend(plain(line) ? el("span", { class: "lyr-time" + (at === undefined ? " unset" : "") },
+        el("button", { title: at === undefined ? "Poner acá el momento que está sonando" : "Cambiarlo por el momento que está sonando",
+          onclick: (e) => { e.stopPropagation(); setLineTime(i, now()); } }, at === undefined ? "poner" : clockShort(at)),
+        at === undefined ? null : el("button", { class: "x", title: "Borrar este tiempo", onclick: (e) => { e.stopPropagation(); setLineTime(i, null); } }, "×"))
+        : el("span", { class: "lyr-time" }));
+    }
     if (lyr.noting === i) row.append(noteBox(i, note || ""));
     else if (note) row.append(el("span", { class: "lyr-note", title: "Tocá para cambiarla (vacía la borra)", onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
     body.append(row);
@@ -1913,7 +1937,8 @@ function lyricPoint(node, offset) {
 // line being sung is lit and kept in sight (unless you scrolled them a moment ago).
 async function loadPracticeLyrics(song) {
   lyr.song = song; lyr.data = null; lyr.noting = null; lyr.history = []; lyr.tool = null; lyr.where = "practice";
-  lyr.timeline = null; lyr.nowLine = null;
+  lyr.timeline = null; lyr.nowLine = null; lyr.lastTap = null;
+  try { lyr.showTimes = localStorage.getItem("song-wizard:lyric-times") === "1"; } catch { lyr.showTimes = false; }
   $("pl-slot").append($("lyr-view"));
   $("pl-summary").textContent = "";
   try {
@@ -1923,7 +1948,7 @@ async function loadPracticeLyrics(song) {
     lyr.data = got.lyrics;
   } catch (e) { $("pl-summary").textContent = ""; }
   buildTimeline();
-  $("pl-summary").textContent = !lyr.data ? "(todavía no tiene)" : lyr.timeline ? "(sigue al tema)" : "";
+  $("pl-summary").textContent = !lyr.data ? "(todavía no tiene)" : lyr.timeline ? "(sigue al tema)" : "(sin tiempos: \"tiempos\" para ponerlos)";
   renderLyrics();
 }
 
@@ -1932,16 +1957,61 @@ const plain = (t) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 function buildTimeline() {
   const d = lyr.data;
   lyr.timeline = null;
-  if (!d || !d.synced || !d.synced.length) return;
-  const lines = d.text.split("\n"), out = [];
-  let j = 0;
-  for (const [t, words] of d.synced) {
-    if (!plain(words)) continue;
-    for (let k = j; k < Math.min(lines.length, j + 8); k++) {
-      if (plain(lines[k]) === plain(words)) { out.push([t, k]); j = k + 1; break; }
+  if (!d) return;
+  // The times of each line: set by hand, or, until then, matched from the database's timed lines.
+  if (!d.times || !Object.keys(d.times).length) {
+    d.times = {};
+    const lines = d.text.split("\n");
+    let j = 0;
+    for (const [t, words] of d.synced || []) {
+      if (!plain(words)) continue;
+      for (let k = j; k < Math.min(lines.length, j + 8); k++) {
+        if (plain(lines[k]) === plain(words)) { d.times[k] = t; j = k + 1; break; }
+      }
     }
   }
+  const out = Object.entries(d.times).map(([k, t]) => [t, +k]).sort((a, b) => a[0] - b[0]);
   lyr.timeline = out.length ? out : null;
+}
+
+const clockShort = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+function setLineTime(i, t) {
+  rememberLyrics();
+  const d = lyr.data;
+  d.times = { ...(d.times || {}) };
+  if (t === null) delete d.times[i]; else d.times[i] = Math.max(0, Math.round(t * 100) / 100);
+  buildTimeline();
+  lyr.nowLine = undefined;
+  saveLyrics();
+  renderLyrics();
+  $("pl-summary").textContent = lyr.timeline ? "(sigue al tema)" : "(sin tiempos: \"tiempos\" para ponerlos)";
+}
+function shiftTimes(by) {
+  const d = lyr.data;
+  if (!d || !Object.keys(d.times || {}).length) return;
+  rememberLyrics();
+  d.times = Object.fromEntries(Object.entries(d.times).map(([k, t]) => [k, Math.max(0, Math.round((t + by) * 100) / 100)]));
+  buildTimeline();
+  lyr.nowLine = undefined;
+  saveLyrics();
+  renderLyrics();
+}
+// T while playing: the next line starts now. "Next" is after the last one tapped, or, the first
+// time (or after going back), after the line that is sounding.
+function tapNextLine() {
+  const d = lyr.data;
+  if (!d || lyr.where !== "practice") return;
+  const t = now(), lines = d.text.split("\n");
+  if (lyr.lastTap === undefined || lyr.lastTap === null || (d.times[lyr.lastTap] ?? -1) > t) {
+    lyr.lastTap = -1;
+    for (const [at, k] of lyr.timeline || []) if (at < t - 0.3) lyr.lastTap = k;
+  }
+  let next = lyr.lastTap + 1;
+  while (next < lines.length && !plain(lines[next])) next++;
+  if (next >= lines.length) { toast("Ya no quedan líneas."); return; }
+  lyr.lastTap = next;
+  if (!lyr.showTimes) { lyr.showTimes = true; try { localStorage.setItem("song-wizard:lyric-times", "1"); } catch {} }
+  setLineTime(next, t);
 }
 
 function followLyrics(t) {
@@ -2006,12 +2076,14 @@ function snapToWords(lines, sel) {
 }
 
 function rememberLyrics() {
-  lyr.history.push(JSON.stringify({ marks: lyr.data.marks || [], notes: lyr.data.notes || {} }));
+  lyr.history.push(JSON.stringify({ marks: lyr.data.marks || [], notes: lyr.data.notes || {}, times: lyr.data.times || {} }));
   if (lyr.history.length > 100) lyr.history.shift();
 }
 function undoLyrics() {
   if (!lyr.history.length) return;
   Object.assign(lyr.data, JSON.parse(lyr.history.pop()));
+  buildTimeline();
+  lyr.nowLine = undefined;
   saveLyrics();
   renderLyrics();
 }
@@ -2062,6 +2134,14 @@ function applyTool(sel) {
 $("lyr-body").addEventListener("mouseup", (e) => {
   if (!lyr.data || !lyr.tool || lyr.tool === "note" || e.target.closest(".note-box, .lyr-note")) return;
   setTimeout(() => { const sel = currentLyricSelection(); if (sel) applyTool(sel); }, 0);
+});
+$("lyr-body").addEventListener("dblclick", (e) => {
+  if (lyr.where !== "practice" || lyr.tool || e.target.closest(".lyr-time, .note-box")) return;
+  const row = e.target.closest(".lyr-line");
+  const at = row && lyr.data && (lyr.data.times || {})[row.dataset.line];
+  if (at === undefined || at === null) return;
+  window.getSelection().removeAllRanges();
+  moveTo(Math.max(0, at - 0.5));
 });
 $("lyr-body").addEventListener("click", (e) => {
   if (lyr.tool !== "note" || e.target.closest(".note-box, .lyr-note")) return;
@@ -2118,6 +2198,7 @@ $("lyr-save").onclick = async () => {
   const data = { text, synced: old && old.text === text ? old.synced : null,
     marks: old ? (old.marks || []).filter((m) => same(m.line)) : [],
     notes: old ? Object.fromEntries(Object.entries(old.notes || {}).filter(([i]) => same(+i))) : {},
+    times: old ? Object.fromEntries(Object.entries(old.times || {}).filter(([i]) => same(+i))) : {},
     legend: old ? old.legend || {} : {}, source: old && old.text === text ? old.source : "pasted" };
   if (!text.trim()) { toast("La letra está vacía."); return; }
   try {

@@ -57,6 +57,9 @@ def test_parse_lrc():
     {"text": "a\nbc", "marks": [{"line": 1, "from": 0, "to": 3, "color": "yellow"}]},
     {"text": "a\nbc", "marks": [{"line": 1, "from": 0, "to": 1, "color": "black"}]},
     {"text": "a", "notes": {"4": "x"}},
+    {"text": "a\nb", "times": {"2": 1.0}},
+    {"text": "a\nb", "times": {"1": -3}},
+    {"text": "a\nb", "times": {"1": "soon"}},
 ])
 def test_clean_rejects(bad):
     with pytest.raises((ValueError, KeyError, TypeError)):
@@ -77,16 +80,23 @@ def test_fetch_save_and_keep(song, database, capsys):
     assert database
 
 
+def test_times_kept_and_rounded():
+    data = lyrics.clean({"text": "a\nb\nc", "times": {"0": 1.234567, "2": 75}})
+    assert data["times"] == {"0": 1.23, "2": 75.0}
+
+
 def test_from_a_file_keeps_marks_on_the_same_text(song, tmp_path):
     text = tmp_path / "letra.txt"
     text.write_text("uno\ndos")
     lyrics.run([str(song)], text_from=str(text))
-    lyrics.save(song, {**lyrics.load(song), "marks": [{"line": 1, "from": 0, "to": 3, "color": "pink"}], "notes": {"0": "entra el bajo"}})
+    lyrics.save(song, {**lyrics.load(song), "marks": [{"line": 1, "from": 0, "to": 3, "color": "pink"}], "notes": {"0": "entra el bajo"},
+                       "times": {"1": 12.5}})
     lyrics.run([str(song)], text_from=str(text))
     assert lyrics.load(song)["marks"] and lyrics.load(song)["notes"] == {"0": "entra el bajo"}
+    assert lyrics.load(song)["times"] == {"1": 12.5}
     text.write_text("otra letra")
     lyrics.run([str(song)], text_from=str(text))
-    assert lyrics.load(song)["marks"] == [] and lyrics.load(song)["notes"] == {}
+    assert lyrics.load(song)["marks"] == [] and lyrics.load(song)["notes"] == {} and lyrics.load(song)["times"] == {}
 
 
 def test_not_found_and_offline(song, monkeypatch, capsys):
