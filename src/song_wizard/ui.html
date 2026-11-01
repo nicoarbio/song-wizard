@@ -245,7 +245,7 @@
         <div class="row" style="margin-top:8px">
           <button id="do-click">Generar click</button>
         </div>
-        <p class="hint">Si lo elegido ya tiene tempo detectado, se usa ese BPM (en una versión con otra velocidad, ajustado). Con un solo tema elegido, el click lleva su nombre y queda con sus archivos.</p>
+        <p class="hint">Con un tema elegido se completan su BPM (si ya se detectó; en una versión con otra velocidad, ajustado), su duración y los compases que la cubren: para un compás más, sumale 1. Con un solo tema elegido, el click lleva su nombre y queda con sus archivos.</p>
       </div>
     </section>
 
@@ -426,9 +426,15 @@ const ONLY = {
                    why: "Sobre una versión ya transpuesta o con otra velocidad no: hacelo desde el original (con velocidad y semitonos juntos si hace falta), que suena mejor." },
 };
 
+// Shift+click picks (or unpicks) everything shown between the last checkbox clicked and this one,
+// in the order of the list, across folders too.
 function toggle(path) {
   return (e) => {
-    e.target.checked ? state.selected.add(path) : state.selected.delete(path);
+    const on = e.target.checked;
+    const order = state.shown || [], from = order.indexOf(state.lastPicked), to = order.indexOf(path);
+    const range = e.shiftKey && from >= 0 && to >= 0 ? order.slice(Math.min(from, to), Math.max(from, to) + 1) : [path];
+    for (const p of range) on ? state.selected.add(p) : state.selected.delete(p);
+    state.lastPicked = path;
     renderSelection(); renderLibrary();
   };
 }
@@ -449,6 +455,7 @@ function renderLibrary() {
   const filter = $("filter").value.trim().toLowerCase();
   const box = $("library");
   box.replaceChildren();
+  state.shown = [];  // every checkbox shown, in order (for shift+click)
   const visible = state.folders.filter((f) => f.songs.length || f.extras.length);
   if (!visible.length) {
     box.append(el("p", { class: "empty" }, "No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música."));
@@ -483,7 +490,8 @@ function renderLibrary() {
 }
 
 function renderSong(song) {
-  const check = el("input", { type: "checkbox", onchange: toggle(song.path) });
+  const check = el("input", { type: "checkbox", title: "Elegir el tema (con Shift, todos desde el último elegido)", onclick: toggle(song.path) });
+  state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song);
   const title = state.renaming === song.path ? renameBox(song) : el("span", { class: "title" }, song.name);
@@ -552,7 +560,8 @@ function setAllOpen(open) {
 }
 
 function renderFile(file) {
-  const check = el("input", { type: "checkbox", title: "Elegir solo este archivo", onchange: toggle(file.path) });
+  const check = el("input", { type: "checkbox", title: "Elegir solo este archivo (con Shift, todos desde el último elegido)", onclick: toggle(file.path) });
+  state.shown.push(file.path);
   check.checked = state.selected.has(file.path);
   return el("li", {}, check,
     el("button", { class: "play small", title: "Escuchar", onclick: () => play(file) }, "▶"),
@@ -583,6 +592,29 @@ function renderSelection() {
   }
   const tempo = found.length === 1 ? tempoOf(found[0]) : null;
   if (tempo) $("click-bpm").value = tempo;
+  suggestClickLength(found.length === 1 ? found[0].item.path : null);
+}
+
+// "Pista de click": with one file picked, its length goes in the minutes field and the bars that
+// cover it (at the tempo and meter above) in the bars field, as a starting point.
+const durations = new Map();
+async function suggestClickLength(path) {
+  state.clickFor = path;
+  if (!path) return;
+  if (!durations.has(path)) {
+    durations.set(path, api(`/api/info?path=${encodeURIComponent(path)}`).then((d) => d.duration).catch(() => null));
+  }
+  const seconds = await durations.get(path);
+  if (state.clickFor !== path || !seconds) return;
+  state.clickSeconds = seconds;
+  const s = Math.round(seconds);
+  $("click-duration").value = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  updateClickBars();
+}
+function updateClickBars() {
+  const bpm = parseFloat($("click-bpm").value), perBar = parseInt($("click-meter").value, 10);
+  if (!state.clickFor || !state.clickSeconds || !(bpm > 0) || !(perBar > 0)) return;
+  $("click-bars").value = Math.ceil(state.clickSeconds / (60 / bpm * perBar) - 1e-9);
 }
 
 function renderArchives(rows) {
@@ -1433,6 +1465,8 @@ $("do-transpose").onclick = () => start({ action: "transpose", semitones: parseF
 $("do-speed").onclick = () => start({ action: "speed", percent: parseFloat($("speed-percent").value),
                                       semitones: parseFloat($("speed-semitones").value) || 0, paths: selectedPaths() });
 $("do-convert").onclick = () => start({ action: "convert", format: $("format").value, paths: selectedPaths() });
+$("click-bpm").addEventListener("input", updateClickBars);
+$("click-meter").addEventListener("input", updateClickBars);
 $("do-click").onclick = () => {
   const mode = document.querySelector("input[name=click-len]:checked").value;
   const first = selectedPaths()[0];

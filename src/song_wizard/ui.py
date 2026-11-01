@@ -149,6 +149,22 @@ def read_results(folder, command):
 MAIN_FORMATS = [".opus", ".webm", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".mp3", ".aac", ".mp4", ".mkv"]
 
 
+DURATIONS = {}
+
+
+def duration(path):
+    """Length in seconds (ffprobe), remembered while the file doesn't change; None if unreadable."""
+    key = (str(path), path.stat().st_mtime)
+    if key not in DURATIONS:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                              "-of", "default=nw=1:nk=1", str(path)], capture_output=True, text=True)
+        try:
+            DURATIONS[key] = round(float(out.stdout.strip()), 3)
+        except ValueError:
+            DURATIONS[key] = None
+    return DURATIONS[key]
+
+
 PEAKS = collections.OrderedDict()
 
 
@@ -293,6 +309,14 @@ def make_handler(token, root, runner, port):
                 return self.json(jobs)
             if url.path == "/api/audio":
                 return self.audio(query.get("path", [""])[0])
+            if url.path == "/api/info":
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                return self.json({"duration": duration(path)})
             if url.path == "/api/peaks":
                 try:
                     path = self.resolve(query.get("path", [""])[0])

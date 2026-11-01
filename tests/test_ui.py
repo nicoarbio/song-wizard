@@ -321,3 +321,13 @@ def test_report(server, monkeypatch, launched):
     assert request(port, "POST", "/api/report/open", {})[0].status == 200
     assert launched == [["open", str(report.REPORTS_DIR)]]
     assert request(port, "POST", "/api/report", {}, token="wrong")[0].status == 403
+
+
+def test_info(server):
+    port, root = server
+    synth.write(root / "tone.wav", synth.sine(440, 2.5))
+    (root / "broken.wav").write_bytes(b"not audio")
+    assert get_json(port, "/api/info?path=tone.wav") == {"duration": 2.5}
+    assert get_json(port, "/api/info?path=broken.wav") == {"duration": None}
+    assert request(port, "GET", "/api/info?path=../x")[0].status == 403
+    assert request(port, "GET", "/api/info?path=missing.wav")[0].status == 404
