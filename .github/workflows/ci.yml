@@ -1,8 +1,13 @@
 name: CI
 
+# Branches only: a version tag points at a commit its branch push already tested. Changes to the
+# docs or images alone don't run it either.
 on:
   push:
+    branches: ["**"]
+    paths-ignore: ["**.md", "img/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "img/**", "LICENSE"]
   workflow_dispatch:
 
 concurrency:
