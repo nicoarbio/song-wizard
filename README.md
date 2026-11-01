@@ -1,6 +1,6 @@
 # song-wizard
 
-<p align="center"><img src="docs/logo.png" width="160" alt="song-wizard"></p>
+<p align="center"><img src="img/logo.png" width="160" alt="song-wizard"></p>
 
 [![CI](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml)
 
