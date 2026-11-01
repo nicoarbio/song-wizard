@@ -1,7 +1,5 @@
 import argparse
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 import time
 
@@ -270,8 +268,15 @@ def build_parser():
 
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
-    p = sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)")
-    p.add_argument("--check", action="store_true", help="only tell whether there's a newer song-wizard")
+    p = sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)",
+                       description="Installs the newest published version of song-wizard (each one is a vX.Y.Z "
+                                   "tag on GitHub) if there's a newer one, and the newest of what it uses (yt-dlp "
+                                   "above all). --list shows the published versions; --to installs a given one, "
+                                   "older ones included.")
+    which = p.add_mutually_exclusive_group()
+    which.add_argument("--check", action="store_true", help="only tell whether there's a newer song-wizard")
+    which.add_argument("--list", action="store_true", help="list the published versions")
+    which.add_argument("--to", metavar="VERSION", help="install this version (e.g. 0.12.0), newer or older")
     return parser
 
 
@@ -395,13 +400,12 @@ def dispatch(argv):
     elif args.command == "setup":
         from . import setup
         setup.run()
-    elif args.command == "upgrade" and args.check:
+    elif args.command == "upgrade" and (args.check or args.list):
         from . import updates
-        updates.check()
+        updates.check() if args.check else updates.show()
     elif args.command == "upgrade":
-        if not shutil.which("uv"):
-            sys.exit("uv is missing; reinstall song-wizard following the README.")
-        code = subprocess.run(["uv", "tool", "upgrade", "song-wizard"]).returncode
+        from . import updates
+        code = updates.to(args.to) if args.to else updates.upgrade()
         from . import ui
         if code == 0 and ui.running():
             print("The interface is still running the version from before: song-wizard ui --restart "

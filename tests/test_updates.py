@@ -13,19 +13,56 @@ def test_compare():
     assert updates.newer("0.10.0", "0.9.9") and not updates.newer("0.9.9", "0.10.0") and not updates.newer("x", "0.1")
 
 
-def test_latest_reads_the_published_version(monkeypatch):
-    class Answer:
-        def __init__(self, text): self.text = text
-        def read(self, n): return self.text.encode()
-        def __enter__(self): return self
-        def __exit__(self, *a): pass
-    monkeypatch.setattr(updates.urllib.request, "urlopen", lambda req, timeout: Answer('[project]\nname = "x"\nversion = "9.1.0"\n'))
-    assert updates.latest() == "9.1.0"
+class Answer:
+    def __init__(self, data): self.data = data
+    def read(self, n): return self.data
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+
+
+# What GitHub answers to git's "which refs are there": annotated tags come twice (with ^{}).
+REFS = (b"001e# service=git-upload-pack\n0000"
+        b"003f1111 refs/heads/main\n"
+        b"003f2222 refs/tags/v0.9.0\n003f3333 refs/tags/v0.9.0^{}\n"
+        b"003f4444 refs/tags/v0.10.0\n003f5555 refs/tags/v0.10.0^{}\n"
+        b"003f6666 refs/tags/v0.2.0\n003f7777 refs/tags/experiment\n0000")
+
+
+def test_versions_from_the_tags(monkeypatch):
+    monkeypatch.setattr(updates.urllib.request, "urlopen", lambda req, timeout: Answer(REFS))
+    assert updates.versions() == ["0.2.0", "0.9.0", "0.10.0"] and updates.latest() == "0.10.0"
 
     def offline(req, timeout):
         raise OSError("no network")
     monkeypatch.setattr(updates.urllib.request, "urlopen", offline)
     assert updates.latest() is None
+
+
+def test_list_upgrade_and_to(monkeypatch, capsys):
+    monkeypatch.setattr(updates.urllib.request, "urlopen", lambda req, timeout: Answer(REFS))
+    monkeypatch.setattr(updates, "__version__", "0.9.0")
+    monkeypatch.setattr(updates, "source", lambda: "git")
+    ran = []
+    monkeypatch.setattr(updates, "uv", lambda *args: ran.append(args) or 0)
+    updates.show()
+    out = capsys.readouterr().out
+    assert out.index("0.10.0") < out.index("0.9.0  ← installed") < out.index("0.2.0")
+    # A newer tag: that tag is installed (not the latest commit).
+    assert updates.upgrade() == 0
+    assert ran[-1] == ("tool", "install", "--force", "--upgrade", f"song-wizard @ git+{updates.REPO}@v0.10.0")
+    # The newest already: only what it uses gets updated.
+    monkeypatch.setattr(updates, "__version__", "0.10.0")
+    updates.upgrade()
+    assert ran[-1] == ("tool", "upgrade", "song-wizard")
+    # An older one, by number; one that doesn't exist, refused.
+    assert updates.to("v0.2.0") == 0 and ran[-1][-1].endswith("@v0.2.0")
+    assert "can't move to a newer one by themselves" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        updates.to("0.3.0")
+    # Installed from a folder with the code: upgrading takes the folder again.
+    monkeypatch.setattr(updates, "source", lambda: "directory")
+    updates.upgrade()
+    assert ran[-1] == ("tool", "upgrade", "--reinstall", "song-wizard")
 
 
 @pytest.mark.parametrize("found, says", [("99.0.0", "99.0.0 is out"), (__version__, "up to date"), (None, "Couldn't check")])

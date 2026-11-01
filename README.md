@@ -98,11 +98,15 @@ music_dir = "~/Ensayos"
 ### Actualizar
 
 ```bash
-song-wizard upgrade           # actualiza
-song-wizard upgrade --check   # solo dice si hay una versión nueva
+song-wizard upgrade              # instala la versión más nueva
+song-wizard upgrade --check      # solo dice si hay una versión nueva
+song-wizard upgrade --list       # las versiones publicadas
+song-wizard upgrade --to 0.12.0  # instala otra versión, más nueva o más vieja
 ```
 
-En la interfaz, la versión aparece arriba, al lado del nombre (tocándola, busca de nuevo). Si hay una nueva, aparece "actualizar a …": actualiza, reinicia la interfaz y la misma página se recarga sola cuando está lista. Para saber si hay una versión nueva consulta el número de versión publicado en GitHub, a lo sumo cada 6 horas.
+Cada versión publicada es un tag `vX.Y.Z` en GitHub. `upgrade` instala el más nuevo si tenés uno anterior; si ya tenés el más nuevo, actualiza lo que usa song-wizard (yt-dlp, sobre todo). Las versiones anteriores a la 0.15 no saben moverse por tags: si volvés a una de ellas con `--to`, para volver a la más nueva corré `uv tool install --force git+https://github.com/nicoarbio/song-wizard`.
+
+En la interfaz, la versión aparece arriba, al lado del nombre (tocándola, busca de nuevo). Si hay una nueva, aparece "actualizar a …": actualiza, reinicia la interfaz y la misma página se recarga sola cuando está lista. Busca versiones nuevas a lo sumo cada 6 horas.
 
 Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dejar de andar hasta actualizar.
 
@@ -207,7 +211,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
 | "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
-| La versión, arriba, y "actualizar a …" | `song-wizard upgrade` (`--check` solo dice si hay una nueva) |
+| La versión, arriba, y "actualizar a …" | `song-wizard upgrade` (`--check` solo dice si hay una nueva; `--list` y `--to VERSIÓN`, solo en la terminal) |
 | "setlist" | `song-wizard setlist CARPETA` |
 | "más › Letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
 | "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
@@ -590,7 +594,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
 - `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo desde su propia página).
 - El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.
-- Actualizar: comparar versiones, leer la versión publicada (y no fallar sin internet), `upgrade --check`, la consulta desde la interfaz (que se recuerda unas horas, salvo que se pida de nuevo), y que el reinicio pedido desde la página levante una interfaz nueva en el mismo puerto, sin abrir el navegador.
+- Actualizar: comparar versiones, leer las versiones publicadas de los tags (y no fallar sin internet), `upgrade --list` y `--to`, que `upgrade` instale el tag más nuevo (o solo actualice lo que usa si ya está en el último, o reinstale desde la carpeta si se instaló así), `upgrade --check`, la consulta desde la interfaz (que se recuerda unas horas, salvo que se pida de nuevo), y que el reinicio pedido desde la página levante una interfaz nueva en el mismo puerto, sin abrir el navegador.
 - `ui`: la seguridad (solo atiende a su propia página: otra página, aunque sea de otro servidor en esta computadora, no puede actuar ni leer nada; el dominio; rutas fuera de la carpeta de música; acciones inválidas), que corra de fondo (arranca una vez, se reusa, se apaga con `--stop`, con su clave interna, o desde la página), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
 
 `separate` no corre en las pruebas automáticas porque necesita bajar los modelos (1.3 GB); se puede probar a mano con `uv run pytest -m slow`, que verifica que instrumento + resto sumen el original. Para correr las pruebas en tu computadora, desde la carpeta del proyecto: `uv run pytest`.

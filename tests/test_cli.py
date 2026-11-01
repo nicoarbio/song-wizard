@@ -79,17 +79,15 @@ def test_archives_delete(monkeypatch):
 
 
 def test_upgrade(monkeypatch):
+    from song_wizard import updates
     calls = []
-
-    class Done:
-        returncode = 0
-
-    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/uv")
-    monkeypatch.setattr(cli.subprocess, "run", lambda cmd: calls.append(cmd) or Done())
-    with pytest.raises(SystemExit) as e:
-        cli.main(["upgrade"])
-    assert e.value.code == 0
-    assert calls == [["uv", "tool", "upgrade", "song-wizard"]]
+    monkeypatch.setattr(updates, "upgrade", lambda: calls.append("upgrade") or 0)
+    monkeypatch.setattr(updates, "to", lambda v: calls.append(("to", v)) or 0)
+    for args in (["upgrade"], ["upgrade", "--to", "0.12.0"]):
+        with pytest.raises(SystemExit) as e:
+            cli.main(args)
+        assert e.value.code == 0
+    assert calls == ["upgrade", ("to", "0.12.0")]
 
 
 def test_no_command_shows_help(capsys):
