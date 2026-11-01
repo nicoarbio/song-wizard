@@ -89,6 +89,27 @@ def test_stop_asks_while_working(music, monkeypatch, capsys):
     assert ui.running()  # still there
 
 
+def test_started_server_is_recognized_by_its_word_not_its_process_number(music, monkeypatch):
+    """On a Mac, Python can hand over to another process: the number the launcher saw isn't the
+    server's. Starting must still find it (this failed on the Mac CI)."""
+    real = ui.subprocess.Popen
+
+    class Launcher:  # what the starter sees: a process whose number isn't the server's
+        def __init__(self, *args, **kwargs):
+            self.inner = real(*args, **kwargs)
+            self.pid = -1
+
+        def poll(self):
+            return self.inner.poll()
+
+        def kill(self):
+            self.inner.kill()
+    monkeypatch.setattr(ui.subprocess, "Popen", Launcher)
+    monkeypatch.setattr(ui.system, "open_url", lambda url: None)
+    ui.run(port=free_port())
+    assert ui.running()
+
+
 def test_shutdown_from_the_page(music, monkeypatch):
     monkeypatch.setattr(ui.system, "open_url", lambda url: None)
     ui.run(port=free_port())

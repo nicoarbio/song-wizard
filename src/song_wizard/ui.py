@@ -718,6 +718,7 @@ def page_path(root, file):
 # The interface running on this computer (port, token, process), so "song-wizard ui" from any
 # terminal finds it, and "--stop" closes it. Only readable by you: it holds the page's token.
 STATE_ENV = "SONG_WIZARD_UI_STATE"
+NONCE_ENV = "SONG_WIZARD_UI_NONCE"
 
 
 def state_file():
@@ -772,15 +773,18 @@ def start_background(port):
     """Start the server as its own process, detached from this terminal; wait until it answers."""
     out = server_output()
     out.parent.mkdir(parents=True, exist_ok=True)
+    # The new server is recognized by a word only it knows, not by its process number: on a Mac
+    # the Python program can hand over to another process, with another number.
+    nonce = secrets.token_hex(8)
     with open(out, "w") as f:
         process = subprocess.Popen([sys.executable, "-m", "song_wizard", "ui", "--foreground", "--no-browser",
                                     "--port", str(port)], stdin=subprocess.DEVNULL, stdout=f, stderr=f,
-                                   start_new_session=True, cwd=str(Path.home()))
-    # A first start can be slow (on a Mac, the system checks the libraries the first time).
-    deadline = time.time() + 90
+                                   start_new_session=True, cwd=str(Path.home()),
+                                   env={**os.environ, NONCE_ENV: nonce})
+    deadline = time.time() + 30
     while time.time() < deadline:
         info = running()
-        if info and info["pid"] == process.pid:
+        if info and info.get("nonce") == nonce:
             return info
         if process.poll() is not None:
             break
@@ -867,7 +871,8 @@ def serve(root, port, open_page, practice_path):
     if actual != candidate:  # port 0: the system picked one, the handler must know which
         server.RequestHandlerClass = make_handler(token, root, runner, actual)
     url = f"http://127.0.0.1:{actual}/?t={token}"
-    write_state({"pid": os.getpid(), "port": actual, "token": token, "url": url, "root": str(root)})
+    write_state({"pid": os.getpid(), "port": actual, "token": token, "url": url, "root": str(root),
+                 "nonce": os.environ.get(NONCE_ENV)})
     page = url + (f"&practice={quote(practice_path)}" if practice_path else "")
     # flush: when the output isn't a terminal it's buffered, and the link must show up right away.
     print(f"song-wizard interface: {page}", flush=True)
