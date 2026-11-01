@@ -212,8 +212,20 @@ def runs(line, marks):
     return [tuple(r) for r in out]
 
 
-def page(title, data):
-    """The lyrics with their highlights, notes and legend, as a page to print or keep."""
+# The look of the lyrics on paper, shared with the setlist (which can add them after the list).
+STYLE = """
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 10pt; color: #333; margin-bottom: 12px; }
+  .lyrics { font-size: 13pt; line-height: 1.5; }
+  .l { break-inside: avoid; }
+  mark { color: inherit; padding: 0 1px; border-radius: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .note { margin-left: 12px; font-size: 10pt; font-style: italic; color: #b03; }
+  .note::before { content: "← "; }
+  @media print { .lyrics.long { columns: 2; column-gap: 10mm; font-size: 11.5pt; } }
+"""
+
+
+def section(data):
+    """The legend and the lyrics with their highlights and notes, as HTML (everything escaped)."""
     from html import escape
 
     lines = data["text"].split("\n")
@@ -229,6 +241,14 @@ def page(title, data):
                     + (f'<span class="note">{escape(note)}</span>' if note else "") + "</div>")
     legend = "".join(f'<span><mark style="background:{SHADES[c]}">&nbsp;&nbsp;&nbsp;</mark> {escape(v)}</span>'
                      for c, v in data.get("legend", {}).items() if c in SHADES)
+    return (f'<div class="legend">{legend}</div>\n'
+            f'<div class="lyrics{" long" if len(lines) > 40 else ""}">\n' + "\n".join(body) + "\n</div>")
+
+
+def page(title, data):
+    """The lyrics with their highlights, notes and legend, as a page to print or keep."""
+    from html import escape
+
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Letra: {escape(title)}</title>
@@ -236,22 +256,12 @@ def page(title, data):
   @page {{ size: A4; margin: 14mm; }}
   body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 760px; padding: 0 16px; }}
   h1 {{ font-size: 20pt; margin: 0 0 6px; }}
-  .legend {{ display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 10pt; color: #333; margin-bottom: 12px; }}
-  .lyrics {{ font-size: 13pt; line-height: 1.5; }}
-  .l {{ break-inside: avoid; }}
-  mark {{ color: inherit; padding: 0 1px; border-radius: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-  .note {{ margin-left: 12px; font-size: 10pt; font-style: italic; color: #b03; }}
-  .note::before {{ content: "← "; }}
   .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }}
-                  .lyrics {{ columns: {2 if len(lines) > 40 else 1}; column-gap: 10mm; font-size: {11.5 if len(lines) > 40 else 13}pt; }} }}
-</style></head>
+  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} }}
+{STYLE}</style></head>
 <body>
 <h1>{escape(title)}</h1>
-<div class="legend">{legend}</div>
-<div class="lyrics">
-{chr(10).join(body)}
-</div>
+{section(data)}
 <button class="print" onclick="print()">Imprimir</button>
 </body></html>
 """

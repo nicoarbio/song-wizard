@@ -1,6 +1,8 @@
-"""A printable setlist of a folder: number, song, key, tempo and length, with the total. In the
-order of the files ("001 - ..."). Written as Setlist.html (one A4 page, big enough to read from
-the floor) and Setlist.txt in the folder; the interface shows the same page."""
+"""A printable setlist: number, song, key, tempo and length, with the total. Of a folder, in the
+order of its files ("001 - ..."), written as Setlist.html (one A4 page, big enough to read from
+the floor) and Setlist.txt in the folder; or of songs from any folders, in the order given, which
+touches no folder. The lyrics, with their marks, can follow on the next pages. The interface shows
+the same page."""
 
 import html
 import os
@@ -45,19 +47,49 @@ def find(path, root=None):
     return None, target
 
 
-def rows(folder, here):
+def row(n, song, here):
     from .ui import duration
 
+    title, artist = title_of(song["name"])
+    key = (song["key"] or "").split()
+    tempo = re.match(r"([\d.]+) BPM", song["bpm"] or "")
+    return {"n": n, "title": title, "artist": artist, "path": here / song["name"],
+            "key": (key[0] + ("?" if "uncertain" in song["key"] else "")) if key else "",
+            "bpm": f"{float(tempo[1]):.0f}" if tempo else "",
+            "seconds": duration(here / song["name"])}
+
+
+def rows(folder, here):
+    return [row(n, song, here) for n, song in enumerate(folder["songs"], 1)]
+
+
+def pick(paths, root=None):
+    """The songs at these paths, in this order, from any folders of the library: (song, folder on
+    disk). A stem or a version stands for its song. Raises LookupError with the first path that
+    isn't a song of the library."""
+    from .listing import folder_path
+    from .ui import library
+
+    root = root or music_dir()
+    known = {}
+    for folder in library(root):
+        if folder.get("missing"):
+            continue
+        here = folder_path(root, folder)
+        for song in folder["songs"]:
+            for name in [song["name"], *(f["name"] for f in song["files"])]:
+                known.setdefault(str((here / name).resolve()), (song, here))
     out = []
-    for n, song in enumerate(folder["songs"], 1):
-        title, artist = title_of(song["name"])
-        key = (song["key"] or "").split()
-        tempo = re.match(r"([\d.]+) BPM", song["bpm"] or "")
-        out.append({"n": n, "title": title, "artist": artist,
-                    "key": (key[0] + ("?" if "uncertain" in song["key"] else "")) if key else "",
-                    "bpm": f"{float(tempo[1]):.0f}" if tempo else "",
-                    "seconds": duration(here / song["name"])})
+    for path in paths:
+        found = known.get(str(Path(system.local_path(str(path))).resolve()))
+        if not found:
+            raise LookupError(str(path))
+        out.append(found)
     return out
+
+
+def chosen(paths, root=None):
+    return [row(n, song, here) for n, (song, here) in enumerate(pick(paths, root), 1)]
 
 
 def text(name, items):
@@ -71,8 +103,11 @@ def text(name, items):
     return "\n".join(lines) + "\n"
 
 
-def page(name, items):
-    """The printable page. Everything shown is escaped: names come from downloaded titles."""
+def page(name, items, with_lyrics=False):
+    """The printable page; with the lyrics of the songs that have them, one song per page after
+    the list. Everything shown is escaped: names come from downloaded titles."""
+    from . import lyrics
+
     total = sum(r["seconds"] or 0 for r in items)
     # Big enough to read from the floor, small enough to fit the whole set on one A4 page.
     size = max(9, min(20, int(410 / max(len(items), 1))))
@@ -81,6 +116,13 @@ def page(name, items):
         + (f" <span class=a>{html.escape(r['artist'])}</span>" if r["artist"] else "")
         + f"</td><td class=k>{html.escape(r['key'])}</td><td class=b>{r['bpm']}</td><td class=d>{clock(r['seconds'])}</td></tr>"
         for r in items)
+    sheets = []
+    for r in items if with_lyrics else []:
+        data = lyrics.load(r["path"])
+        if data:
+            sheets.append(f'<section class="song"><h2><span class=n>{r["n"]}.</span> {html.escape(r["title"])}'
+                          + (f' <span class=a>{html.escape(r["artist"])}</span>' if r["artist"] else "")
+                          + f'</h2>\n{lyrics.section(data)}\n</section>')
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setlist: {html.escape(name)}</title>
@@ -96,9 +138,12 @@ def page(name, items):
   .a {{ color: #666; font-size: .6em; white-space: nowrap; }}
   .k, .b, .d {{ white-space: nowrap; text-align: right; font-variant-numeric: tabular-nums; }}
   .k {{ font-weight: 700; }}
+  .song {{ break-before: page; margin-top: 48px; }}
+  .song h2 {{ font-size: 20pt; margin: 0 0 6px; }}
+  .song h2 .n {{ font-weight: 400; }}
   .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} }}
-</style></head>
+  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} .song {{ margin-top: 0; }} }}
+{lyrics.STYLE}</style></head>
 <body>
 <h1>{html.escape(name)}</h1>
 <div class="meta">{len(items)} temas · {clock(total)}</div>
@@ -107,19 +152,37 @@ def page(name, items):
 {body}
 </tbody></table>
 <button class="print" onclick="print()">Imprimir</button>
+{chr(10).join(sheets)}
 </body></html>
 """
 
 
-def run(path, name=None):
-    folder, here = find(path)
-    if folder is None:
-        die(f"{path}: not a folder of the library (see song-wizard list).")
-    if not folder["songs"]:
-        die(f"{system.shown_path(here)} has no songs.")
-    items = rows(folder, here)
-    name = name or (folder["playlist"]["title"] if folder["playlist"] else here.name)
+def run(paths=(), name=None, with_lyrics=False, out=None):
+    """One folder: its setlist, saved in it (or in out). Songs: theirs, in that order, shown and
+    saved only to out."""
+    paths = [paths] if isinstance(paths, (str, Path)) else list(paths) or ["."]
+    if len(paths) == 1 and Path(system.local_path(str(paths[0]))).is_dir():
+        folder, here = find(paths[0])
+        if folder is None:
+            die(f"{paths[0]}: not a folder of the library (see song-wizard list).")
+        if not folder["songs"]:
+            die(f"{system.shown_path(here)} has no songs.")
+        items = rows(folder, here)
+        name = name or (folder["playlist"]["title"] if folder["playlist"] else here.name)
+    else:
+        try:
+            items = chosen(paths)
+        except LookupError as e:
+            die(f"{e.args[0]}: not a song of the library (see song-wizard list). Give one folder, or songs.")
+        name, here = name or "Setlist", None
     print(text(name, items), end="")
-    (here / "Setlist.txt").write_text(text(name, items), encoding="utf-8")
-    (here / "Setlist.html").write_text(page(name, items), encoding="utf-8")
-    print(f"\nSaved Setlist.txt and Setlist.html (to print: open it in the browser) in {system.shown_path(here)}")
+    if out:
+        out = Path(system.local_path(str(out)))
+        out.write_text(page(name, items, with_lyrics), encoding="utf-8")
+        print(f"\nSaved {system.shown_path(out)} (to print: open it in the browser)")
+    elif here:
+        (here / "Setlist.txt").write_text(text(name, items), encoding="utf-8")
+        (here / "Setlist.html").write_text(page(name, items, with_lyrics), encoding="utf-8")
+        print(f"\nSaved Setlist.txt and Setlist.html (to print: open it in the browser) in {system.shown_path(here)}")
+    else:
+        print("\nTo print it: --out setlist.html saves it as a page, or use the interface.")

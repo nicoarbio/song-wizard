@@ -496,17 +496,27 @@ def make_handler(token, root, runner, port):
                 page_title = f"{title} ({artist})" if artist else title
                 return self.send(HTTPStatus.OK, lyrics.page(page_title, data).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
-                # The printable setlist of a folder, in its own tab.
+                # The printable setlist, in its own tab: of a folder, or of songs from any folders
+                # in the order given (?path=...&path=...). Shown only: nothing is saved.
                 from . import setlist
+                with_lyrics = query.get("lyrics", [""])[0] == "1"
+                title = query.get("title", [""])[0].strip()
                 try:
-                    here = self.resolve(query.get("folder", [""])[0])
+                    if "path" in query:
+                        items = setlist.chosen([self.resolve(p) for p in query["path"]], root)
+                    else:
+                        here = self.resolve(query.get("folder", [""])[0])
                 except PermissionError:
                     return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
-                folder, here = setlist.find(here, root)
-                if folder is None or not folder["songs"]:
-                    return self.error(HTTPStatus.NOT_FOUND, "esa carpeta no tiene temas")
-                title = folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist")
-                return self.send(HTTPStatus.OK, setlist.page(title, setlist.rows(folder, here)).encode(), "text/html; charset=utf-8")
+                except LookupError:
+                    return self.error(HTTPStatus.NOT_FOUND, "alguno de esos ya no es un tema de la biblioteca")
+                if "path" not in query:
+                    folder, here = setlist.find(here, root)
+                    if folder is None or not folder["songs"]:
+                        return self.error(HTTPStatus.NOT_FOUND, "esa carpeta no tiene temas")
+                    items = setlist.rows(folder, here)
+                    title = title or (folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist"))
+                return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics).encode(), "text/html; charset=utf-8")
             if url.path == "/api/peaks":
                 try:
                     path = self.resolve(query.get("path", [""])[0])

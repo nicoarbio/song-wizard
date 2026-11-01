@@ -234,12 +234,17 @@ def build_parser():
     p.add_argument("--export", action="store_true",
                    help='save the lyrics with highlights and notes as "<song>.lyrics.html", to print or share')
 
-    p = sub.add_parser("setlist", help="a printable setlist of a folder: key, tempo and length of each song",
-                       description="Lists the songs of a folder in the order of their files (001 - ...), with "
-                                   "key and tempo (from key.txt and bpm.txt: run key and bpm first) and length, "
-                                   "and saves Setlist.txt and Setlist.html (one A4 page, to print) in the folder.")
-    p.add_argument("folder", nargs="?", default=".", help="the folder (default: the current one)")
-    p.add_argument("--title", help="title on top (default: the playlist's or the folder's name)")
+    p = sub.add_parser("setlist", help="a printable setlist of a folder, or of songs from any folders",
+                       description="Lists songs with their key and tempo (from key.txt and bpm.txt: run key "
+                                   "and bpm first) and length, and the total. Of one folder: in the order of "
+                                   "its files (001 - ...), saved as Setlist.txt and Setlist.html (one A4 page, "
+                                   "to print) in the folder. Of songs: in the order given, from any folders; "
+                                   "nothing is saved in them (--out saves the page).")
+    p.add_argument("paths", nargs="*", metavar="FOLDER|SONG", help="a folder (default: the current one), or songs")
+    p.add_argument("--title", help="title on top (default: the playlist's or the folder's name; for songs, Setlist)")
+    p.add_argument("--lyrics", action="store_true",
+                   help="add the lyrics of the songs that have them, with their marks, one per page after the list")
+    p.add_argument("--out", metavar="FILE.html", help="save the page here (for a folder: instead of in it)")
 
     p = sub.add_parser("reaper", help="open the song's REAPER project, making it first if there's none",
                        description='Opens "<song>.rpp" (next to the song) in REAPER. If there\'s none, makes it '
@@ -355,7 +360,7 @@ def dispatch(argv):
         lyrics.run(args.paths, text_from=args.text_from, force=args.force, export_page=args.export)
     elif args.command == "setlist":
         from . import setlist
-        setlist.run(args.folder, name=args.title)
+        setlist.run(args.paths, name=args.title, with_lyrics=args.lyrics, out=args.out)
     elif args.command == "reaper":
         from . import reaper
         if args.setting:

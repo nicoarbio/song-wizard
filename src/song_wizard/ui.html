@@ -217,6 +217,15 @@
   dialog.confirm #confirm-text p { margin: 0 0 12px; }
   dialog ol { padding-left: 20px; } dialog li { margin: 6px 0; }
   dialog a { color: var(--accent); font-weight: 600; }
+  dialog#setlist ol { list-style: none; padding: 0; margin: 8px 0 12px; max-height: 55vh; overflow-y: auto; }
+  dialog#setlist li { display: flex; align-items: center; gap: 8px; margin: 0; padding: 4px 6px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  dialog#setlist li.dragging { opacity: .4; }
+  dialog#setlist li.over { box-shadow: 0 -2px 0 var(--accent) inset; }
+  dialog#setlist .grip { cursor: grab; color: var(--muted); user-select: none; }
+  dialog#setlist .num { width: 1.8em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  dialog#setlist .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog#setlist .where { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  dialog#setlist input#setlist-title { width: 100%; box-sizing: border-box; }
 </style>
 </head>
 <body>
@@ -496,6 +505,15 @@
   <div class="row" style="justify-content:flex-end"><button id="delete-cancel">cancelar</button><button class="danger" id="delete-confirm">mandar a la papelera</button></div>
 </dialog>
 
+<dialog id="setlist" aria-label="Setlist">
+  <h3>Setlist</h3>
+  <label>Título <input id="setlist-title" maxlength="120"></label>
+  <p class="hint">Arrastrá los temas para cambiar el orden (o usá ↑ ↓). Es solo para imprimir: no se guarda nada ni se toca ninguna carpeta.</p>
+  <ol id="setlist-list"></ol>
+  <label><input type="checkbox" id="setlist-lyrics"> <span id="setlist-lyrics-text">con las letras</span></label>
+  <div class="row" style="justify-content:flex-end"><button id="setlist-cancel">cancelar</button><button class="open" id="setlist-open">abrir para imprimir</button></div>
+</dialog>
+
 <dialog id="lyrics">
   <div class="row lyr-head">
     <h3 id="lyr-title"></h3>
@@ -750,7 +768,7 @@ function renderLibrary() {
         folder.playlist ? el("button", { class: "small open", title: `Vuelve a mirar la playlist "${folder.playlist.title}" y baja solo los temas que se agregaron`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
         el("button", { class: folder.playlist ? "small" : "small open", title: "Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total",
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); window.open(`/setlist?folder=${encodeURIComponent(folder.path)}`, "_blank"); } }, "setlist"),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, "setlist"),
         el("button", { class: "small", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
@@ -993,7 +1011,9 @@ function renderSelection() {
   box.replaceChildren(n
     ? el("span", {}, `${parts.join(" y ")} elegido${n === 1 ? "" : "s"} `,
         el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar selección"), " ",
-        el("button", { class: "small", title: "Mandar a la papelera lo elegido (pide confirmación)", onclick: confirmDelete }, "borrar archivos seleccionados"))
+        el("button", { class: "small", title: "Mandar a la papelera lo elegido (pide confirmación)", onclick: confirmDelete }, "borrar archivos seleccionados"), " ",
+        found.some((f) => f.song) ? el("button", { class: "small", title: "Una lista para imprimir con los temas elegidos, de cualquier carpeta, en el orden que quieras (un stem o una versión cuenta como su tema)",
+          onclick: setlistOfSelection }, "setlist con lo elegido") : null)
     : el("span", { class: "muted" }, "Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas."));
   const kinds = found.map(kindOf);
   for (const b of document.querySelectorAll("[data-needs=songs]")) {
@@ -2176,6 +2196,77 @@ $("delete-confirm").onclick = () => {
   const plan = deletePlan();
   $("delete").close();
   start({ action: "delete", songs: plan.songs.map((s) => s.path), files: plan.files.map((f) => f.path) });
+};
+
+// A setlist of any songs, in the order they were picked; a stem or a version stands for its song.
+function setlistOfSelection() {
+  const seen = new Set(), items = [];
+  for (const f of [...state.selected].map(findPath).filter((f) => f && f.song)) {
+    if (!seen.has(f.song.path)) { seen.add(f.song.path); items.push({ song: f.song, folder: f.folder }); }
+  }
+  openSetlist(items, "Setlist");
+}
+
+const setlistState = { items: [], drag: null };
+// As the printed sheet shows it (setlist.title_of): no number, no "(Official Video)" or "[HD]".
+const NOISE = /\s*[(\[][^()\[\]]*\b(official|audio|video|lyrics?|hd|hq|4k|remaster(ed)?|visualizer|videoclip)\b[^()\[\]]*[)\]]/gi;
+const songTitle = (name) => name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "").replace(NOISE, "").trim();
+
+function openSetlist(items, title) {
+  if (!items.length) return;
+  setlistState.items = items.slice();
+  $("setlist-title").value = title || "Setlist";
+  renderSetlist();
+  $("setlist").showModal();
+  $("setlist-open").focus();
+}
+
+function moveSetlist(from, to) {
+  const items = setlistState.items;
+  if (to < 0 || to >= items.length || from === to) return;
+  items.splice(to, 0, items.splice(from, 1)[0]);
+  renderSetlist();
+}
+
+function renderSetlist() {
+  const items = setlistState.items;
+  const folders = new Set(items.map((i) => i.folder.path));
+  const list = $("setlist-list");
+  list.replaceChildren(...items.map(({ song, folder }, i) => {
+    const key = song.key ? song.key.split(/\s+/)[0] : "", bpm = song.bpm ? `${Math.round(parseFloat(song.bpm))} BPM` : "";
+    const li = el("li", { draggable: "true" },
+      el("span", { class: "grip", title: "Arrastrar para mover" }, "⠿"),
+      el("span", { class: "num" }, `${i + 1}.`),
+      el("span", { class: "name", title: song.name }, songTitle(song.name)),
+      el("span", { class: "where" }, [key, bpm].filter(Boolean).join(" · ")),
+      folders.size > 1 ? el("span", { class: "where", title: "Carpeta" }, folder.name) : null,
+      el("button", { class: "small", title: "Subir", disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
+      el("button", { class: "small", title: "Bajar", disabled: i === items.length - 1, onclick: () => moveSetlist(i, i + 1) }, "↓"),
+      el("button", { class: "small", title: "Sacar de este setlist (no borra nada)", disabled: items.length === 1,
+        onclick: () => { items.splice(i, 1); renderSetlist(); } }, "×"));
+    li.addEventListener("dragstart", (e) => { setlistState.drag = i; li.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); });
+    li.addEventListener("dragend", () => { setlistState.drag = null; li.classList.remove("dragging"); });
+    li.addEventListener("dragover", (e) => { e.preventDefault(); li.classList.add("over"); });
+    li.addEventListener("dragleave", () => li.classList.remove("over"));
+    li.addEventListener("drop", (e) => { e.preventDefault(); li.classList.remove("over"); if (setlistState.drag !== null) moveSetlist(setlistState.drag, i); });
+    return li;
+  }));
+  const withLyrics = items.filter((i) => i.song.lyrics).length;
+  $("setlist-lyrics").disabled = !withLyrics;
+  if (!withLyrics) $("setlist-lyrics").checked = false;
+  $("setlist-lyrics-text").textContent = withLyrics
+    ? `con las letras y sus marcas, una por página después de la lista (${withLyrics === items.length ? (items.length === 1 ? "el tema la tiene" : `los ${items.length} temas la tienen`) : `${withLyrics} de ${items.length} temas la tienen`})`
+    : "con las letras (ninguno de estos temas tiene letra todavía: más › Letra)";
+}
+
+$("setlist-cancel").onclick = () => $("setlist").close();
+$("setlist-open").onclick = () => {
+  const query = new URLSearchParams();
+  for (const { song } of setlistState.items) query.append("path", song.path);
+  query.set("title", $("setlist-title").value.trim() || "Setlist");
+  if ($("setlist-lyrics").checked) query.set("lyrics", "1");
+  window.open(`/setlist?${query}`, "_blank");
+  $("setlist").close();
 };
 
 // The report is written by the server; the page shows it, then links to GitHub (this browser

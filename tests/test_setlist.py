@@ -6,7 +6,7 @@ import pytest
 import synth
 from test_ui import request, server, TOKEN  # noqa: F401  (the fixture)
 
-from song_wizard import results, setlist
+from song_wizard import lyrics, results, setlist
 
 
 @pytest.mark.parametrize("name, expected", [
@@ -71,3 +71,72 @@ def test_interface(server):  # noqa: F811
     assert request(port, "GET", "/setlist?folder=Show", token=None)[0].status == 403
     assert request(port, "GET", "/setlist?folder=../..")[0].status == 403
     assert request(port, "GET", "/setlist?folder=Empty")[0].status == 404
+
+
+@pytest.fixture
+def loose(show):
+    """Songs in two folders, one with lyrics."""
+    root, folder = show
+    other = root / "Other"
+    other.mkdir()
+    synth.write(other / "001 - Band - Elsewhere.wav", synth.sine(440, 3.0))
+    lyrics.save(folder / "003 - Third.wav", {"text": "First line <i>\nSecond line", "legend": {"yellow": "all"},
+                                             "marks": [{"line": 0, "from": 0, "to": 5, "color": "yellow"}],
+                                             "notes": {"1": "softly"}})
+    return root, folder, other
+
+
+def test_chosen_in_the_order_given(loose):
+    root, folder, other = loose
+    items = setlist.chosen([folder / "003 - Third.wav", other / "001 - Band - Elsewhere.wav",
+                            folder / "001 - Band - First (Official Video) (drums).wav"])  # a stem: its song
+    assert [r["title"] for r in items] == ["Third", "Elsewhere", "First"]
+    assert [r["n"] for r in items] == [1, 2, 3] and items[2]["key"] == "Am"
+    with pytest.raises(LookupError):
+        setlist.chosen([folder / "nope.wav"])
+
+
+def test_page_with_lyrics(loose):
+    root, folder, other = loose
+    items = setlist.chosen([other / "001 - Band - Elsewhere.wav", folder / "003 - Third.wav"])
+    assert "class=\"song\"" not in setlist.page("Show", items)
+    page = setlist.page("Show", items, with_lyrics=True)
+    assert page.count('<section class="song">') == 1  # only the one with lyrics
+    assert "<span class=n>2.</span> Third" in page and " line &lt;i&gt;" in page and "softly" in page
+    assert "<mark style=\"background:#ffe066\">First</mark>" in page
+
+
+def test_run_songs(loose, capsys, tmp_path):
+    root, folder, other = loose
+    before = sorted(p.name for p in folder.iterdir())
+    setlist.run([str(other / "001 - Band - Elsewhere.wav"), str(folder / "003 - Third.wav")], name="Gig")
+    out = capsys.readouterr().out
+    assert out.startswith("Gig\n") and "1. Elsewhere" in out and "2. Third" in out and "2 songs, 0:05" in out
+    assert sorted(p.name for p in folder.iterdir()) == before  # nothing saved in the folders
+    setlist.run([str(folder / "003 - Third.wav")], with_lyrics=True, out=str(tmp_path / "gig.html"))
+    assert "Second line" in (tmp_path / "gig.html").read_text()
+    with pytest.raises(SystemExit):
+        setlist.run([str(folder / "003 - Third.wav"), str(tmp_path / "nope.wav")])
+
+
+def test_run_folder_out(show, tmp_path, capsys):
+    root, folder = show
+    setlist.run([str(folder)], out=str(tmp_path / "s.html"))
+    assert "First" in (tmp_path / "s.html").read_text() and not (folder / "Setlist.html").exists()
+
+
+def test_interface_songs(server):  # noqa: F811
+    port, root = server
+    for name in ["A", "B"]:
+        (root / name).mkdir()
+        synth.write(root / name / f"001 - Song {name}.wav", synth.sine(440, 1.0))
+    lyrics.save(root / "B" / "001 - Song B.wav", {"text": "la la"})
+    query = "path=B/001%20-%20Song%20B.wav&path=A/001%20-%20Song%20A.wav&title=Gig%20%3Cb%3E"
+    response, content = request(port, "GET", f"/setlist?{query}")
+    assert response.status == 200 and b"<title>Setlist: Gig &lt;b&gt;" in content
+    assert content.index(b"Song B") < content.index(b"Song A") and b"la la" not in content
+    assert b"la la" in request(port, "GET", f"/setlist?{query}&lyrics=1")[1]
+    assert b"la la" in request(port, "GET", "/setlist?folder=B&lyrics=1")[1]
+    assert request(port, "GET", "/setlist?path=../../etc/passwd")[0].status == 403
+    assert request(port, "GET", "/setlist?path=A/nope.wav")[0].status == 404
+    assert request(port, "GET", f"/setlist?{query}", token=None)[0].status == 403
