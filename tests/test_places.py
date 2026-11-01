@@ -83,3 +83,17 @@ def test_local_path(monkeypatch):
     assert system.local_path("/srv/music") == "/srv/music"
     monkeypatch.setattr(system, "is_wsl", lambda: False)
     assert system.local_path("G:\\x") == "G:\\x"
+
+
+def test_unmounted_drive(playlist, monkeypatch):
+    monkeypatch.setattr(system, "is_wsl", lambda: True)
+    monkeypatch.setattr(system.shutil, "which", lambda name: None)  # no wslpath: the fallback
+    assert system.local_path("H:\\Mi unidad\\Bateria") == "/mnt/h/Mi unidad/Bateria"
+    monkeypatch.setattr(system.os.path, "ismount", lambda p: p == "/mnt/c")
+    assert system.unmounted_drive("/mnt/h/Mi unidad/Bateria") == "H"
+    assert system.unmounted_drive("/mnt/c/Users") is None
+    assert system.unmounted_drive("/home/me") is None
+    assert "sudo mount -t drvfs H: /mnt/h" in system.mount_hint("H")
+    with pytest.raises(SystemExit) as e:
+        archives.move("1", "/mnt/h/Mi unidad")
+    assert "drvfs H:" in str(e.value)

@@ -20,11 +20,28 @@ def local_path(text):
     """A folder as typed or picked: on WSL a Windows path ("G:\\Mi unidad\\Ensayos") becomes its
     Linux one; "~" is the home folder."""
     text = text.strip().strip('"')
-    if is_wsl() and re.match(r"^[A-Za-z]:[\\/]", text) and shutil.which("wslpath"):
-        out = subprocess.run(["wslpath", "-u", text], capture_output=True, text=True).stdout.strip()
-        if out:
-            return out
+    match = re.match(r"^([A-Za-z]):[\\/]?(.*)$", text) if is_wsl() else None
+    if match:
+        if shutil.which("wslpath"):
+            out = subprocess.run(["wslpath", "-u", text], capture_output=True, text=True).stdout.strip()
+            if out.startswith("/"):
+                return out
+        # wslpath leaves a drive WSL hasn't mounted as it is: point where it would be mounted, so
+        # the error can say what's missing.
+        return f"/mnt/{match[1].lower()}/" + match[2].replace("\\", "/").strip("/")
     return os.path.expanduser(text)
+
+
+def unmounted_drive(path):
+    """On WSL, the letter of the Windows drive a /mnt/<x>/... path is on, if WSL hasn't mounted
+    it (drives that appear after WSL starts, like Google Drive's, aren't mounted on their own)."""
+    match = re.match(r"^/mnt/([a-z])(/|$)", str(path)) if is_wsl() else None
+    return match[1].upper() if match and not os.path.ismount(f"/mnt/{match[1]}") else None
+
+
+def mount_hint(letter):
+    return (f"Windows drive {letter}: isn't available in WSL. Mount it with: "
+            f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
 
 
 _shown = {}

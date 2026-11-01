@@ -205,6 +205,9 @@ def folder_from(text):
     if not text or not str(text).strip():
         return None
     path = Path(system.local_path(str(text)))
+    if letter := system.unmounted_drive(path):
+        raise ValueError(f"WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo en la "
+                         f"terminal: sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}")
     if not path.is_absolute() or not path.is_dir():
         raise ValueError(f"no existe la carpeta {text}")
     return str(path)

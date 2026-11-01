@@ -393,3 +393,12 @@ def test_icon_and_logo_need_no_token(server):
     assert response.status == 200 and content[:8] == b"\x89PNG\r\n\x1a\n"
     assert request(port, "GET", "/static/other.png", token=None)[0].status == 403
     assert request(port, "GET", "/favicon.ico", token=None, host="evil.example:80")[0].status == 403
+
+
+def test_folder_on_an_unmounted_drive(server, monkeypatch):
+    port, _ = server
+    monkeypatch.setattr(system, "is_wsl", lambda: True)
+    monkeypatch.setattr(system.shutil, "which", lambda name: None)
+    monkeypatch.setattr(system.os.path, "ismount", lambda p: False)
+    response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": "H:\\Mi unidad"})
+    assert response.status == 400 and "sudo mount -t drvfs H: /mnt/h" in json.loads(content)["error"]

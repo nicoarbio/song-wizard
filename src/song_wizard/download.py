@@ -40,6 +40,10 @@ def run(url, wav=False, extra=(), to=None):
     if to is None and known and Path(known).is_dir():
         output = f"{escape(known)}/{song}"
     else:
+        from . import system
+
+        if to and (letter := system.unmounted_drive(to)):
+            sys.exit(system.mount_hint(letter))
         dest = Path(to).expanduser() if to else music_dir()
         output = f"{escape(dest)}/%(playlist_title|Singles)s/{song}"
     args = [

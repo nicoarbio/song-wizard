@@ -58,6 +58,10 @@ def move(which, dest):
         # Archives from before folders were recorded: look in the music folder by name.
         root = music_dir()
         source = next((f for f in root.iterdir() if f.is_dir() and playlist_for(f, [playlist])), None) if root.is_dir() else None
+    from . import system
+
+    if letter := system.unmounted_drive(dest):
+        sys.exit(system.mount_hint(letter))
     dest = Path(dest).expanduser().resolve()
     if not dest.is_dir():
         sys.exit(f"{dest}: no such folder.")

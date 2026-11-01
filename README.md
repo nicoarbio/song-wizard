@@ -183,6 +183,7 @@ song-wizard download "https://.../watch?v=..."         # un tema suelto
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
 - Para guardar una playlist nueva en otra carpeta (por ejemplo, una que se sincroniza con la nube): `--to "G:\Mi unidad\Ensayos"` (en WSL sirven las rutas de Windows). Adentro se crea la carpeta de la playlist.
+- En WSL, la unidad de Google Drive para Windows (por ejemplo `H:`) aparece después de que arranca WSL y no se conecta sola: si song-wizard dice que no ve la unidad, conectala con `sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h` (cambiando `h` por su letra). Hay que repetirlo cada vez que se reinicia WSL; para que se conecte sola, agregá la línea `H: /mnt/h drvfs defaults,nofail 0 0` a `/etc/fstab` (con `nofail`, si Drive todavía no arrancó, WSL sigue igual).
 - Una playlist que ya bajaste sigue bajándose en su carpeta, esté donde esté, aunque la hayas movido con `archives --move` (ver abajo).
 - Para cambiar la carpeta de música de todo: `music_dir` en `song-wizard config`, o `SONG_WIZARD_DIR=~/Ensayos`.
 - Para volver a bajar temas que ya están en el registro: agregá `--no-download-archive` al final. Si los archivos siguen en la carpeta, sumá también `--force-overwrites`, porque si no se saltean igual.
