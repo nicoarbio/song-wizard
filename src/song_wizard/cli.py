@@ -45,6 +45,9 @@ def build_parser():
                                    "folder (the Windows one on WSL). An archive per playlist is kept: running "
                                    "it again only downloads new songs.")
     p.add_argument("--wav", action="store_true", help="also write a .wav next to each .opus")
+    p.add_argument("--to", metavar="FOLDER",
+                   help="where a new playlist's folder goes (default: the music folder); a playlist downloaded "
+                        "before goes on in its own folder, wherever it is")
     p.add_argument("url", help="link to a song or a playlist")
     p.add_argument("ytdlp_args", nargs=argparse.REMAINDER, metavar="...",
                    help="extra yt-dlp options, e.g. --cookies-from-browser chrome")
@@ -156,6 +159,9 @@ def build_parser():
                                    "some of them (by the numbers in the list) or all, so downloading them "
                                    "again gets every song again. Downloaded songs are never deleted.")
     p.add_argument("--delete", nargs="+", metavar="N", help='numbers from the list, or "all"')
+    p.add_argument("--move", nargs=2, metavar=("N", "FOLDER"),
+                   help="move playlist N (songs, stems and all) into FOLDER and keep downloading there; if you "
+                        "moved it by hand already, records where it is now")
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
 
     p = sub.add_parser("ui", help="open the interface in the browser (same commands, without the terminal)",
@@ -203,8 +209,9 @@ def dispatch(argv):
     args = parser.parse_args(argv)
 
     if args.command == "download":
-        from . import download
-        download.run(args.url, wav=args.wav, extra=args.ytdlp_args)
+        from . import download, system
+        download.run(args.url, wav=args.wav, extra=args.ytdlp_args,
+                     to=system.local_path(args.to) if args.to else None)
     elif args.command == "key":
         from . import key
         key.run(args.paths)
@@ -221,8 +228,10 @@ def dispatch(argv):
         from . import rename
         rename.run(args.path, args.name)
     elif args.command == "archives":
-        from . import archives
-        if args.delete:
+        from . import archives, system
+        if args.move:
+            archives.move(args.move[0], system.local_path(args.move[1]))
+        elif args.delete:
             archives.delete(args.delete, yes=args.yes)
         else:
             archives.show()

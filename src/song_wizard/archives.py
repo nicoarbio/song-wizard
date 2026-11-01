@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,43 @@ def forget_sources(links):
             path.write_text("".join(f"{l}\n" for l in kept))
             gone += len(lines) - len(kept)
     return gone
+
+
+def move(which, dest):
+    """Move a playlist's folder, songs and all, into dest (dest/<its name>) and record the new
+    place. which: its number in the list or its id. If it was already moved by hand and is found
+    in dest, only the new place is recorded."""
+    from .paths import music_dir
+
+    rows = [r for r in entries() if r[0] != SINGLES]
+    by_number = {str(i): r[0] for i, r in enumerate(entries(), 1) if r[0] != SINGLES}
+    archive_id = by_number.get(str(which), which)
+    playlist = next((p for p in playlists() if p["id"] == archive_id), None)
+    if playlist is None:
+        sys.exit(f'No playlist "{which}": use the numbers shown by "song-wizard archives" ({len(rows)} playlists).')
+    source = Path(playlist["folder"]) if playlist["folder"] else None
+    if source is None or not source.is_dir():
+        # Archives from before folders were recorded: look in the music folder by name.
+        root = music_dir()
+        source = next((f for f in root.iterdir() if f.is_dir() and playlist_for(f, [playlist])), None) if root.is_dir() else None
+    dest = Path(dest).expanduser().resolve()
+    if not dest.is_dir():
+        sys.exit(f"{dest}: no such folder.")
+    name = source.name if source else (playlist["title"] or archive_id)
+    target = dest / name
+    if source and source.resolve() == target:
+        sys.exit(f"{playlist['title']} is already in {dest}.")
+    if source:
+        if target.exists():
+            sys.exit(f"{target} already exists: nothing moved.")
+        print(f"Moving {source} to {target}...", flush=True)
+        shutil.move(str(source), str(target))
+    elif target.is_dir():
+        print(f"Found it in {target}.")
+    else:
+        sys.exit(f"Can't find the folder of {playlist['title']}; move it by hand and run this again.")
+    remember(archive_id, playlist["url"], None, folder=str(target))
+    print(f"{playlist['title']} is now in {target}. Looking for new songs downloads them there.")
 
 
 def simple(name):

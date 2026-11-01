@@ -16,6 +16,52 @@ import webbrowser
 from .paths import is_wsl
 
 
+def local_path(text):
+    """A folder as typed or picked: on WSL a Windows path ("G:\\Mi unidad\\Ensayos") becomes its
+    Linux one; "~" is the home folder."""
+    text = text.strip().strip('"')
+    if is_wsl() and re.match(r"^[A-Za-z]:[\\/]", text) and shutil.which("wslpath"):
+        out = subprocess.run(["wslpath", "-u", text], capture_output=True, text=True).stdout.strip()
+        if out:
+            return out
+    return os.path.expanduser(text)
+
+
+_shown = {}
+
+
+def shown_path(path):
+    """A path as the user sees it: on WSL, a folder on a Windows drive in Windows form."""
+    path = str(path)
+    if is_wsl() and re.match(r"^/mnt/[a-z]/", path) and shutil.which("wslpath"):
+        if path not in _shown:
+            _shown[path] = windows_path(path) or path
+        return _shown[path]
+    return path
+
+
+def pick_folder():
+    """Ask with the system's own folder dialog; the folder's path, or None if cancelled."""
+    if is_wsl() and shutil.which("powershell.exe"):
+        # A topmost owner window: without it the dialog can open behind the browser.
+        script = ("Add-Type -AssemblyName System.Windows.Forms; "
+                  "$owner = New-Object System.Windows.Forms.Form -Property @{TopMost = $true}; "
+                  "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                  "$d.Description = 'Carpeta para song-wizard'; $d.ShowNewFolderButton = $true; "
+                  "if ($d.ShowDialog($owner) -eq 'OK') { [Console]::OutputEncoding = [Text.Encoding]::UTF8; $d.SelectedPath }")
+        out = subprocess.run(["powershell.exe", "-NoProfile", "-STA", "-Command", script], capture_output=True,
+                             cwd="/mnt/c" if os.path.isdir("/mnt/c") else None).stdout.decode("utf-8", "replace").strip()
+        return local_path(out) if out else None
+    if sys.platform == "darwin":
+        out = subprocess.run(["osascript", "-e", 'POSIX path of (choose folder with prompt "Carpeta para song-wizard")'],
+                             capture_output=True, text=True).stdout.strip()
+        return out.rstrip("/") or None
+    if shutil.which("zenity"):
+        out = subprocess.run(["zenity", "--file-selection", "--directory"], capture_output=True, text=True).stdout.strip()
+        return out or None
+    return None
+
+
 def windows_path(path):
     return subprocess.run(["wslpath", "-w", str(path)], capture_output=True, text=True).stdout.strip()
 

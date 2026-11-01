@@ -19,6 +19,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import align, archives, log, results, system
@@ -197,16 +198,42 @@ def peaks(path, n, start=None, end=None):
     return result
 
 
+def folder_from(text):
+    """A folder typed or picked in the page (a Windows path works on WSL): its path, or None.
+    It must already exist."""
+    if not text or not str(text).strip():
+        return None
+    path = Path(system.local_path(str(text)))
+    if not path.is_absolute() or not path.is_dir():
+        raise ValueError(f"no existe la carpeta {text}")
+    return str(path)
+
+
+def outside(root, known=None):
+    """Playlists kept outside the music folder (moved to a synced drive, say): {"@<id>": folder}.
+    The page names their files "@<id>/<file>"."""
+    root = root.resolve()
+    found = {}
+    for p in archives.playlists() if known is None else known:
+        folder = Path(p["folder"]).resolve() if p["folder"] else None
+        if folder and folder.is_dir() and folder != root and root not in folder.parents:
+            found[f"@{p['id']}"] = folder
+    return found
+
+
 def library(root):
-    """The music folder and the folders directly in it, with their songs and, for each song,
-    the files generated from it (stems, transpositions, conversions)."""
+    """The music folder and the folders directly in it, plus playlists kept elsewhere, with their
+    songs and, for each song, the files generated from it (stems, transpositions, conversions)."""
     if not root.exists():
         return []
     folders = []
     known = archives.playlists()
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
-    for folder in [root, *subfolders]:
+    places = [(root, "", f) for f in [root, *subfolders]]
+    places += [(base, key, base) for key, base in sorted(outside(root, known).items(), key=lambda kv: kv[1].name.lower())]
+    for base, key, folder in places:
+        rel = lambda path, base=base, key=key: "/".join(filter(None, [key, relative(base, path)]))
         try:
             names = sorted(n for n in os.listdir(folder)
                            if os.path.splitext(n)[1].lower() in AUDIO_EXTS and (folder / n).is_file())
@@ -222,30 +249,31 @@ def library(root):
             originals = [n for n in members
                          if os.path.splitext(n)[0] == base and not GENERATED.search(base)]
             if not originals:  # click tracks: generated, but not from a song
-                extras += [file_entry(root, folder / n, keys, bpms) for n in members]
+                extras += [file_entry(rel, folder / n, keys, bpms) for n in members]
                 continue
             main = min(originals, key=lambda n: MAIN_FORMATS.index(os.path.splitext(n)[1].lower())
                        if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
-            songs.append({"name": main, "path": rel(root, folder / main),
+            songs.append({"name": main, "path": rel(folder / main),
                           "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
-                          "files": [file_entry(root, folder / n, keys, bpms) for n in members if n != main]})
+                          "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
         if songs or extras or folder != root:
             playlist = archives.playlist_for(folder, known) if folder != root else None
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
-                            "path": rel(root, folder), "songs": songs, "extras": extras,
-                            "playlist": {k: playlist[k] for k in ("title", "url", "wav")} if playlist else None})
+                            "path": rel(folder), "songs": songs, "extras": extras,
+                            "location": system.shown_path(folder.parent) if key else None,
+                            "playlist": {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None})
     return folders
 
 
-def file_entry(root, path, keys, bpms):
+def file_entry(rel, path, keys, bpms):
     """A generated file. Stems can be analyzed too ("bpm" on the drums alone is often more
     reliable), so they carry their own results."""
-    return {"name": path.name, "path": rel(root, path), "size": path.stat().st_size,
+    return {"name": path.name, "path": rel(path), "size": path.stat().st_size,
             "key": keys.get(path.name), "bpm": bpms.get(path.name)}
 
 
-def rel(root, path):
-    return path.relative_to(root).as_posix() if path != root else ""
+def relative(base, path):
+    return path.relative_to(base).as_posix() if path != base else ""
 
 
 def make_handler(token, root, runner, port):
@@ -280,11 +308,19 @@ def make_handler(token, root, runner, port):
             given = self.headers.get("X-Token") or query.get("t", [""])[0]
             return secrets.compare_digest(given, token)
 
-        def resolve(self, relative):
-            """A path from the page, which must stay inside the music folder."""
-            path = (root / relative).resolve()
-            if path != root.resolve() and root.resolve() not in path.parents:
-                raise PermissionError(relative)
+        def resolve(self, name):
+            """A path from the page, which must stay inside the music folder or, for "@<id>/...",
+            inside that playlist's folder."""
+            base = root
+            if name.startswith("@"):
+                key, _, name = name.partition("/")
+                base = outside(root).get(key)
+                if base is None:
+                    raise PermissionError(key)
+            base = base.resolve()
+            path = (base / name).resolve()
+            if path != base and base not in path.parents:
+                raise PermissionError(name)
             return path
 
         def do_GET(self):
@@ -298,8 +334,9 @@ def make_handler(token, root, runner, port):
                 return self.json({"root": str(root), "folders": library(root), "fileManager": system.file_manager_name()})
             if url.path == "/api/archives":
                 meta = {p["id"]: p for p in archives.playlists()}
-                return self.json([{"number": i, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}",
-                                   "url": meta.get(a, {}).get("url"), "wav": meta.get(a, {}).get("wav", False)}
+                return self.json([{"number": i, "id": a, "title": t, "songs": n, "changed": f"{c:%Y-%m-%d %H:%M}",
+                                   "url": meta.get(a, {}).get("url"), "wav": meta.get(a, {}).get("wav", False),
+                                   "folder": system.shown_path(meta[a]["folder"]) if meta.get(a, {}).get("folder") else None}
                                   for i, (a, t, n, c) in enumerate(archives.entries(), 1)])
             if url.path == "/api/jobs":
                 since = int(query.get("since", ["0"])[0] or 0)
@@ -402,6 +439,9 @@ def make_handler(token, root, runner, port):
                 if not system.open_folder(report.REPORTS_DIR):
                     return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
                 return self.json({})
+            if url.path == "/api/pick-folder":
+                # The system's folder dialog, on this computer's screen; waits for an answer.
+                return self.json({"path": system.pick_folder()})
             if url.path == "/api/click-settings":
                 try:
                     path = self.resolve(str(body["path"]))
@@ -437,13 +477,13 @@ def make_handler(token, root, runner, port):
                 return self.error(HTTPStatus.NOT_FOUND, "no existe esa carpeta")
             if not system.open_folder(path):
                 return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
-            return self.json({"opened": rel(root, path)})
+            return self.json({"opened": str(path)})
 
         def command_for(self, body):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -459,7 +499,16 @@ def make_handler(token, root, runner, port):
                 if not re.match(r"https?://", url):
                     raise ValueError("la URL tiene que empezar con http:// o https://")
                 title = f"Buscar temas nuevos: {body['title']}" if body.get("title") else f"Bajar {url}"
-                return title, ["download", *(["--wav"] if body.get("wav") else []), url]
+                to = folder_from(body.get("to"))
+                return title, ["download", *(["--wav"] if body.get("wav") else []), *(["--to", to] if to else []), url]
+            if action == "archives-move":
+                to = folder_from(body.get("to"))
+                if not to:
+                    raise ValueError("falta la carpeta")
+                which = str(body["id"])
+                if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
+                    raise ValueError("playlist inválida")
+                return f"Mover {body.get('title') or which} a {to}", ["archives", "--move", which, to]
             if not paths and action not in ("click", "archives-delete"):
                 raise ValueError("no hay archivos elegidos")
             if action == "key":

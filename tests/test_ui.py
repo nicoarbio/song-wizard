@@ -217,7 +217,7 @@ def test_playlist_update(server, monkeypatch):
     url = "https://www.youtube.com/playlist?list=PLx"
     archives.remember("PLx", url, "Show", folder=str(root / "Show"), wav=True)
     folder = get_json(port, "/api/library")["folders"][-1]
-    assert folder["playlist"] == {"title": "Show", "url": url, "wav": True}
+    assert folder["playlist"] == {"id": "PLx", "title": "Show", "url": url, "wav": True}
     (row,) = get_json(port, "/api/archives")
     assert row["url"] == url and row["wav"] is True
     response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": url, "wav": True, "title": "Show"})
@@ -347,3 +347,39 @@ def test_delete_job(server, monkeypatch):
     assert ran == [["delete", "--yes", str(r / "Song.opus"), "--file", str(r / "Song (drums).wav")]]
     assert request(port, "POST", "/api/jobs", {"action": "delete"})[0].status == 400
     assert request(port, "POST", "/api/jobs", {"action": "delete", "files": ["../x"]})[0].status == 403
+
+
+def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
+    from song_wizard import archives
+    port, root = server
+    drive = tmp_path / "drive" / "Show"
+    drive.mkdir(parents=True)
+    synth.write(drive / "001 - A.wav", synth.sine(440, 1))
+    (tmp_path / "drive" / "secret.wav").write_bytes(b"s")
+    archives.ARCHIVE_DIR.mkdir(parents=True)
+    (archives.ARCHIVE_DIR / "PLx.txt").write_text("site a\n")
+    archives.remember("PLx", "https://example.com/playlist?list=PLx", "Show", folder=str(drive))
+    (folder,) = get_json(port, "/api/library")["folders"]
+    assert folder["path"] == "@PLx" and folder["location"] == str(drive.parent)  # (WSL shows C:\... for /mnt/c)
+    assert folder["songs"][0]["path"] == "@PLx/001 - A.wav" and folder["playlist"]["id"] == "PLx"
+    assert request(port, "GET", "/api/audio?path=%40PLx/001%20-%20A.wav")[0].status == 200
+    assert request(port, "GET", "/api/audio?path=%40PLx/../secret.wav")[0].status == 403
+    assert request(port, "GET", "/api/audio?path=%40PLother/x.wav")[0].status == 403
+    ran = []
+    monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "key", "paths": ["@PLx/001 - A.wav"]})[1])
+    wait_for(port, job["id"])
+    assert ran[-1] == ["key", str((drive / "001 - A.wav").resolve())]
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "archives-move", "id": "PLx", "title": "Show", "to": str(other)})[1])
+    wait_for(port, job["id"])
+    assert ran[-1] == ["archives", "--move", "PLx", str(other)]
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": str(other)})[1])
+    wait_for(port, job["id"])
+    assert ran[-1] == ["download", "--to", str(other), "https://example.com/x"]
+    for bad in [{"action": "archives-move", "id": "PLx", "to": str(tmp_path / "nope")}, {"action": "archives-move", "id": "../x", "to": str(other)},
+                {"action": "download", "url": "https://example.com/x", "to": "relative/dir"}]:
+        assert request(port, "POST", "/api/jobs", bad)[0].status == 400
+    monkeypatch.setattr(system, "pick_folder", lambda: "/picked")
+    assert json.loads(request(port, "POST", "/api/pick-folder", {})[1]) == {"path": "/picked"}

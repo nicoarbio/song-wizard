@@ -135,13 +135,13 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
-- **Bajar**: pegás el link de un tema o de una playlist arriba de todo.
+- **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
 - **Pista de click**: con un tema elegido se completan su tempo (si ya lo detectaste), su duración y los compases que la cubren; para un compás más, le sumás 1.
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
-- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos o de olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
+- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
 La página solo funciona mientras la terminal donde la abriste siga abierta; Ctrl+C la cierra. Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y cada vez que se abre usa una clave nueva en el link, así que ni otras páginas abiertas en el navegador pueden usarla. Si el navegador no se abre solo, abrí el link que muestra la terminal.
 
@@ -180,7 +180,9 @@ song-wizard download "https://.../watch?v=..."         # un tema suelto
 - Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
-- Para guardar en otra carpeta: `SONG_WIZARD_DIR=~/Ensayos song-wizard download "URL"`.
+- Para guardar una playlist nueva en otra carpeta (por ejemplo, una que se sincroniza con la nube): `--to "G:\Mi unidad\Ensayos"` (en WSL sirven las rutas de Windows). Adentro se crea la carpeta de la playlist.
+- Una playlist que ya bajaste sigue bajándose en su carpeta, esté donde esté, aunque la hayas movido con `archives --move` (ver abajo).
+- Para cambiar la carpeta de música de todo: `music_dir` en `song-wizard config`, o `SONG_WIZARD_DIR=~/Ensayos`.
 - Para volver a bajar temas que ya están en el registro: agregá `--no-download-archive` al final. Si los archivos siguen en la carpeta, sumá también `--force-overwrites`, porque si no se saltean igual.
 
 Para ver qué playlists bajaste y cuántos temas de cada una:
@@ -194,6 +196,8 @@ song-wizard archives
    1  Ensayo diciembre            11  2026-10-31 18:44
    2  Singles (single links)       1  2026-10-31 18:44
 ```
+
+Para llevar una playlist a otra carpeta sin perder nada (temas, stems, resultados y su registro): `song-wizard archives --move 1 "G:\Mi unidad\Ensayos"`. Queda en `G:\Mi unidad\Ensayos\<nombre de la playlist>`, la interfaz la sigue mostrando y los temas nuevos se bajan ahí. Si ya la moviste a mano, el mismo comando solo anota dónde está ahora.
 
 Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo: `song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y nunca borra los temas ya bajados.
 
@@ -485,6 +489,10 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | `delete` de un tema en una carpeta de `C:` | Real | ✅ El tema, su stem y su versión llegan a la Papelera de Windows (nombres con `ñ` y `⧸` incluidos); el otro tema queda; `key.txt` pierde su línea; el tema sale del registro de la playlist por el link que guarda el archivo |
 | `delete`: un stem solo, una copia con `--file`, sin confirmar, papelera que falla | Simulada | ✅ Solo ese archivo; sin `--yes` y sin terminal no borra; si la papelera falla no toca nada más |
 | `ui`: "borrar archivos seleccionados" | Real | ✅ La ventana lista exactamente qué se va (un tema con todos sus archivos, un stem solo) y arranca con "cancelar" elegido |
+| `archives --move` con una ruta de Windows, de una carpeta de Linux a `C:` | Real | ✅ La playlist va entera (tema, stem y `key.txt`); un registro anterior, sin carpeta guardada, se encuentra por nombre; volver a moverla al mismo lugar avisa que ya está ahí |
+| `download --to` y playlists ya bajadas que siguen en su carpeta | Simulada (sin descargar) | ✅ Las nuevas van a la carpeta pedida; las conocidas, a la suya; un `%` en la ruta no rompe la plantilla de yt-dlp |
+| `ui`: playlist fuera de la carpeta de música | Real | ✅ Aparece en la biblioteca con su ubicación (en formato Windows en WSL), se escucha y se procesa; rutas para salir de su carpeta, rechazadas |
+| `ui`: "elegir…" (selector de carpetas del sistema) | **No probado** | Abre el selector de Windows, del Finder o de zenity; falta probarlo a mano |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |
 | `transpose +2` | Real | ✅ Un tema en La da Si; duración idéntica; picos por encima de 0 dB intactos |

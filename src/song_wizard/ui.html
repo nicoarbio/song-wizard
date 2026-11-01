@@ -40,6 +40,8 @@
   button:disabled { opacity: .45; cursor: default; }
   button.small { padding: 2px 8px; font-size: 12px; }
   button.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .download .dest { white-space: nowrap; }
+  .folder .location { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   #delete ul { max-height: 40vh; overflow: auto; font-size: 13px; padding-left: 20px; overflow-wrap: anywhere; }
   label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
   .row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
@@ -148,6 +150,7 @@
     <input type="url" id="url" placeholder="Pegá el link de un tema o de una playlist" required>
     <label class="muted"><input type="checkbox" id="wav"> también .wav</label>
     <button class="primary" type="submit">Bajar</button>
+    <span class="dest muted">en <button type="button" class="small" id="dest" title="Dónde va la carpeta de una playlist nueva">Música</button></span>
   </form>
 </header>
 
@@ -328,6 +331,17 @@
   <p id="practice-sync" hidden></p>
 </dialog>
 
+<dialog id="folder">
+  <h3 id="folder-title">Elegir carpeta</h3>
+  <p class="hint" id="folder-note"></p>
+  <div class="row">
+    <input type="text" id="folder-path" placeholder="Por ejemplo G:\Mi unidad\Ensayos" style="flex:1 1 260px">
+    <button id="folder-pick" title="Abre el selector de carpetas del sistema (puede aparecer detrás del navegador)">elegir…</button>
+  </div>
+  <p class="hint">Sirve una ruta de Windows (G:\Mi unidad\...) o de Linux/Mac. La carpeta tiene que existir.</p>
+  <div class="row" style="justify-content:flex-end"><button id="folder-default" hidden>usar Música</button><button id="folder-cancel">cancelar</button><button class="primary" id="folder-ok">aceptar</button></div>
+</dialog>
+
 <dialog id="delete">
   <h3 id="delete-title">¿Borrar?</h3>
   <ul id="delete-list"></ul>
@@ -488,6 +502,7 @@ function renderLibrary() {
         el("button", { class: folder.playlist ? "small" : "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
+    if (folder.location) details.append(el("div", { class: "location", title: "Esta playlist está fuera de tu carpeta de música" }, `en ${folder.location}`));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
     details.append(list);
@@ -638,6 +653,9 @@ function renderArchives(rows) {
       el("td", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
         r.url ? el("button", { class: "small", title: "Baja solo los temas que se agregaron a la playlist",
           onclick: () => updatePlaylist(r) }, "buscar nuevos") : null,
+        r.url ? el("button", { class: "small", title: r.folder ? `Está en ${r.folder}` : "Llevarla a otra carpeta",
+          onclick: () => askFolder({ title: `Mover "${r.title}"`, note: `Va entera (temas, stems y resultados) a una carpeta nueva dentro de la que elijas, y los temas nuevos se bajan ahí.${r.folder ? ` Ahora está en ${r.folder}.` : ""}`,
+            done: (to) => start({ action: "archives-move", id: r.id, title: r.title, to }) }) }, "mover") : null,
         el("button", { class: "small", title: "La próxima vez se baja entera de nuevo. Los temas no se borran.",
           onclick: () => confirmForget([r.number], r.title) }, "olvidar"))));
   }
@@ -646,6 +664,42 @@ function renderArchives(rows) {
 
 // Download the playlist again: its archive makes yt-dlp skip what's already here, so only songs
 // added since come down, numbered by their place in the playlist.
+// A folder from the user: typed (Windows paths work on WSL) or picked with the system's dialog.
+function askFolder({ title, note, value = "", done, allowDefault = false }) {
+  $("folder-title").textContent = title;
+  $("folder-note").textContent = note || "";
+  $("folder-path").value = value;
+  $("folder-default").hidden = !allowDefault;
+  askFolder.done = done;
+  $("folder").showModal();
+  $("folder-path").focus();
+}
+$("folder-cancel").onclick = () => $("folder").close();
+$("folder-ok").onclick = () => { const v = $("folder-path").value.trim(); if (!v) return; $("folder").close(); askFolder.done(v); };
+$("folder-default").onclick = () => { $("folder").close(); askFolder.done(""); };
+$("folder-path").addEventListener("keydown", (e) => { if (e.key === "Enter") $("folder-ok").click(); });
+$("folder-pick").onclick = async () => {
+  $("folder-pick").disabled = true;
+  try {
+    const picked = await api("/api/pick-folder", {});
+    if (picked.path) $("folder-path").value = picked.path;
+  } catch (e) { toast(`No se pudo abrir el selector: ${e.message}`); }
+  $("folder-pick").disabled = false;
+};
+
+// Where new playlists go (remembered in this browser); empty is the music folder.
+const DEST_KEY = "song-wizard:download-to";
+const downloadTo = () => { try { return localStorage.getItem(DEST_KEY) || ""; } catch { return ""; } };
+function renderDest() {
+  const to = downloadTo();
+  $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : "Música";
+  $("dest").title = to ? `Las playlists nuevas van a ${to}` : "Las playlists nuevas van a tu carpeta de música";
+}
+$("dest").onclick = () => askFolder({ title: "¿Dónde van las playlists nuevas?", value: downloadTo(), allowDefault: true,
+  note: "Cada playlist nueva se guarda en una carpeta con su nombre dentro de esta. Las que ya bajaste siguen en su lugar (para llevarlas a otro lado, \"mover\" en Playlists bajadas).",
+  done: (to) => { try { to ? localStorage.setItem(DEST_KEY, to) : localStorage.removeItem(DEST_KEY); } catch {} renderDest(); } });
+renderDest();
+
 function updatePlaylist(playlist) {
   start({ action: "download", url: playlist.url, wav: playlist.wav, title: playlist.title });
 }
@@ -1497,7 +1551,7 @@ const selectedPaths = () => [...state.selected];
 
 $("download").addEventListener("submit", (e) => {
   e.preventDefault();
-  start({ action: "download", url: $("url").value, wav: $("wav").checked });
+  start({ action: "download", url: $("url").value, wav: $("wav").checked, to: downloadTo() || undefined });
   $("url").value = "";
 });
 $("filter").addEventListener("input", renderLibrary);

@@ -19,7 +19,9 @@ def node_ok():
     return bool(match) and int(match.group(1)) >= 20
 
 
-def run(url, wav=False, extra=()):
+def run(url, wav=False, extra=(), to=None):
+    """to: the folder where a new playlist's folder (or Singles) goes; the music folder if not
+    given. A playlist downloaded before goes on in its own folder, wherever it is now."""
     require_ffmpeg()
     # One archive per playlist, so a song downloaded for one show isn't skipped for another.
     match = re.search(r"[?&]list=([A-Za-z0-9_-]+)", url)
@@ -31,7 +33,15 @@ def run(url, wav=False, extra=()):
     # And the path of each song once it's in place, to remember the playlist's folder.
     files_file = Path(tempfile.mkstemp(prefix="song-wizard-", suffix=".txt")[1])
 
-    dest = music_dir()
+    # yt-dlp reads "%" in the output path as a template field.
+    escape = lambda path: str(path).replace("%", "%%")
+    song = "%(playlist_index&{:03d} - |)s%(title)s.%(ext)s"
+    known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
+    if to is None and known and Path(known).is_dir():
+        output = f"{escape(known)}/{song}"
+    else:
+        dest = Path(to).expanduser() if to else music_dir()
+        output = f"{escape(dest)}/%(playlist_title|Singles)s/{song}"
     args = [
         sys.executable, "-m", "yt_dlp",
         "-f", "bestaudio[acodec=opus]/bestaudio",
@@ -41,7 +51,7 @@ def run(url, wav=False, extra=()):
         "--download-archive", str(archive),
         "--print-to-file", "playlist:%(title)s", str(title_file),
         "--print-to-file", "after_move:%(filepath)s", str(files_file),
-        "-o", f"{dest}/%(playlist_title|Singles)s/%(playlist_index&{{:03d}} - |)s%(title)s.%(ext)s",
+        "-o", output,
     ]
     if node_ok():
         args += ["--js-runtimes", "node"]

@@ -49,3 +49,28 @@ def test_nothing_new_keeps_folder(monkeypatch, tmp_path):
     with pytest.raises(SystemExit):
         download.run("https://www.youtube.com/playlist?list=PLx")
     assert archives.playlists()[0]["folder"] == str(tmp_path / "Show")
+
+
+def output_of(args):
+    return args[args.index("-o") + 1]
+
+
+def test_download_to_another_folder(monkeypatch, tmp_path):
+    monkeypatch.setenv("SONG_WIZARD_DIR", str(tmp_path / "music"))
+    drive = tmp_path / "Drive 100%"
+    calls = fake_ytdlp(monkeypatch, [f"{drive}/Show/001 - A.opus"])
+    with pytest.raises(SystemExit):
+        download.run("https://example.com/playlist?list=PLx", to=str(drive))
+    assert output_of(calls[0]).startswith(f"{tmp_path}/Drive 100%%/%(playlist_title|Singles)s/")
+
+
+def test_known_playlist_goes_on_in_its_folder(monkeypatch, tmp_path):
+    monkeypatch.setenv("SONG_WIZARD_DIR", str(tmp_path / "music"))
+    elsewhere = tmp_path / "Drive" / "Show"
+    elsewhere.mkdir(parents=True)
+    calls = fake_ytdlp(monkeypatch, [f"{elsewhere}/001 - A.opus"])
+    with pytest.raises(SystemExit):
+        download.run("https://example.com/playlist?list=PLx")
+    with pytest.raises(SystemExit):
+        download.run("https://example.com/playlist?list=PLx")
+    assert output_of(calls[1]) == f"{elsewhere}/%(playlist_index&{{:03d}} - |)s%(title)s.%(ext)s"
