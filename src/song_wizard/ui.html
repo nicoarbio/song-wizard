@@ -867,8 +867,23 @@ const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Gu
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
 const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
                    worst: 0, duration: 0, click: null, clickTrack: null, preroll: null };
-let audioContext = null;
+let audioContext = null, masterGain = null;
 const context = () => audioContext || (audioContext = new AudioContext({ latencyHint: "interactive" }));
+// Every track and the click go through one master volume, remembered in this browser.
+const MASTER_KEY = "song-wizard:master-volume";
+const masterVolume = () => { try { const v = parseFloat(localStorage.getItem(MASTER_KEY)); return isNaN(v) ? 1 : v; } catch { return 1; } };
+function master() {
+  if (!masterGain) {
+    masterGain = context().createGain();
+    masterGain.gain.value = masterVolume();
+    masterGain.connect(context().destination);
+  }
+  return masterGain;
+}
+function setMasterVolume(value) {
+  master().gain.setTargetAtTime(value, context().currentTime, 0.01);
+  try { localStorage.setItem(MASTER_KEY, String(value)); } catch {}
+}
 
 function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -928,11 +943,11 @@ function loadSet(index) {
     const gain = ctx.createGain();
     gain.gain.value = 0;
     ctx.createMediaElementSource(audio).connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(master());
     return { ...t, audio, gain, volume: 1, mute: false, solo: false };
   });
   const clickGain = ctx.createGain();
-  clickGain.connect(ctx.destination);
+  clickGain.connect(master());
   practice.clickTrack = { name: "Click", click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
   practice.mixer = [...practice.tracks, practice.clickTrack];
   practice.gate = false;
@@ -974,6 +989,13 @@ const median = (values) => { const s = [...values].sort((x, y) => x - y); return
 function renderTracks() {
   const box = $("practice-tracks");
   box.replaceChildren();
+  const all = Math.round(masterVolume() * 100);
+  box.append(
+    el("span", { class: "name", title: "El volumen de todo junto" }, "Maestro"),
+    el("span"),
+    el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: all, "aria-label": "Volumen maestro",
+      oninput: (e) => { setMasterVolume(e.target.value / 100); e.target.nextSibling.textContent = `${e.target.value} %`; } }),
+    el("span", { class: "pct" }, `${all} %`));
   practice.mixer.forEach((t, i) => {
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": `Volumen de ${t.name}`,
       oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); renderTracks(); } });

@@ -147,7 +147,7 @@ La página solo funciona mientras la terminal donde la abriste siga abierta; Ctr
 
 Con "Todos" separado, el reproductor tiene las cinco pistas (voz, batería, bajo, guitarra y otros); si separaste un instrumento solo, ese instrumento y el resto del tema (y si separaste varios por separado, elegís cuál arriba); sin stems, el tema original, que igual sirve para practicar más lento o repetir un tramo.
 
-- Cada pista tiene su volumen, **M** para silenciarla y **S** para escuchar solo esa (se pueden sumar varias en solo).
+- Cada pista tiene su volumen, **M** para silenciarla y **S** para escuchar solo esa (se pueden sumar varias en solo). Arriba de todas, **Maestro** sube o baja todo junto (el navegador lo recuerda).
 - La velocidad cambia mientras suena y el tono no cambia. Para guardar una versión más lenta como archivo, está [Cambiar la velocidad](#cambiar-la-velocidad).
 - Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y la marca se ve sobre la barra.
 - La barra muestra la forma de onda del tema: tocándola se salta a esa parte.
