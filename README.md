@@ -140,7 +140,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. "más" abre las otras acciones del tema: la letra, renombrar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" abre la lista de la carpeta lista para imprimir (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. "más" abre las otras acciones del tema: la letra, renombrar, recortar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" abre la lista de la carpeta lista para imprimir (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
@@ -200,6 +200,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Pista de click | `song-wizard click` (`--for TEMA` le pone el nombre del tema) |
 | Ajustar el click (detectar, tempo, primer golpe) | `song-wizard align` (`--bpm`, `--first`, `--meter`) |
 | "más › Renombrar" | `song-wizard rename` |
+| "más › Recortar…" | `song-wizard trim TEMA --start T --end T` (`--pad-start S`, `--pad-end S`) |
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
 | "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
@@ -419,6 +420,22 @@ La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya 
 
 Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué link se bajó, no el nombre del archivo.
 
+### Recortar un tema
+
+```bash
+song-wizard trim "001 - Tema.opus" --start 0:12.5 --end 3:58   # se queda con 0:12.5 a 3:58
+song-wizard trim "001 - Tema.opus" --start 8                    # corta los primeros 8 segundos
+song-wizard trim "001 - Tema.opus" --pad-start 2 --pad-end 1    # agrega 2 s de silencio adelante y 1 s atrás
+```
+
+Corta el principio o el final del tema (la intro o los créditos de un video), o le agrega silencio adelante o atrás. Los tiempos van en segundos (`12.5`) o en minutos y segundos (`0:12.5`); el silencio, en segundos, con decimales.
+
+Se hace sobre el tema y todo lo generado a partir de él a la vez, para que sigan alineados: sus otros formatos, los stems, las versiones transpuestas y los clicks, con el mismo corte; y las versiones a otra velocidad, con el corte en proporción (a 80 %, 10 s del tema son 12.5 s). El primer golpe del click de práctica y los tiempos de la letra se corren lo mismo, así que "practicar" sigue sincronizado. Las tomas grabadas en Reaper quedan como están, porque van alineadas al proyecto de Reaper; ese proyecto queda corrido, así que conviene rehacerlo (`reaper --redo`).
+
+El corte es exacto a la muestra, para que el tema y sus stems sigan alineados; los archivos comprimidos (como el `.opus`) se vuelven a codificar a una calidad alta, porque cortarlos sin hacerlo redondea a unos 20 ms. Primero escribe todos los archivos nuevos y solo si salen todos bien reemplaza los de antes, que van a la papelera. Pregunta antes, salvo con `--yes`.
+
+En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos manijas para arrastrar, y lo que queda marcado. La rueda del mouse acerca y aleja (con Shift se mueve a los costados), "ver el inicio" y "ver el fin" acercan alrededor de cada manija, y "▶ desde acá" y "▶ hasta acá" escuchan 5 segundos desde el inicio elegido o hasta el fin, para ajustar de oído. También se pueden escribir los tiempos exactos y el silencio.
+
 ### Borrar
 
 ```bash
@@ -557,6 +574,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
+- `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.
 - `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
 - `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo desde su propia página).
 - El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.

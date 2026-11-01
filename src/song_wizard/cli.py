@@ -24,6 +24,7 @@ examples:
   song-wizard separate --stem all "song.opus"
   song-wizard convert "song (no drums).wav"
   song-wizard rename "001 - Song (Official Video).opus" "Song"
+  song-wizard trim "001 - Song.opus" --start 0:12.5 --end 3:58
   song-wizard delete "001 - Song.opus"
   song-wizard list cryin --files
   song-wizard reaper "001 - Song.opus"
@@ -152,6 +153,21 @@ def build_parser():
                                    "name is taken, nothing is renamed.")
     p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
     p.add_argument("name", metavar="NEW_NAME", help="the new name, without extension")
+
+    p = sub.add_parser("trim", help="cut a song's start or end (or add silence), with all its stems and versions",
+                       description="Cuts the song's start and/or end (a video's intro or credits), or adds silence "
+                                   "before or after it, in the song and everything made from it at once: its other "
+                                   "formats, stems, transposed versions and clicks with the same cut, versions at "
+                                   "another speed with the cut scaled. The practice click and the lyrics' times "
+                                   "move along; takes recorded in REAPER are left alone (remake the song's REAPER "
+                                   "project afterwards). Exact to the sample; compressed files are encoded again "
+                                   "at a high quality. The old files go to the trash. Asks first unless --yes.")
+    p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
+    p.add_argument("--start", metavar="TIME", help="keep from here: 12.5 (seconds) or 0:12.5 (default: the beginning)")
+    p.add_argument("--end", metavar="TIME", help="keep up to here: 238 or 3:58 (default: the end)")
+    p.add_argument("--pad-start", type=float, default=0.0, metavar="SECONDS", help="silence to add before, in seconds")
+    p.add_argument("--pad-end", type=float, default=0.0, metavar="SECONDS", help="silence to add after, in seconds")
+    p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
 
     p = sub.add_parser("delete", help="send songs or single files to the trash",
                        description="Sends files to the system's trash (the Recycle Bin on WSL, for files on a "
@@ -295,6 +311,10 @@ def dispatch(argv):
     elif args.command == "delete":
         from . import delete
         delete.run(songs=args.paths, files=args.file, yes=args.yes)
+    elif args.command == "trim":
+        from . import trim
+        trim.run(args.path, start=args.start, end=args.end, pad_start=args.pad_start, pad_end=args.pad_end,
+                 yes=args.yes)
     elif args.command == "rename":
         from . import rename
         rename.run(args.path, args.name)

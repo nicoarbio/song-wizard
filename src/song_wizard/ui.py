@@ -694,7 +694,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move", "trim"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -747,6 +747,16 @@ def make_handler(token, root, runner, port):
                     raise ValueError("se renombra de a un tema")
                 name = str(body["name"]).strip()
                 return f"Renombrar {label} → {name}", ["rename", paths[0], name]
+            if action == "trim":
+                if len(paths) != 1:
+                    raise ValueError("se recorta de a un tema")
+                start, end = float(body.get("start") or 0), body.get("end")
+                pad_start, pad_end = float(body.get("padStart") or 0), float(body.get("padEnd") or 0)
+                args = ["trim", paths[0], "--yes", "--start", f"{start:.4f}",
+                        *(["--end", f"{float(end):.4f}"] if end not in (None, "") else []),
+                        *(["--pad-start", f"{pad_start:g}"] if pad_start else []),
+                        *(["--pad-end", f"{pad_end:g}"] if pad_end else [])]
+                return f"Recortar: {label}", args
             if action == "convert":
                 fmt = body.get("format", "mp3")
                 if fmt not in ("mp3", "m4a"):

@@ -123,6 +123,14 @@
   .player .now { flex: none; }
   .player .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; white-space: nowrap; }
   .wave { display: block; width: 100%; height: 34px; cursor: pointer; touch-action: none; }
+  #trim { max-width: min(900px, calc(100vw - 32px)); }
+  #trim .trim-wave { height: 150px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: crosshair; margin: 8px 0 6px; }
+  #trim .trim-wave.near { cursor: ew-resize; }
+  #trim .row { margin: 6px 0; }
+  #trim input[type=number] { width: 96px; }
+  #trim .trim-sum { font-weight: 600; margin: 10px 0 4px; }
+  #trim ul { max-height: 22vh; overflow: auto; font-size: 13px; padding-left: 20px; margin: 6px 0; overflow-wrap: anywhere; }
+  #trim .warnline { color: var(--warn); }
   .wave.big { height: 64px; margin: 4px 0 8px; }
   .wave.zoom { height: 96px; margin: 8px 0 4px; cursor: ew-resize; background: var(--bg); border-radius: 6px; }
   #pc-panel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
@@ -433,6 +441,36 @@
   <p id="command-text"></p>
   <pre class="log" id="command-code"></pre>
   <div class="row" style="justify-content:flex-end"><button id="command-close">cerrar</button><button class="primary" id="command-copy">copiar comando</button></div>
+</dialog>
+
+<dialog id="trim" aria-label="Recortar">
+  <div class="row" style="justify-content:space-between"><h3 id="trim-title">Recortar</h3><button class="small" id="trim-close">cerrar</button></div>
+  <p class="hint">Arrastrá las dos manijas, o escribí los tiempos. La rueda del mouse acerca y aleja (con Shift, se mueve a los costados); un clic en la onda escucha desde ahí.</p>
+  <canvas class="wave trim-wave" id="trim-wave" aria-label="El tema: lo que queda está marcado"></canvas>
+  <div class="row">
+    <button class="small" id="trim-zoom-out" title="Alejar">−</button>
+    <button class="small" id="trim-zoom-in" title="Acercar">+</button>
+    <button class="small" id="trim-all">ver todo</button>
+    <button class="small" id="trim-near-start" title="Acercar alrededor del inicio">ver el inicio</button>
+    <button class="small" id="trim-near-end" title="Acercar alrededor del fin">ver el fin</button>
+    <span class="muted" id="trim-view"></span>
+  </div>
+  <div class="row">
+    <label>Desde <input type="number" id="trim-start" step="0.01" min="0"> s</label>
+    <button class="small" id="trim-play-start" title="Escucha 5 segundos desde el inicio elegido">▶ desde acá</button>
+    <label>Hasta <input type="number" id="trim-end" step="0.01" min="0"> s</label>
+    <button class="small" id="trim-play-end" title="Escucha los últimos 5 segundos antes del fin elegido">▶ hasta acá</button>
+    <button class="small" id="trim-stop" title="Parar">■</button>
+  </div>
+  <div class="row">
+    <label>Silencio antes <input type="number" id="trim-pad-start" step="0.1" min="0" max="60" value="0"> s</label>
+    <label>Silencio después <input type="number" id="trim-pad-end" step="0.1" min="0" max="60" value="0"> s</label>
+  </div>
+  <p class="trim-sum" id="trim-sum"></p>
+  <details><summary id="trim-files-title"></summary><ul id="trim-files"></ul></details>
+  <p class="hint warnline" id="trim-reaper" hidden>Este tema tiene proyecto de Reaper: va a quedar corrido. Rehacelo después con "más › Rehacer proyecto de Reaper".</p>
+  <p class="hint">Se recortan juntos el tema, sus stems y versiones (las de otra velocidad, en proporción), y se corren el click de práctica y los tiempos de la letra. Los archivos de antes van a la papelera.</p>
+  <div class="row" style="justify-content:flex-end"><button id="trim-cancel">cancelar</button><button class="danger" id="trim-apply">recortar</button></div>
 </dialog>
 
 <dialog id="confirm" class="confirm">
@@ -773,6 +811,8 @@ function moreMenu(song) {
          { onclick: pick(() => openLyrics(song)) }),
     item("Renombrar", "con sus stems, versiones y resultados",
          { onclick: pick(() => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); }) }),
+    item("Recortar…", "cortar el principio o el final, o agregar silencio",
+         { onclick: pick(() => openTrim(song)) }),
     el("hr"),
     song.reaper
       ? item("Abrir en Reaper", reaper ? null : "No encontré Reaper instalado en esta computadora",
@@ -1146,7 +1186,7 @@ function loadPeaks(path, range) {
 const mod = (k, n) => ((k % n) + n) % n;
 
 class Wave {
-  constructor(canvas, { onSeek, onGridDrag } = {}) {
+  constructor(canvas, { onSeek, onGridDrag, interactive = true } = {}) {
     this.canvas = canvas;
     this.peaks = [];
     this.from = 0;
@@ -1160,6 +1200,8 @@ class Wave {
       const r = canvas.getBoundingClientRect(), [a, b] = this.range();
       return a + (b - a) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     };
+    new ResizeObserver(() => this.draw()).observe(canvas);
+    if (!interactive) return;  // whoever uses it handles the pointer (the trim handles)
     canvas.addEventListener("pointerdown", (e) => {
       if (!this.seconds) return;
       canvas.setPointerCapture(e.pointerId);
@@ -1179,7 +1221,6 @@ class Wave {
       if (!this.onGridDrag) { this.state.preview = null; if (this.onSeek) this.onSeek(timeAt(e)); }
     });
     canvas.addEventListener("pointercancel", () => { drag = null; this.update({ preview: null }); });
-    new ResizeObserver(() => this.draw()).observe(canvas);
   }
 
   range() { return this.view || [this.from, this.from + this.seconds]; }
@@ -1223,8 +1264,20 @@ class Wave {
       g.globalAlpha = 0.16;
       g.fillRect(x(s.a), 0, x(s.b) - x(s.a), h);
       g.globalAlpha = 0.8;
-      g.fillRect(x(s.a), 0, 1, h);
-      g.fillRect(x(s.b) - 1, 0, 1, h);
+      if (s.handles) {
+        // Something to grab: a thick line with a tab on top, on each edge.
+        for (const t of [s.a, s.b]) {
+          const px = Math.round(x(t));
+          g.globalAlpha = 1;
+          g.fillRect(px - 1, 0, 3, h);
+          g.beginPath();
+          g.roundRect ? g.roundRect(px - 6, 0, 13, 18, 3) : g.rect(px - 6, 0, 13, 18);
+          g.fill();
+        }
+      } else {
+        g.fillRect(x(s.a), 0, 1, h);
+        g.fillRect(x(s.b) - 1, 0, 1, h);
+      }
       g.globalAlpha = 1;
     }
     // Beat lines, only where they don't crowd out the picture (a whole song shows bar lines
@@ -1271,6 +1324,167 @@ function renderPlayer() {
 }
 for (const event of ["play", "pause", "seeked", "loadedmetadata", "ended"]) playerAudio.addEventListener(event, renderPlayer);
 $("player-play").onclick = () => { if (playerAudio.src) playerAudio.paused ? playerAudio.play() : playerAudio.pause(); };
+
+// ---------- Trim ----------
+// The song's waveform with two handles (what stays is marked), zoom with the wheel, and short
+// listens around each handle; "recortar" runs song-wizard trim on the song and everything made
+// from it.
+const trimWave = new Wave($("trim-wave"), { interactive: false });
+const trim = { song: null, duration: 0, start: 0, end: 0, view: [0, 0], overview: null, audio: null, stopAt: 0, raf: 0, timer: 0 };
+const trimRound = (t) => Math.round(t * 100) / 100;
+
+async function openTrim(song) {
+  trim.song = song;
+  $("trim-title").textContent = `Recortar: ${song.name.replace(/\.[^.]+$/, "")}`;
+  $("trim-pad-start").value = 0;
+  $("trim-pad-end").value = 0;
+  $("trim-reaper").hidden = !song.reaper;
+  const files = [song.name, ...song.files.map((f) => f.name)];
+  const take = (n) => / \(record [^)]*\)(-\d+)?\.[^.]+$/.test(n);
+  const audio = (n) => /\.(opus|webm|wav|flac|mp3|m4a|ogg|aac|mkv|mp4|aiff?)$/i.test(n);
+  const cut = files.filter((n) => audio(n) && !take(n));
+  $("trim-files-title").textContent = `Se recortan ${cut.length} archivo${cut.length === 1 ? "" : "s"}`;
+  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, " (en proporción a su velocidad)") : null)),
+    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, " (toma de Reaper: queda como está)")));
+  trimWave.clear();
+  $("trim").showModal();
+  try {
+    const info = await api(`/api/info?path=${encodeURIComponent(song.path)}`);
+    trim.duration = info.duration;
+    trim.start = 0;
+    trim.end = trimRound(info.duration);
+    trim.overview = await loadPeaks(song.path);
+    setTrimView(0, trim.duration);
+  } catch (e) {
+    toast(`No se pudo leer el tema: ${e.message}`, 6000);
+  }
+}
+
+function setTrimView(a, b) {
+  const d = trim.duration, span = Math.min(d, Math.max(0.2, b - a));
+  a = Math.max(0, Math.min(a, d - span));
+  trim.view = [a, a + span];
+  trimWave.view = trim.view;
+  trimWave.set(trim.overview);
+  // Zoomed in: a finer picture of just that stretch (the whole song's would be blocks).
+  clearTimeout(trim.timer);
+  if (span < d * 0.6) {
+    trim.timer = setTimeout(() => {
+      const [x, y] = trim.view;
+      loadPeaks(trim.song.path, [Math.max(0, x - span * 0.1).toFixed(2), Math.min(d, y + span * 0.1).toFixed(2)])
+        .then((data) => { if (trim.view[0] === x && trim.view[1] === y) trimWave.set(data); }).catch(() => {});
+    }, 120);
+  }
+  renderTrim();
+}
+
+function renderTrim() {
+  trimWave.update({ a: trim.start, b: trim.end, handles: true });
+  $("trim-start").value = trim.start.toFixed(2);
+  $("trim-end").value = trim.end.toFixed(2);
+  $("trim-start").max = $("trim-end").max = trim.duration.toFixed(2);
+  const [a, b] = trim.view;
+  $("trim-view").textContent = b - a < trim.duration - 0.01 ? `viendo ${clockTime(a)} – ${clockTime(b)}` : "";
+  const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
+  const total = trim.end - trim.start + before + after;
+  const changed = trim.start > 0 || trim.end < trimRound(trim.duration) || before || after;
+  $("trim-sum").textContent = `Queda ${clockTime(total)} de ${clockTime(trim.duration)}` +
+    (trim.start > 0 ? ` · se cortan ${trim.start.toFixed(2)} s del principio` : "") +
+    (trim.end < trimRound(trim.duration) ? ` · ${(trim.duration - trim.end).toFixed(2)} s del final` : "") +
+    (before ? ` · ${before} s de silencio antes` : "") + (after ? ` · ${after} s después` : "");
+  $("trim-apply").disabled = !changed;
+}
+
+function setTrimEdge(which, t) {
+  t = trimRound(Math.max(0, Math.min(trim.duration, t)));
+  if (which === "start") trim.start = Math.min(t, trim.end - 0.05);
+  else trim.end = Math.max(t, trim.start + 0.05);
+  trim.start = trimRound(Math.max(0, trim.start));
+  trim.end = trimRound(Math.min(trimRound(trim.duration), trim.end));
+  renderTrim();
+}
+
+function trimTimeAt(e) {
+  const r = $("trim-wave").getBoundingClientRect(), [a, b] = trim.view;
+  return a + (b - a) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+}
+function trimNearEdge(e) {
+  const r = $("trim-wave").getBoundingClientRect(), [a, b] = trim.view, x = (t) => r.left + (t - a) / (b - a) * r.width;
+  const ds = Math.abs(e.clientX - x(trim.start)), de = Math.abs(e.clientX - x(trim.end));
+  return Math.min(ds, de) > 10 ? null : ds <= de ? "start" : "end";
+}
+{
+  const canvas = $("trim-wave");
+  let drag = null;
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!trim.duration) return;
+    drag = trimNearEdge(e);
+    if (drag) canvas.setPointerCapture(e.pointerId);
+    else trimListen(trimTimeAt(e), trimTimeAt(e) + 5);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (drag) setTrimEdge(drag, trimTimeAt(e));
+    else canvas.classList.toggle("near", Boolean(trim.duration && trimNearEdge(e)));
+  });
+  canvas.addEventListener("pointerup", () => { drag = null; });
+  canvas.addEventListener("pointercancel", () => { drag = null; });
+  canvas.addEventListener("wheel", (e) => {
+    if (!trim.duration) return;
+    e.preventDefault();
+    const [a, b] = trim.view, span = b - a;
+    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      const move = (e.deltaX || e.deltaY) > 0 ? span * 0.15 : -span * 0.15;
+      return setTrimView(a + move, b + move);
+    }
+    const t = trimTimeAt(e), k = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+    setTrimView(t - (t - a) * k, t + (b - t) * k);
+  }, { passive: false });
+}
+const zoomTrim = (k, at) => { const [a, b] = trim.view, c = at ?? (a + b) / 2; setTrimView(c - (c - a) * k, c + (b - c) * k); };
+$("trim-zoom-in").onclick = () => zoomTrim(1 / 2);
+$("trim-zoom-out").onclick = () => zoomTrim(2);
+$("trim-all").onclick = () => setTrimView(0, trim.duration);
+$("trim-near-start").onclick = () => setTrimView(trim.start - 3, trim.start + 3);
+$("trim-near-end").onclick = () => setTrimView(trim.end - 3, trim.end + 3);
+$("trim-start").onchange = (e) => setTrimEdge("start", parseFloat(e.target.value) || 0);
+$("trim-end").onchange = (e) => setTrimEdge("end", parseFloat(e.target.value) || trim.duration);
+$("trim-pad-start").oninput = $("trim-pad-end").oninput = renderTrim;
+
+function trimListen(from, to) {
+  if (!trim.audio || trim.audio.dataset.path !== trim.song.path) {
+    trimStop();
+    trim.audio = new Audio(`/api/audio?path=${encodeURIComponent(trim.song.path)}`);
+    trim.audio.dataset.path = trim.song.path;
+  }
+  const a = trim.audio;
+  trim.stopAt = Math.min(to, trim.duration);
+  a.currentTime = Math.max(0, from);
+  a.play().catch(() => toast("El navegador no pudo reproducir el tema."));
+  cancelAnimationFrame(trim.raf);
+  const tick = () => {
+    trimWave.update({ position: a.currentTime });
+    if (a.currentTime >= trim.stopAt || a.paused) { a.pause(); trimWave.update({ position: -1 }); return; }
+    trim.raf = requestAnimationFrame(tick);
+  };
+  trim.raf = requestAnimationFrame(tick);
+}
+function trimStop() {
+  cancelAnimationFrame(trim.raf);
+  if (trim.audio) trim.audio.pause();
+  trimWave.update({ position: -1 });
+}
+$("trim-play-start").onclick = () => trimListen(trim.start, trim.start + 5);
+$("trim-play-end").onclick = () => trimListen(Math.max(trim.start, trim.end - 5), trim.end);
+$("trim-stop").onclick = trimStop;
+$("trim-close").onclick = $("trim-cancel").onclick = () => $("trim").close();
+$("trim").addEventListener("close", trimStop);
+$("trim-apply").onclick = () => {
+  const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
+  if (before < 0 || after < 0 || before > 60 || after > 60) { toast("El silencio va de 0 a 60 segundos."); return; }
+  const cutEnd = trim.end < trimRound(trim.duration);
+  $("trim").close();
+  start({ action: "trim", paths: [trim.song.path], start: trim.start, end: cutEnd ? trim.end : null, padStart: before, padEnd: after });
+};
 
 // ---------- Practice player ----------
 // One <audio> per track, streamed from the server (decoding five 5-minute stems for Web Audio
@@ -1921,6 +2135,7 @@ async function openFolder(path) {
 }
 
 async function refresh() {
+  peaksCache.clear();  // a file can change under the same name (trimmed)
   try {
     const lib = await api("/api/library");
     $("root").textContent = `Carpeta de música: ${lib.root}`;
