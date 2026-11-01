@@ -574,7 +574,9 @@ function renderLibrary() {
       el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`),
         folder.playlist ? el("button", { class: "small open", title: `Vuelve a mirar la playlist "${folder.playlist.title}" y baja solo los temas que se agregaron`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
-        el("button", { class: folder.playlist ? "small" : "small open", title: `Abrir esta carpeta en el ${state.fileManager}`,
+        el("button", { class: folder.playlist ? "small" : "small open", title: "Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total",
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); window.open(`/setlist?folder=${encodeURIComponent(folder.path)}&t=${encodeURIComponent(token)}`, "_blank"); } }, "setlist"),
+        el("button", { class: "small", title: `Abrir esta carpeta en el ${state.fileManager}`,
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
     if (folder.location) details.append(el("div", { class: "location", title: "Esta playlist está fuera de tu carpeta de música" }, `en ${folder.location}`));

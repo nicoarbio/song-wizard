@@ -136,7 +136,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera y con ✎ se renombra un tema. Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "setlist" abre la lista de la carpeta lista para imprimir (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre un reproductor con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
@@ -197,6 +197,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
 | "apagar" | `song-wizard ui --stop` |
+| "setlist" | `song-wizard setlist CARPETA` |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
@@ -424,6 +425,27 @@ Todo va a la papelera del sistema (en WSL, a la Papelera de reciclaje de Windows
 - Un stem, una versión o un click se van solos; `--file` borra solo ese archivo aunque sea una copia del tema, como el `.mp3`.
 - Pide confirmación antes de borrar; `--yes` no pregunta.
 
+### Setlist
+
+```bash
+song-wizard setlist "Música/Show"
+```
+
+```
+Show
+
+  1. Tema uno     Am   106   5:08  (Artista)
+  2. Tema dos     F#m? 178   4:11  (Otro artista)
+  ...
+23 songs, 1:40:00
+```
+
+La lista de la carpeta en el orden de sus archivos (`001 - …`), con la tonalidad, el tempo y la duración de cada tema, y el total. Guarda `Setlist.txt` y `Setlist.html` en la carpeta; el `.html` se abre en el navegador y se imprime en una hoja A4, con la letra lo más grande que entre. En la interfaz, el botón "setlist" de cada carpeta abre la misma hoja.
+
+- La tonalidad y el tempo salen de lo que ya detectaste con `key` y `bpm` (o pusiste a mano); los que falten quedan en blanco. Un `?` marca una tonalidad dudosa.
+- El nombre se limpia: sin el número, y sin agregados como "(Official Video)" o "[HD]". Si el archivo se llama "Artista - Tema", el artista va más chico al lado. Si quedó al revés, se arregla con ✎ / `rename`.
+- `--title` cambia el título de arriba (por defecto, el nombre de la playlist o de la carpeta).
+
 ### Si algo falla
 
 ```bash
@@ -479,6 +501,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
+- `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo con la clave).
 - El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.
 - `ui`: la seguridad (clave, dominio, rutas fuera de la carpeta de música, acciones inválidas), que corra de fondo (arranca una vez, se reusa, se apaga con `--stop` o desde la página, y solo con la clave), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
 
@@ -542,6 +565,7 @@ Probado el 31/10/2026 con song-wizard 0.1.0, en este equipo:
 | Tonalidad y tempo a mano (`--set`, y tocando el badge en la interfaz) | Real (datos de prueba) | ✅ En Edge: tocar el tempo, escribir 100 y Enter lo guarda en `bpm.txt` marcado a mano y lo muestra con ✍; los temas sin analizar muestran "tono?" / "BPM?" al pasar el mouse; volver a correr `key`/`bpm` lo mantiene y `--force` lo reemplaza |
 | `ui` de fondo: arrancar, reusar y apagar | Real (datos de prueba) | ✅ La terminal queda libre al instante; el servidor sigue después de cerrar la terminal que lo abrió; otro `ui` reusa el mismo; `--stop` lo cierra (pregunta si hay un trabajo corriendo); "apagar" en Edge lo cierra y la página avisa que está apagada; el archivo con la clave queda legible solo por el usuario. **Falta probar** cerrar todas las terminales de WSL |
 | Tono en vivo en el reproductor (de -6 a +6 semitonos) | Real (audio sintético) | ✅ Tonos puros de 98 y 440 Hz llegan a la frecuencia pedida con un error menor a 3 cents; lo demás queda por debajo de -73 dB y el nivel se mantiene. El retardo es el mismo para todos los tonos (±1.5 ms). En Edge, grabando dentro del navegador, la música y el click quedan a 1 ms (tono 0), 4 ms (-3) y 2 ms (+3). **Falta escucharlo con temas reales** y comparar con `transpose` |
+| `setlist` sobre la playlist real | Real (solo lectura, sin guardar en la carpeta) | ✅ Los 23 temas en orden con tonalidad, tempo y duración, total 1:40:00; impreso a PDF desde Edge entra en una A4 |
 | `ui --practice` con un stem | Real | ✅ Abre la interfaz directo en el reproductor de su tema; con un archivo fuera de la biblioteca avisa y no arranca |
 | `ui`: página en Edge (escritorio y 400 px de ancho) | Real | ✅ Biblioteca agrupada por tema, nombres con HTML mostrados como texto, sin desbordes en pantallas angostas |
 | `ui` en WSL: el navegador de Windows llega al servidor | Real | ✅ |

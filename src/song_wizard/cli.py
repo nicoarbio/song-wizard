@@ -203,6 +203,13 @@ def build_parser():
     p.add_argument("--foreground", action="store_true",
                    help="keep it in this terminal instead (Ctrl+C closes it), like before")
 
+    p = sub.add_parser("setlist", help="a printable setlist of a folder: key, tempo and length of each song",
+                       description="Lists the songs of a folder in the order of their files (001 - ...), with "
+                                   "key and tempo (from key.txt and bpm.txt: run key and bpm first) and length, "
+                                   "and saves Setlist.txt and Setlist.html (one A4 page, to print) in the folder.")
+    p.add_argument("folder", nargs="?", default=".", help="the folder (default: the current one)")
+    p.add_argument("--title", help="title on top (default: the playlist's or the folder's name)")
+
     p = sub.add_parser("report", help="put together a report to ask for help when something fails",
                        description="Writes a text file with this computer's setup and the last lines of "
                                    "song-wizard's log (your home folder shows as ~), and opens a GitHub issue "
@@ -276,6 +283,9 @@ def dispatch(argv):
         else:
             ui.run(port=args.port, open_page=not args.no_browser, practice=args.practice,
                    foreground=args.foreground)
+    elif args.command == "setlist":
+        from . import setlist
+        setlist.run(args.folder, name=args.title)
     elif args.command == "report":
         from . import report
         report.run(yes=args.yes)

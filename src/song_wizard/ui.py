@@ -387,6 +387,18 @@ def make_handler(token, root, runner, port):
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "no existe")
                 return self.json({"duration": duration(path)})
+            if url.path == "/setlist":
+                # The printable setlist of a folder, in its own tab.
+                from . import setlist
+                try:
+                    here = self.resolve(query.get("folder", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                folder, here = setlist.find(here, root)
+                if folder is None or not folder["songs"]:
+                    return self.error(HTTPStatus.NOT_FOUND, "esa carpeta no tiene temas")
+                title = folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist")
+                return self.send(HTTPStatus.OK, setlist.page(title, setlist.rows(folder, here)).encode(), "text/html; charset=utf-8")
             if url.path == "/api/peaks":
                 try:
                     path = self.resolve(query.get("path", [""])[0])

@@ -24,6 +24,7 @@ DISPATCH = {
     "config": ([], "config", "show"),
     "report": ([], "report", "run"),
     "list": ([], "listing", "run"),
+    "setlist": ([], "setlist", "run"),
     "setup": ([], "setup", "run"),
 }
 
