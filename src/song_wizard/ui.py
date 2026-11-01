@@ -30,7 +30,8 @@ from .audio import AUDIO_EXTS, GENERATED, base_of
 from .paths import music_dir
 
 PORT = 8765
-STATIC = {"/favicon.ico": ("favicon.ico", "image/x-icon"), "/static/logo.png": ("logo.png", "image/png")}
+STATIC = {"/favicon.ico": ("favicon.ico", "image/x-icon"), "/static/logo.png": ("logo.png", "image/png"),
+          "/static/pitch.js": ("pitch.js", "text/javascript")}
 # Output of a job that is kept to show in the page.
 LOG_LINES = 2000
 

@@ -312,6 +312,11 @@
     <button class="small" id="practice-speed-reset">100 %</button>
     <span class="muted">el tono no cambia</span>
   </div>
+  <div class="row">
+    <label>Tono <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" aria-label="Tono en semitonos"> <b id="practice-pitch-value">0</b></label>
+    <button class="small" id="practice-pitch-reset">0</button>
+    <span class="muted" id="practice-pitch-hint">semitonos; la velocidad no cambia</span>
+  </div>
   <div class="row" style="margin-top:8px">
     <span>Repetir un tramo:</span>
     <button class="small" id="practice-a">A <span id="practice-a-time">–</span></button>
@@ -1081,6 +1086,8 @@ function openPractice(song) {
   practice.a = practice.b = null;
   practice.loop = false;
   $("practice-speed").value = 100;
+  $("practice-pitch").value = 0;
+  applyPitch();
   practice.click = clickSettings(song);
   practiceWave.clear();
   loadPeaks(song.path).then((d) => { if (practice.song === song) practiceWave.set(d); }).catch(() => {});
@@ -1102,11 +1109,11 @@ function loadSet(index) {
     const gain = ctx.createGain();
     gain.gain.value = 0;
     ctx.createMediaElementSource(audio).connect(gain);
-    gain.connect(master());
+    gain.connect(musicOut());
     return { ...t, audio, gain, volume: 1, mute: false, solo: false };
   });
   const clickGain = ctx.createGain();
-  clickGain.connect(master());
+  clickGain.connect(clickOut());
   practice.clickTrack = { name: "Click", click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
   practice.mixer = [...practice.tracks, practice.clickTrack];
   practice.gate = false;
@@ -1296,6 +1303,55 @@ function keepInStep() {
   practice.worst = Math.max(practice.worst, worst);
   const sync = $("practice-sync");
   if (!sync.hidden) sync.textContent = `desfase entre pistas: ahora ${Math.round(worst * 1000)} ms · máximo ${Math.round(practice.worst * 1000)} ms · demora de arranque aprendida ${Math.round(startLatency() * 1000)} ms`;
+}
+
+// Live pitch: the music (not the click) goes through static/pitch.js when the pitch isn't 0. Its
+// delay is the same for every pitch, and the click is delayed as much so it stays on the beat.
+const PITCH_LATENCY = 4961;  // samples: LATENCY in static/pitch.js (a test checks they match)
+let musicBus = null, clickBus = null, pitchNode = null, pitchLoading = null;
+function musicOut() {
+  if (!musicBus) { musicBus = context().createGain(); musicBus.connect(master()); }
+  return musicBus;
+}
+function clickOut() {
+  if (!clickBus) { clickBus = context().createDelay(1); clickBus.connect(master()); }
+  return clickBus;
+}
+const semitones = () => parseInt($("practice-pitch").value, 10) || 0;
+const KEY_NAMES = { major: ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"],
+                    minor: ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"] };
+// "Am" moved some semitones: "Bm".
+function shiftedKey(text, st) {
+  const m = /^([A-G])([#b]?)(m?)$/.exec((text || "").split(/\s+/)[0]);
+  if (!m) return null;
+  const names = KEY_NAMES[m[3] ? "minor" : "major"];
+  const i = [...KEY_NAMES.major, ...KEY_NAMES.minor].indexOf(m[1] + m[2]) % 12;
+  return names[(((i + st) % 12) + 12) % 12] + m[3];
+}
+
+async function applyPitch() {
+  const ctx = context();
+  let st = semitones();
+  $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st);
+  const key = practice.song && practice.song.key, from = key && key.split(/\s+/)[0], to = shiftedKey(key, st);
+  $("practice-pitch-hint").textContent = st && to ? `semitonos: ${from} → ${to}; la velocidad no cambia` : "semitonos; la velocidad no cambia";
+  if (st && !pitchNode) {
+    try {
+      pitchLoading = pitchLoading || ctx.audioWorklet.addModule("/static/pitch.js");
+      await pitchLoading;
+      pitchNode = pitchNode || new AudioWorkletNode(ctx, "pitch-shifter", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+      pitchNode.connect(master());
+    } catch (e) {
+      pitchLoading = null;
+      $("practice-pitch").value = 0;
+      toast("Este navegador no pudo cambiar el tono en vivo.", 6000);
+    }
+    st = semitones();  // it may have moved while loading
+  }
+  if (pitchNode) pitchNode.port.postMessage({ semitones: st });
+  musicOut().disconnect();
+  musicOut().connect(st && pitchNode ? pitchNode : master());
+  clickOut().delayTime.setValueAtTime(st && pitchNode ? PITCH_LATENCY / ctx.sampleRate : 0, ctx.currentTime);
 }
 
 function setSpeed(percent) {
@@ -1518,6 +1574,9 @@ $("practice-set").onchange = (e) => loadSet(parseInt(e.target.value, 10));
 $("practice-speed").addEventListener("input", () => { $("practice-speed-value").textContent = `${$("practice-speed").value} %`; });
 $("practice-speed").addEventListener("change", () => moveTo(now()));
 $("practice-speed-reset").onclick = () => setSpeed(100);
+$("practice-pitch").addEventListener("input", () => { const st = semitones(); $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st); });
+$("practice-pitch").addEventListener("change", applyPitch);
+$("practice-pitch-reset").onclick = () => { $("practice-pitch").value = 0; applyPitch(); };
 $("practice-a").onclick = () => mark("a");
 $("practice-b").onclick = () => mark("b");
 $("practice-loop").onclick = () => { practice.loop = !practice.loop; renderPractice(); };

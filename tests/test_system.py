@@ -5,7 +5,7 @@ import subprocess
 
 import pytest
 
-from song_wizard import cli, log, report, system
+from song_wizard import __version__, cli, log, report, system
 
 
 def test_folder_command(monkeypatch, tmp_path):
@@ -47,7 +47,7 @@ def logging_on(monkeypatch):
 def test_log_records_command_and_result(logging_on):
     cli.main(["config"])
     text = log_text()
-    assert "song-wizard 0.1.0" in text and ": config" in text and "done in" in text
+    assert f"song-wizard {__version__}" in text and ": config" in text and "done in" in text
 
 
 def test_log_records_errors(logging_on, tmp_path):
