@@ -1,6 +1,6 @@
 """The REAPER project of a song: what goes in, the timing, never rewriting an existing one, the
 takes' names in REAPER's settings, and following the song when it's renamed or deleted. (Loading
-it in REAPER itself was checked by hand: see the README's test notes.)"""
+it in REAPER itself was checked by hand: see CHECKLIST.md.)"""
 
 import json
 import re
