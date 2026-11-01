@@ -205,6 +205,10 @@ def peaks(path, n, start=None, end=None):
     return result
 
 
+# How much audio one open-ended request gets (about 6 s of a 32-bit float stem).
+AUDIO_CHUNK = 2 << 20
+
+
 class NeedsCommand(ValueError):
     """A request that can't go on until the user runs a command; the page offers to copy it."""
 
@@ -504,7 +508,12 @@ def make_handler(token, root, runner, port):
             if match and (match.group(1) or match.group(2)):
                 if match.group(1):
                     start = int(match.group(1))
-                    end = int(match.group(2)) if match.group(2) else size - 1
+                    # "From here on" gets a stretch, not the rest of the file: a player asks for the
+                    # next one when it needs it. Sending all of it kept the connection busy while the
+                    # player stopped reading, and browsers open only 6 per server: with more tracks
+                    # than that (the drum kit), the rest got nothing and the practice player stalled,
+                    # worse with every jump.
+                    end = int(match.group(2)) if match.group(2) else start + AUDIO_CHUNK - 1
                 else:
                     start = max(0, size - int(match.group(2)))
                 end = min(end, size - 1)

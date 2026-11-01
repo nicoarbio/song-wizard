@@ -466,3 +466,20 @@ def test_singles_in_two_places(server, tmp_path):
     folders = get_json(port, "/api/library")["folders"]
     assert [(f["name"], f["location"], f["songs"][0]["name"]) for f in folders] == [
         ("Singles", None, "Here.opus"), ("Singles", str(drive), "There.opus")]
+
+
+def test_audio_in_stretches(server):
+    """A player's "from here on" gets a stretch, not the whole file: holding a connection per
+    track until the end stalled the practice player past 6 tracks (browsers open 6 per server)."""
+    port, root = server
+    data = bytes(range(256)) * ((ui.AUDIO_CHUNK * 2 + 1000) // 256)
+    (root / "big.wav").write_bytes(data)
+    response, content = request(port, "GET", "/api/audio?path=big.wav", headers={"Range": "bytes=0-"})
+    assert response.status == 206 and content == data[:ui.AUDIO_CHUNK]
+    assert response.getheader("Content-Range") == f"bytes 0-{ui.AUDIO_CHUNK - 1}/{len(data)}"
+    # The last stretch ends with the file; an explicit range is given whole.
+    start = len(data) - 500
+    response, content = request(port, "GET", "/api/audio?path=big.wav", headers={"Range": f"bytes={start}-"})
+    assert content == data[start:]
+    response, content = request(port, "GET", "/api/audio?path=big.wav", headers={"Range": f"bytes=10-{ui.AUDIO_CHUNK * 2}"})
+    assert content == data[10:ui.AUDIO_CHUNK * 2 + 1]
