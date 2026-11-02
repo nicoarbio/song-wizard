@@ -163,7 +163,7 @@
   /* The practice player fills the window: controls on top, a row per track with its waveform on
      a shared timeline, and the lyrics in a column on the right that can be folded away. */
   dialog#practice { max-width: none; max-height: none; width: 100vw; height: 100vh; height: 100dvh; margin: 0; border: 0; border-radius: 0; padding: 0; }
-  dialog#practice[open] { display: flex; flex-direction: column; }
+  dialog#practice[open] { display: flex; flex-direction: column; outline: none; }
   /* The library behind would keep its scrollbar, which moves it but not the player. */
   :root:has(dialog#practice[open]) { overflow: hidden; }
   .pr-top { padding: 10px 16px 6px; border-bottom: 1px solid var(--line); }
@@ -278,6 +278,21 @@
   dialog#setlist .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   dialog#setlist .where { color: var(--muted); font-size: 12px; white-space: nowrap; }
   dialog#setlist input#setlist-title { width: 100%; box-sizing: border-box; }
+  dialog#keys { max-width: min(760px, calc(100vw - 24px)); }
+  #keys-list { max-height: 62vh; overflow-y: auto; margin-top: 8px; }
+  #keys-list h4 { margin: 14px 0 4px; }
+  #keys-list .key-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line); }
+  #keys-list .key-row .keys { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+  #keys-list .key-row.changed > span:first-child::after { content: " ✍"; color: var(--muted); font-size: 11px; }
+  .chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; font: 12px ui-monospace, Menlo, Consolas, monospace; }
+  .chip button { border: 0; background: none; padding: 1px 6px; font: inherit; }
+  .chip button + button { padding: 1px 5px; color: var(--muted); border-left: 1px solid var(--line); border-radius: 0; }
+  .chip.listening, .key-row .listening { border-color: var(--accent); color: var(--accent); font-size: 12px; }
+  .lanes .lane-ctl { padding-left: 7px; border-radius: 4px; }
+  .lanes .lane-ctl.active { box-shadow: inset 3px 0 0 var(--accent); }
+  .lanes .lane-ctl.active .name { color: var(--accent); }
+  .lanes .lane.active canvas { outline: 2px solid var(--accent); outline-offset: -2px; }
+  ul.songs > li.cursor { box-shadow: inset 3px 0 0 var(--accent); background: var(--soft); }
 </style>
 </head>
 <body>
@@ -297,6 +312,7 @@
     <button class="primary" type="submit">Bajar</button>
     <span class="dest muted">en <button type="button" class="small" id="dest" title="Dónde va la carpeta de una playlist nueva">Música</button></span>
   </form>
+  <button type="button" class="small keys-open" title="Ver y cambiar los atajos de teclado (?)">⌨ atajos</button>
   <div class="theme" role="group" aria-label="Colores de la página" id="theme">
     <button type="button" data-theme="auto" title="Claro u oscuro según el sistema">automático</button>
     <button type="button" data-theme="light" title="Siempre claro">claro</button>
@@ -435,14 +451,14 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<dialog id="practice" aria-label="Practicar">
+<dialog id="practice" aria-label="Practicar" tabindex="-1">
   <div class="pr-top">
     <div class="pr-head">
       <h3 id="practice-title">Practicar</h3>
       <label id="practice-set-row" hidden>Pistas <select id="practice-set"></select></label>
       <span class="pr-spacer"></span>
-      <button class="small" id="practice-lyrics-toggle" title="Mostrar u ocultar la letra (Y)">letra ▸</button>
-      <button class="small" id="practice-full" title="Pantalla completa, sin las barras del navegador (F)">⛶ pantalla completa</button>
+      <button class="small" id="practice-lyrics-toggle" title="Mostrar u ocultar la letra">letra ▸</button>
+      <button class="small" id="practice-full" title="Pantalla completa, sin las barras del navegador">⛶ pantalla completa</button>
       <button class="small" id="practice-close">cerrar</button>
     </div>
     <div class="transport">
@@ -498,10 +514,7 @@
       <label><input type="checkbox" id="pc-resume"> también al seguir desde una pausa</label>
     </div>
   </details>
-      <p class="practice-keys">
-        <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
-        <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>9</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>F</kbd> pantalla completa · <kbd>Y</kbd> letra · <kbd>D</kbd> sincronía
-      </p>
+      <p class="practice-keys" id="practice-keys"></p>
       <p id="practice-status" class="hint"></p>
       <p id="practice-sync" hidden></p>
     </div>
@@ -510,6 +523,18 @@
       <div id="pl-slot"></div>
     </aside>
   </div>
+</dialog>
+
+<dialog id="keys" aria-label="Atajos de teclado">
+  <div class="row" style="justify-content:space-between"><h3>Atajos de teclado</h3><button class="small" id="keys-close">cerrar</button></div>
+  <p class="hint">Para cambiar una tecla, tocala y apretá la nueva; "+" agrega otra para lo mismo y × la saca. También vale un pedal que mande teclas, o un pad o pedal MIDI. Se guardan en este navegador. Mientras escribís en un campo de texto no hacen nada.</p>
+  <div class="row">
+    <button class="small" id="keys-midi" title="Para asignar pads, pedales o teclas de un aparato MIDI conectado (el navegador pide permiso)">usar un aparato MIDI</button>
+    <span class="muted" id="keys-midi-state"></span>
+    <span class="pr-spacer"></span>
+    <button class="small" id="keys-reset">restablecer todo</button>
+  </div>
+  <div id="keys-list"></div>
 </dialog>
 
 <dialog id="folder">
@@ -815,6 +840,7 @@ function renderLibrary() {
   const box = $("library");
   box.replaceChildren();
   state.shown = [];  // every checkbox shown, in order (for shift+click)
+  state.shownSongs = [];  // the songs in open folders, in order (for the keyboard)
   const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing);
   if (!visible.length) {
     box.append(el("p", { class: "empty" }, "No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música."));
@@ -844,6 +870,7 @@ function renderLibrary() {
     if (folder.location) details.append(el("div", { class: "location", title: "Esta playlist está fuera de tu carpeta de música" }, `en ${folder.location}`));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
+    if (details.open) state.shownSongs.push(...songs);
     details.append(list);
     if (folder.extras.length && !filter) {
       details.append(el("ul", { class: "files" }, folder.extras.map(renderFile)));
@@ -872,7 +899,8 @@ function renderSong(song) {
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song, true);
   const title = state.renaming === song.path ? renameBox(song) : el("span", { class: "title" }, song.name);
-  const li = el("li", { class: "song" },
+  const li = el("li", { class: "song" + (state.cursor === song.path ? " cursor" : ""), "data-path": song.path,
+    onpointerdown: () => setCursor(song.path, false) },
     el("div", { class: "head" }, check,
       el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
       title, badges,
@@ -1468,7 +1496,7 @@ function wheelZoom(canvas, { ready, view, setView }) {
 
 // A bar with the whole song and a box on the stretch in view: drag the box to move along, click
 // elsewhere to jump there (and keep dragging); the wheel on it moves along.
-function navigator(canvas, { duration, view, setView }) {
+function navBar(canvas, { duration, view, setView }) {
   const timeAt = (e) => { const r = canvas.getBoundingClientRect(); return duration() * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
   const inBox = (t) => t >= view()[0] && t <= view()[1];
   let grab = null;
@@ -1650,7 +1678,7 @@ function trimNearEdge(e) {
   canvas.addEventListener("pointercancel", () => { drag = null; });
   wheelZoom(canvas, { ready: () => trim.duration, view: () => trim.view, setView: setTrimView });
 }
-navigator($("trim-nav"), { duration: () => trim.duration, view: () => trim.view, setView: setTrimView });
+navBar($("trim-nav"), { duration: () => trim.duration, view: () => trim.view, setView: setTrimView });
 const zoomTrim = (k, at) => { const [a, b] = trim.view, c = at ?? (a + b) / 2; setTrimView(c - (c - a) * k, c + (b - c) * k); };
 $("trim-zoom-in").onclick = () => zoomTrim(1 / 2);
 $("trim-zoom-out").onclick = () => zoomTrim(2);
@@ -1770,7 +1798,7 @@ const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": 
 const practiceNav = new Wave($("practice-nav"), { interactive: false });
 const practiceZoom = { ready: () => practice.duration, view: () => practice.view || [0, practice.duration], setView: (a, b) => setPracticeView(a, b) };
 wheelZoom(practiceWave.canvas, practiceZoom);
-navigator(practiceNav.canvas, { duration: () => practice.duration, ...practiceZoom });
+navBar(practiceNav.canvas, { duration: () => practice.duration, ...practiceZoom });
 const clickWave = new Wave($("pc-wave"), { onGridDrag: (dt) => setClick({ first: practice.click.first + dt }) });
 
 function openPractice(song) {
@@ -1802,6 +1830,9 @@ function openPractice(song) {
   renderClickPanel(true);
   loadPracticeLyrics(song);
   $("practice").showModal();
+  // The browser would put the focus on the first control (the track sets), which keeps the
+  // arrows to itself: the shortcuts start on the player.
+  $("practice").focus();
 }
 
 function loadSet(index) {
@@ -1824,6 +1855,7 @@ function loadSet(index) {
   clickGain.connect(clickOut());
   practice.clickTrack = { name: "Click", click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
   practice.mixer = [...practice.tracks, practice.clickTrack];
+  practice.active = null;
   practice.gate = false;
   const ready = practice.tracks.map((t) => new Promise((resolve, reject) => {
     t.audio.addEventListener("canplay", resolve, { once: true });
@@ -1880,7 +1912,7 @@ function buildTracks() {
       oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); pct.textContent = `${e.target.value} %`; } });
     const mute = el("button", { class: "small", title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
     const solo = el("button", { class: "small", title: "Solo esta pista (se pueden sumar otras)", onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
-    const ctl = el("div", { class: "lane-ctl" },
+    const ctl = el("div", { class: "lane-ctl", onpointerdown: () => setActiveTrack(i) },
       el("span", { class: "name", title: t.click ? "El click, al tempo y compás de \"Ajustar el click\"" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
       el("span", { class: "ms" }, mute, solo), vol, pct);
     const canvas = el("canvas", { "aria-label": `${t.name}: tocá para moverte` });
@@ -1888,7 +1920,7 @@ function buildTracks() {
     box.append(ctl, lane);
     const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
     wheelZoom(canvas, practiceZoom);
-    const ui = { track: t, wave, ctl, lane, mute, solo, path: t.click ? null : t.file.path, overview: null };
+    const ui = { track: t, wave, ctl, lane, mute, solo, vol, pct, path: t.click ? null : t.file.path, overview: null };
     if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) { ui.overview = d; showPracticeView(); } }).catch(() => {});
     practice.lanes.push(ui);
   });
@@ -1899,13 +1931,17 @@ function renderTracks() {
   const all = Math.round(masterVolume() * 100);
   if (document.activeElement !== $("practice-master")) $("practice-master").value = all;
   $("practice-master-value").textContent = `${all} %`;
-  for (const { track: t, ctl, lane, mute, solo } of practice.lanes || []) {
+  (practice.lanes || []).forEach(({ track: t, ctl, lane, mute, solo, vol, pct }, i) => {
+    if (document.activeElement !== vol) vol.value = Math.round(t.volume * 100);
+    pct.textContent = `${Math.round(t.volume * 100)} %`;
+    ctl.classList.toggle("active", i === practice.active);
+    lane.classList.toggle("active", i === practice.active);
     mute.classList.toggle("on", t.mute);
     solo.classList.toggle("on", t.solo);
     const silent = level(t) === 0;
     ctl.classList.toggle("silent", silent);
     lane.classList.toggle("silent", silent);
-  }
+  });
 }
 
 function level(t) {
@@ -1946,7 +1982,7 @@ function applySpeed() {
 function renderPractice() {
   const t = now(), duration = practice.duration;
   $("practice-play").textContent = practice.playing ? "⏸" : "▶";
-  $("practice-play").title = practice.playing ? "Pausar" : "Reproducir";
+  $("practice-play").title = (practice.playing ? "Pausar" : "Reproducir") + keyHint("play");
   $("practice-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(duration).replace(/\.\d$/, "")}`;
   $("practice-count").textContent = practice.preroll ? "cuenta…" : "";
   $("practice-a-time").textContent = clockTime(practice.a);
@@ -2422,26 +2458,6 @@ $("practice-clear").onclick = () => { practice.a = practice.b = null; practice.l
 // Space plays and pauses wherever the focus is; a focused button would also take it as a click
 // when the key goes up.
 $("practice").addEventListener("keyup", (e) => { if (e.key === " ") e.preventDefault(); });
-$("practice").addEventListener("keydown", (e) => {
-  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT" && e.target.type !== "range" && e.target.type !== "checkbox" || e.ctrlKey || e.metaKey || e.altKey) return;
-  const key = e.key;
-  const actions = {
-    " ": togglePlay, "[": () => mark("a"), "]": () => mark("b"),
-    "l": () => { if (practice.a !== null && practice.b !== null) { practice.loop = !practice.loop; renderPractice(); } },
-    "c": () => { if (practice.clickTrack) { practice.clickTrack.mute = !practice.clickTrack.mute; applyVolumes(); renderTracks(); renderPractice(); } },
-    "ArrowLeft": () => moveTo(now() - 5), "ArrowRight": () => moveTo(now() + 5),
-    "-": () => setSpeed(speed() * 100 - 5), "+": () => setSpeed(speed() * 100 + 5), "=": () => setSpeed(speed() * 100 + 5),
-    "d": () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
-    "t": tapNextLine,
-    "f": togglePracticeFull,
-    "y": () => showPracticeLyrics(!lyricsShown()),
-  };
-  const track = /^[1-9]$/.test(key) ? practice.tracks[parseInt(key, 10) - 1] : null;
-  if (track) { e.preventDefault(); track.mute = !track.mute; applyVolumes(); renderTracks(); return; }
-  const action = actions[key.length === 1 ? key.toLowerCase() : key];
-  if (action) { e.preventDefault(); action(); }
-});
-
 // Delete: a picked song goes with all its files; a picked file, alone. The dialog lists exactly
 // what goes; it all goes to the system's trash.
 function deletePlan() {
@@ -2749,15 +2765,15 @@ function renderLyrics() {
       const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: `${c.name}: ¿qué es?`, "aria-label": `Qué significa el ${c.name}`,
         onchange: (e) => { d.legend = { ...(d.legend || {}), [c.id]: e.target.value }; saveLyrics(); } });
       tools.append(el("span", { class: "swatch" + (lyr.tool === c.id ? " active" : "") },
-        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: `Marcador ${c.name} (${n + 1})`,
+        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: `Marcador ${c.name}${lyr.where === "practice" ? "" : keyHint(`color${n + 1}`)}`,
           onmousedown: (e) => e.preventDefault(), onclick: () => pickTool(c.id) }), input));
     }
     tools.append(
-      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: "Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color (G)",
+      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: "Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color" + (lyr.where === "practice" ? "" : keyHint("erase")),
         onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, "goma"),
-      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: "Nota: hacé clic en una línea para escribirle un comentario (N)",
+      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: "Nota: hacé clic en una línea para escribirle un comentario" + (lyr.where === "practice" ? "" : keyHint("note")),
         onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, "nota"),
-      el("button", { class: "small", title: "Deshacer el último cambio (Ctrl+Z)", disabled: !lyr.history.length, onclick: undoLyrics }, "deshacer"));
+      el("button", { class: "small", title: "Deshacer el último cambio" + (lyr.where === "practice" ? "" : keyHint("undo")), disabled: !lyr.history.length, onclick: undoLyrics }, "deshacer"));
     if (lyr.where === "practice") {
       tools.append(el("button", { class: "small tool" + (lyr.showTimes ? " active" : ""), "aria-pressed": String(!!lyr.showTimes),
         title: "Mostrar la columna con el momento en que empieza cada línea, para ponerlos o corregirlos",
@@ -2770,14 +2786,14 @@ function renderLyrics() {
   const inPractice = lyr.where === "practice";
   const toolName = lyr.tool === "erase" ? "Goma" : lyr.tool === "note" ? "Nota" : lyr.tool ? `Marcador ${(lyr.colors.find((c) => c.id === lyr.tool) || {}).name}` : null;
   $("lyr-hint").textContent = inPractice && lyr.showTimes && !lyr.tool
-    ? "Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse (o la tecla T para la siguiente). × lo borra. Doble clic en una línea: ir a ese momento."
+    ? `Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse${keysOf("tap").length ? ` (o ${keyLabel(keysOf("tap")[0])} para la siguiente)` : ""}. × lo borra. Doble clic en una línea: ir a ese momento.`
     : inPractice
     ? (lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar." : toolName ? `${toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.`
        : "Elegí un marcador y pasalo por la letra, o clic en una palabra." + (lyr.timeline ? " La línea que suena se resalta sola." : ""))
     : !toolName
-    ? "Elegí un marcador (un color, o las teclas 1 a 5) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo."
+    ? `Elegí un marcador (un color${keyHint("color1") ? ", o sus teclas" : ""}) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo.`
     : lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta."
-    : `${toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta, Ctrl+Z deshace.`;
+    : `${toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta${keysOf("undo").length ? `, ${keyLabel(keysOf("undo")[0])} deshace` : ""}.`;
   const body = $("lyr-body");
   body.className = "lyr-body" + (lyr.where === "practice" && lyr.showTimes ? " with-times" : "") + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
   const tint = lyr.tool && lyr.tool !== "erase" && lyr.tool !== "note" ? (lyr.colors.find((c) => c.id === lyr.tool) || {}).shade : null;
@@ -3055,17 +3071,6 @@ $("lyr-body").addEventListener("click", (e) => {
   lyr.noting = parseInt(row.dataset.line, 10);
   renderLyrics();
 });
-$("lyrics").addEventListener("keydown", (e) => {
-  if (!lyr.data || e.target.matches("input, textarea")) return;
-  const k = e.key.toLowerCase();
-  if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); undoLyrics(); return; }
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (/^[1-5]$/.test(k) && lyr.colors[+k - 1]) { e.preventDefault(); pickTool(lyr.colors[+k - 1].id); }
-  else if (k === "g") { e.preventDefault(); pickTool("erase"); }
-  else if (k === "n") { e.preventDefault(); pickTool("note"); }
-  else if (k === "escape" && lyr.tool) { e.preventDefault(); lyr.tool = null; renderLyrics(); }  // the dialog stays open
-});
-
 function saveLyrics() {
   clearTimeout(lyr.timer);
   const song = lyr.song, data = lyr.data;
@@ -3163,8 +3168,362 @@ $("stems").addEventListener("change", (e) => {
   else if (e.target !== all && e.target.checked) all.checked = false;
 });
 
+// ---------- Shortcuts ----------
+// Every shortcut is an action in this list: where it works, what it does and its keys. The
+// keys can be changed (remembered in this browser) and a MIDI pad or pedal can be one. A key is
+// written as a combination: "Shift+ArrowLeft", "z", "Ctrl+z", "1", "?", "MIDI 36" (a note) or
+// "MIDI CC 64" (a pedal). Symbols ("?", "[", "+") are taken as typed, whatever it took to type
+// them (on a Spanish keyboard "[" is AltGr plus a key).
+const SCOPES = { library: "Biblioteca", practice: "Practicar", lyrics: "Letra (marcar)", all: "En todas partes" };
+const ACTIONS = [
+  ["help", "all", "Ver y cambiar los atajos", ["?"]],
+  ["lib.filter", "library", "Ir al filtro", ["/"]],
+  ["lib.down", "library", "Tema siguiente", ["ArrowDown"]],
+  ["lib.up", "library", "Tema anterior", ["ArrowUp"]],
+  ["lib.play", "library", "Escuchar el tema", ["Enter"]],
+  ["lib.practice", "library", "Practicar el tema", ["p"]],
+  ["lib.lyrics", "library", "La letra del tema", ["l"]],
+  ["lib.more", "library", "El menú \"más\" del tema", ["."]],
+  ["lib.pick", "library", "Elegir el tema (o sacarlo de lo elegido)", ["x"]],
+  ["lib.open", "library", "Mostrar sus stems y versiones", ["ArrowRight"]],
+  ["lib.close", "library", "Ocultar sus stems y versiones", ["ArrowLeft"]],
+  ["lib.pause", "library", "Reproductor de abajo: pausar o seguir", ["Space"]],
+  ["lib.back", "library", "Reproductor de abajo: 5 s atrás", ["Shift+ArrowLeft"]],
+  ["lib.fwd", "library", "Reproductor de abajo: 5 s adelante", ["Shift+ArrowRight"]],
+  ["play", "practice", "Reproducir / pausar", ["Space"]],
+  ["back", "practice", "5 s atrás", ["ArrowLeft"]],
+  ["fwd", "practice", "5 s adelante", ["ArrowRight"]],
+  ["barBack", "practice", "Un compás atrás", ["Shift+ArrowLeft"]],
+  ["barFwd", "practice", "Un compás adelante", ["Shift+ArrowRight"]],
+  ["start", "practice", "Al principio (o a A, si está marcado)", ["Home"]],
+  ["markA", "practice", "Marcar A", ["["]],
+  ["markB", "practice", "Marcar B", ["]"]],
+  ["loop", "practice", "Repetir el tramo A-B", ["l"]],
+  ["slower", "practice", "Más lento", ["-"]],
+  ["faster", "practice", "Más rápido", ["+", "="]],
+  ["pitchDown", "practice", "Tono: un semitono abajo", [","]],
+  ["pitchUp", "practice", "Tono: un semitono arriba", ["."]],
+  ["reset", "practice", "Velocidad y tono normales", ["r"]],
+  ["trackUp", "practice", "Elegir la pista de arriba", ["ArrowUp"]],
+  ["trackDown", "practice", "Elegir la pista de abajo", ["ArrowDown"]],
+  ["trackMute", "practice", "Silenciar la pista elegida", ["m"]],
+  ["trackSolo", "practice", "Solo la pista elegida", ["s"]],
+  ["trackLouder", "practice", "Subir el volumen de la pista elegida", ["Shift+ArrowUp"]],
+  ["trackSofter", "practice", "Bajar el volumen de la pista elegida", ["Shift+ArrowDown"]],
+  ["click", "practice", "Prender o apagar el click", ["c"]],
+  ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", `Silenciar la pista ${i + 1}`, [String((i + 1) % 10)]]),
+  ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", `Solo la pista ${i + 1}`, [`Shift+${(i + 1) % 10}`]]),
+  ["zoomIn", "practice", "Acercar las ondas", ["z"]],
+  ["zoomOut", "practice", "Alejar las ondas", ["x"]],
+  ["zoomAll", "practice", "Ver el tema entero", ["v"]],
+  ["full", "practice", "Pantalla completa", ["f"]],
+  ["lyrics", "practice", "Mostrar u ocultar la letra", ["y"]],
+  ["tap", "practice", "Tiempos de la letra: marcar la línea siguiente", ["t"]],
+  ["sync", "practice", "Ver cuánto se separan las pistas", ["d"]],
+  ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", `Marcador ${i + 1}`, [String(i + 1)]]),
+  ["erase", "lyrics", "Goma", ["g"]],
+  ["note", "lyrics", "Nota", ["n"]],
+  ["undo", "lyrics", "Deshacer", ["Ctrl+z"]],
+].map(([id, scope, label, keys]) => ({ id, scope, label, keys }));
+const ACTION = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
+const KEYS_KEY = "song-wizard:keys", MIDI_KEY = "song-wizard:midi";
+let customKeys = (() => { try { return JSON.parse(localStorage.getItem(KEYS_KEY)) || {}; } catch { return {}; } })();
+const keysOf = (id) => customKeys[id] || ACTION[id].keys;
+function setKeys(id, keys) {
+  const same = keys.length === ACTION[id].keys.length && keys.every((k, i) => k === ACTION[id].keys[i]);
+  if (same) delete customKeys[id]; else customKeys[id] = keys;
+  try { localStorage.setItem(KEYS_KEY, JSON.stringify(customKeys)); } catch {}
+  keysChanged();
+}
+
+const MODIFIERS = new Set(["Shift", "Control", "Alt", "Meta", "AltGraph", "CapsLock", "NumLock", "Fn", "OS"]);
+function comboOf(e) {
+  if (MODIFIERS.has(e.key)) return null;
+  const altGr = e.getModifierState && e.getModifierState("AltGraph");
+  let ctrl = (e.ctrlKey || e.metaKey) && !altGr, alt = e.altKey && !altGr;
+  const digit = /^(Digit|Numpad)(\d)$/.exec(e.code || "");
+  let base, shift = e.shiftKey;
+  if (digit) base = digit[2];
+  else if (e.key === " ") base = "Space";
+  else if (e.key.length === 1 && /\p{L}/u.test(e.key)) base = e.key.toLowerCase();
+  else if (e.key.length === 1) {
+    // A symbol: as typed. Ctrl and Alt together are AltGr on Windows (how "[" is typed on a
+    // Spanish keyboard), even where the browser doesn't say so.
+    base = e.key; shift = false;
+    if (ctrl && alt) ctrl = alt = false;
+  } else base = e.key;
+  return (ctrl ? "Ctrl+" : "") + (alt ? "Alt+" : "") + (shift ? "Shift+" : "") + base;
+}
+const KEY_LABELS = { Space: "espacio", ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Home: "Inicio", End: "Fin",
+  PageUp: "RePág", PageDown: "AvPág", Enter: "Enter", Backspace: "Retroceso", Delete: "Supr", Insert: "Insert", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift" };
+function keyLabel(combo) {
+  const note = /^MIDI (\d+)$/.exec(combo), cc = /^MIDI CC (\d+)$/.exec(combo);
+  if (note) return `MIDI nota ${note[1]}`;
+  if (cc) return `MIDI control ${cc[1]}`;
+  return combo.split(/\+(?=.)/).map((p) => KEY_LABELS[p] || (p.length === 1 ? p.toUpperCase() : p)).join("+");
+}
+const keyHint = (id) => { const k = keysOf(id); return k.length ? ` (${k.map(keyLabel).join(" o ")})` : ""; };
+
+// Where a key goes: the window on top. Other windows (confirmations, the trim...) keep their
+// keys to themselves.
+function scopeNow(target) {
+  const open = [...document.querySelectorAll("dialog[open]")].map((d) => d.id);
+  const own = target && target.closest ? target.closest("dialog[open]") : null;
+  const top = own ? own.id : open.includes("keys") ? "keys" : open.find((id) => id !== "practice" && id !== "lyrics") || (open.includes("lyrics") ? "lyrics" : open.includes("practice") ? "practice" : null);
+  if (!top) return "library";
+  return top === "practice" || top === "lyrics" ? top : null;
+}
+function actionFor(combo, scope) {
+  return ACTIONS.find((a) => (a.scope === scope || a.scope === "all") && keysOf(a.id).includes(combo));
+}
+
+const RUN = {
+  help: () => openKeys(),
+  "lib.filter": () => { $("filter").focus(); $("filter").select(); },
+  "lib.down": () => moveCursor(1),
+  "lib.up": () => moveCursor(-1),
+  "lib.play": () => withCursor(play),
+  "lib.practice": () => withCursor(openPractice),
+  "lib.lyrics": () => withCursor(openLyrics),
+  "lib.more": () => withCursor((song) => { state.menu = song.path; renderLibrary(); }),
+  "lib.pick": () => withCursor((song) => { state.selected.has(song.path) ? state.selected.delete(song.path) : state.selected.add(song.path); state.lastPicked = song.path; renderSelection(); renderLibrary(); }),
+  "lib.open": () => withCursor((song) => { if (song.files.length) { setSongOpen(song, true); renderLibrary(); } }),
+  "lib.close": () => withCursor((song) => { setSongOpen(song, false); renderLibrary(); }),
+  "lib.pause": () => { if (playerAudio.src) playerAudio.paused ? playerAudio.play() : playerAudio.pause(); },
+  "lib.back": () => { if (playerAudio.src) playerAudio.currentTime = Math.max(0, playerAudio.currentTime - 5); },
+  "lib.fwd": () => { if (playerAudio.src) playerAudio.currentTime += 5; },
+  play: togglePlay,
+  back: () => moveTo(now() - 5),
+  fwd: () => moveTo(now() + 5),
+  barBack: () => moveBar(-1),
+  barFwd: () => moveBar(1),
+  start: () => moveTo(practice.a !== null && Math.abs(now() - practice.a) > 0.3 ? practice.a : 0),
+  markA: () => mark("a"),
+  markB: () => mark("b"),
+  loop: () => { if (practice.a !== null && practice.b !== null) { practice.loop = !practice.loop; renderPractice(); } },
+  slower: () => setSpeed(speed() * 100 - 5),
+  faster: () => setSpeed(speed() * 100 + 5),
+  pitchDown: () => setPitch(semitones() - 1),
+  pitchUp: () => setPitch(semitones() + 1),
+  reset: () => { if (semitones()) setPitch(0); if (speed() !== 1) setSpeed(100); },
+  trackUp: () => setActiveTrack(practice.active === null ? practice.mixer.length - 1 : Math.max(0, practice.active - 1)),
+  trackDown: () => setActiveTrack(practice.active === null ? 0 : Math.min(practice.mixer.length - 1, practice.active + 1)),
+  trackMute: () => withTrack(practice.active, (t) => { t.mute = !t.mute; }),
+  trackSolo: () => withTrack(practice.active, (t) => { t.solo = !t.solo; }),
+  trackLouder: () => withTrack(practice.active, (t) => { t.volume = Math.min(1, Math.round(t.volume * 100 + 5) / 100); }),
+  trackSofter: () => withTrack(practice.active, (t) => { t.volume = Math.max(0, Math.round(t.volume * 100 - 5) / 100); }),
+  click: () => { if (practice.clickTrack) withTrack(practice.mixer.indexOf(practice.clickTrack), (t) => { t.mute = !t.mute; }); },
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, () => withTrack(i, (t) => { t.mute = !t.mute; }, true)])),
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, () => withTrack(i, (t) => { t.solo = !t.solo; }, true)])),
+  zoomIn: () => zoomPractice(1 / 2),
+  zoomOut: () => zoomPractice(2),
+  zoomAll: () => setPracticeView(0, practice.duration),
+  full: togglePracticeFull,
+  lyrics: () => showPracticeLyrics(!lyricsShown()),
+  tap: tapNextLine,
+  sync: () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
+  ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, () => { if (lyr.data && lyr.colors[i]) pickTool(lyr.colors[i].id); }])),
+  erase: () => { if (lyr.data) pickTool("erase"); },
+  note: () => { if (lyr.data) pickTool("note"); },
+  undo: () => { if (lyr.data) undoLyrics(); },
+};
+
+// Tracks by number are the audio ones (the click has its own key); the chosen one can be any.
+function withTrack(i, change, audioOnly = false) {
+  const t = i === null || i === undefined ? null : (audioOnly ? practice.tracks : practice.mixer)[i];
+  if (!t) return;
+  change(t);
+  applyVolumes(); renderTracks(); renderPractice();
+}
+function setActiveTrack(i) {
+  practice.active = i;
+  renderTracks();
+  const lane = practice.lanes && practice.lanes[i];
+  if (lane) lane.ctl.scrollIntoView({ block: "nearest" });
+}
+// A bar back goes to the start of this bar, or of the one before if it just began (so pressing
+// it again while playing keeps going back).
+function moveBar(direction) {
+  const { first, period, perBar } = grid(), bar = period * perBar, k = (now() - first) / bar;
+  const target = direction > 0 ? first + (Math.floor(k + 1e-3) + 1) * bar : first + (Math.ceil(k - 0.15) - 1) * bar;
+  moveTo(Math.max(0, target));
+}
+function setPitch(st) {
+  const input = $("practice-pitch");
+  input.value = Math.max(-6, Math.min(6, st));
+  input.dispatchEvent(new Event("input"));
+  applyPitch();
+}
+
+// The library's keyboard cursor: a song, marked in the list (kept by path across redraws).
+function setCursor(path, scroll = true) {
+  state.cursor = path;
+  for (const li of document.querySelectorAll("ul.songs > li")) li.classList.toggle("cursor", li.dataset.path === path);
+  const li = scroll && document.querySelector(`ul.songs > li[data-path="${CSS.escape(path)}"]`);
+  if (li) li.scrollIntoView({ block: "nearest" });
+}
+function moveCursor(step) {
+  const songs = state.shownSongs || [];
+  if (!songs.length) return;
+  const at = songs.findIndex((s) => s.path === state.cursor);
+  setCursor(songs[at < 0 ? (step > 0 ? 0 : songs.length - 1) : Math.max(0, Math.min(songs.length - 1, at + step))].path);
+}
+function withCursor(action) {
+  const song = (state.shownSongs || []).find((s) => s.path === state.cursor);
+  if (song) action(song); else toast("Primero elegí un tema con ↑ ↓ (o tocándolo).");
+}
+
+function runCombo(combo, e) {
+  const scope = scopeNow(e && e.target);
+  if (!scope) return false;
+  const action = actionFor(combo, scope);
+  if (!action) return false;
+  if (e) e.preventDefault();
+  RUN[action.id]();
+  return true;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (keys.listening) return captureKey(e);
+  const t = e.target;
+  if (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT" ||
+      t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox") return;
+  const combo = comboOf(e);
+  if (!combo) return;
+  // In the library, Space and Enter on a focused button or box do what they always do.
+  if (scopeNow(t) === "library" && (combo === "Space" || combo === "Enter") && t.closest("button, input, a, summary")) return;
+  if (combo === "Escape" && scopeNow(t) === "lyrics" && lyr.tool) { e.preventDefault(); lyr.tool = null; renderLyrics(); return; }  // the dialog stays open
+  runCombo(combo, e);
+});
+// A button with the focus would also take Space as a click when it goes up.
+document.addEventListener("keyup", (e) => {
+  if (e.key === " " && !keys.listening && scopeNow(e.target) === "practice" && e.target.tagName !== "INPUT") e.preventDefault();
+});
+
+// ---- The shortcuts window
+const keys = { listening: null };  // { id, index }: index of the key being replaced, or -1 to add one
+function openKeys() {
+  keys.listening = null;
+  renderKeys();
+  if (!$("keys").open) $("keys").showModal();
+}
+function renderKeys() {
+  const sections = Object.entries(SCOPES).map(([scope, title]) => {
+    const rows = ACTIONS.filter((a) => a.scope === scope).map((a) => {
+      const listening = keys.listening && keys.listening.id === a.id;
+      const chips = keysOf(a.id).map((k, i) => listening && keys.listening.index === i
+        ? el("span", { class: "chip listening" }, "apretá una tecla… (Esc cancela)")
+        : el("span", { class: "chip" },
+            el("button", { title: "Cambiar esta tecla", onclick: () => listen(a.id, i) }, keyLabel(k)),
+            el("button", { title: "Sacar esta tecla", "aria-label": `Sacar ${keyLabel(k)}`, onclick: () => setKeys(a.id, keysOf(a.id).filter((_, j) => j !== i)) }, "×")));
+      if (listening && keys.listening.index === -1) chips.push(el("span", { class: "listening" }, "apretá una tecla… (Esc cancela)"));
+      return el("div", { class: "key-row" + (customKeys[a.id] ? " changed" : ""), "data-id": a.id }, el("span", {}, a.label),
+        el("span", { class: "keys" }, ...chips,
+          el("button", { class: "small", title: "Agregar otra tecla para lo mismo", onclick: () => listen(a.id, -1) }, "+")));
+    });
+    return [el("h4", {}, title), ...rows];
+  }).flat();
+  $("keys-list").replaceChildren(...sections);
+  renderMidiState();
+}
+function listen(id, index) { keys.listening = { id, index }; renderKeys(); }
+function captureKey(e) {
+  if (MODIFIERS.has(e.key)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === "Escape" || e.key === "Tab") { keys.listening = null; renderKeys(); return; }
+  assignKey(comboOf(e));
+}
+// A key already used for something else in the same place: changing a key trades the two;
+// adding one takes it from the other (after asking).
+async function assignKey(combo) {
+  const { id, index } = keys.listening;
+  keys.listening = null;
+  const action = ACTION[id], mine = [...keysOf(id)];
+  if (mine.includes(combo) && mine.indexOf(combo) !== index) { renderKeys(); return; }
+  const clash = ACTIONS.find((a) => a.id !== id && keysOf(a.id).includes(combo) &&
+    (a.scope === action.scope || a.scope === "all" || action.scope === "all"));
+  if (clash) {
+    const old = index >= 0 ? mine[index] : null;
+    const ok = await askConfirm({ title: `${keyLabel(combo)} ya es "${clash.label}"`,
+      text: old ? `Se intercambian: "${action.label}" pasa a ${keyLabel(combo)} y "${clash.label}" a ${keyLabel(old)}.`
+                : `"${clash.label}" se queda sin ${keyLabel(combo)} y pasa a "${action.label}".`,
+      ok: old ? "intercambiar" : "pasarla" });
+    if (!ok) { renderKeys(); return; }
+    const theirs = keysOf(clash.id).map((k) => k === combo ? old : k).filter(Boolean);
+    setKeys(clash.id, [...new Set(theirs)]);
+  }
+  if (index >= 0) mine[index] = combo; else mine.push(combo);
+  setKeys(id, [...new Set(mine)]);
+}
+$("keys").addEventListener("cancel", (e) => { if (keys.listening) e.preventDefault(); });
+$("keys-close").onclick = () => $("keys").close();
+$("keys-reset").onclick = async () => {
+  if (!Object.keys(customKeys).length) return;
+  if (await askConfirm({ title: "¿Volver a los atajos de fábrica?", text: "Se borran todos los cambios que hiciste en los atajos.", ok: "restablecer" })) {
+    customKeys = {};
+    try { localStorage.removeItem(KEYS_KEY); } catch {}
+    keysChanged();
+  }
+};
+for (const b of document.querySelectorAll(".keys-open")) b.onclick = openKeys;
+
+// Titles and the short list in the player follow the keys as they are now.
+const KEY_TITLES = { "practice-a": "markA", "practice-b": "markB", "practice-loop": "loop", "practice-full": "full", "practice-lyrics-toggle": "lyrics",
+  "practice-zoom-in": "zoomIn", "practice-zoom-out": "zoomOut", "practice-zoom-all": "zoomAll", "practice-speed-reset": "reset", "filter": "lib.filter" };
+function keysChanged() {
+  for (const [elId, id] of Object.entries(KEY_TITLES)) {
+    const b = $(elId);
+    if (b.dataset.title === undefined) b.dataset.title = b.title || ACTION[id].label;
+    b.title = b.dataset.title + keyHint(id);
+  }
+  const shown = [["play", "reproducir/pausar"], ["back", "", "fwd", "5 s"], ["barBack", "", "barFwd", "un compás"], ["markA", "", "markB", "A y B"], ["loop", "repetir"],
+    ["slower", "", "faster", "velocidad"], ["trackUp", "", "trackDown", "elegir pista"], ["trackMute", "silenciar"], ["trackSolo", "solo"],
+    ["click", "click"], ["zoomIn", "", "zoomOut", "acercar"], ["full", "pantalla completa"], ["lyrics", "letra"]];
+  const kbd = (id) => keysOf(id).slice(0, 1).map((k) => el("kbd", {}, keyLabel(k)));
+  const parts = shown.map((p) => p.length === 2 ? [...kbd(p[0]), ` ${p[1]}`] : [...kbd(p[0]), " ", ...kbd(p[2]), ` ${p[3]}`]);
+  $("practice-keys").replaceChildren(...parts.flatMap((p, i) => i ? [" · ", ...p] : p), " · ",
+    el("button", { class: "small keys-open", onclick: openKeys }, `todos los atajos${keyHint("help")}`));
+  if ($("keys").open) renderKeys();
+  if (practice.lanes) renderPractice();
+  if (lyr.data) renderLyrics();
+}
+
+// ---- MIDI: a note (a pad, a key) or a pedal (a controller going on) is a key like any other.
+const midi = { access: null, cc: {} };
+async function enableMidi(asked) {
+  if (!navigator.requestMIDIAccess) { if (asked) toast("Este navegador no maneja MIDI (Chrome y Edge sí).", 6000); return; }
+  try { midi.access = await navigator.requestMIDIAccess(); }
+  catch { if (asked) toast("El navegador no dio permiso para usar MIDI.", 6000); return; }
+  const hook = () => { for (const input of midi.access.inputs.values()) input.onmidimessage = onMidi; renderMidiState(); };
+  midi.access.onstatechange = hook;
+  hook();
+  try { localStorage.setItem(MIDI_KEY, "on"); } catch {}
+}
+function onMidi(e) {
+  const [status, a, b] = e.data, type = status & 0xf0;
+  let combo = null;
+  if (type === 0x90 && b > 0) combo = `MIDI ${a}`;
+  else if (type === 0xb0) {
+    const was = (midi.cc[a] || 0) >= 64, on = b >= 64;
+    midi.cc[a] = b;
+    if (on && !was) combo = `MIDI CC ${a}`;
+  }
+  if (!combo) return;
+  if (keys.listening) return assignKey(combo);
+  runCombo(combo, { target: document.activeElement, preventDefault() {} });
+}
+function renderMidiState() {
+  const names = midi.access ? [...midi.access.inputs.values()].map((i) => i.name) : [];
+  $("keys-midi").hidden = !!midi.access;
+  $("keys-midi-state").textContent = !midi.access ? "" : names.length ? `MIDI: ${names.join(", ")}` : "MIDI activo, sin aparatos conectados";
+}
+$("keys-midi").onclick = () => enableMidi(true);
+try { if (localStorage.getItem(MIDI_KEY) === "on") enableMidi(false); } catch {}
+keysChanged();
+
 refresh().then(() => {
-  // "song-wizard ui --practice FILE": straight into that song's practice player.
+  // "song-wizard ui --practice FILE\": straight into that song's practice player.
   const wanted = new URLSearchParams(location.search).get("practice");
   const found = wanted ? findPath(wanted) : null;
   if (found && found.song) openPractice(found.song);

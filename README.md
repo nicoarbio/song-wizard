@@ -157,6 +157,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
 - **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
 - **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
+- **Atajos de teclado**: casi todo se puede hacer con el teclado, y las teclas se pueden cambiar. "⌨ atajos" arriba (o `?`) los muestra todos. Ver [Atajos de teclado](#atajos-de-teclado).
 - **Colores**: arriba a la derecha, "automático" sigue al sistema (claro u oscuro, como lo tengas en Windows o en el Mac), y "claro" u "oscuro" lo dejan fijo. El navegador lo recuerda. Las hojas para imprimir (setlist, letra) son siempre claras.
 - **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
@@ -180,7 +181,7 @@ El reproductor ocupa toda la ventana. Arriba están los controles: reproducir, v
 - Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y el tramo se ve sobre las ondas.
 - **Letra**: en la columna de la derecha está la letra del tema (en pantallas angostas, debajo de las pistas). "letra ▸" (o `Y`) la pliega para que las ondas ganen ancho, y el navegador lo recuerda. Viene con sus colores y notas, y se puede marcar ahí mismo con el mouse. Si la letra tiene tiempos, la línea que suena se resalta y la letra avanza sola (si la moviste con la rueda, espera unos segundos antes de seguir), y con doble clic en una línea el tema salta a ese momento. Si el tema no tiene letra, se puede buscar desde ahí.
 - **Tiempos de la letra**: "tiempos" abre una columna a la izquierda con el momento en que empieza cada línea. Mientras suena el tema, tocás el tiempo de una línea justo cuando empieza a cantarse, o apretás T y se marca la línea siguiente: así una letra pegada queda sincronizada escuchando el tema una vez. La × borra un tiempo, y −0.5 s / +0.5 s corren todos juntos (por ejemplo, si tu versión tiene otra intro que la de la base de letras, de donde vienen los tiempos cuando los hay). Ctrl+Z deshace también esto.
-- Con el teclado: espacio reproduce y pausa, `[` y `]` marcan A y B, `L` repite, las flechas saltan 5 segundos, `-` y `+` cambian la velocidad, `1` a `5` silencian una pista y `C` el click, `F` pasa a pantalla completa y `Y` muestra u oculta la letra. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos).
+- Con el teclado: espacio reproduce y pausa, las flechas saltan 5 segundos y con Shift un compás (según el click), `Inicio` vuelve al principio (o a A), `[` y `]` marcan A y B, `L` repite, `-` y `+` cambian la velocidad, `,` y `.` el tono, `R` vuelve todo a lo normal, `Z` y `X` acercan y alejan, `F` pasa a pantalla completa y `Y` muestra u oculta la letra. Para las pistas: `↑` y `↓` eligen una (se marca), `M` la silencia, `S` la pone en solo y Shift+`↑`/`↓` le cambian el volumen; además `1` a `9` y `0` (la décima) silencian una pista directo, Shift+número la pone en solo, y `C` prende o apaga el click. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos). Debajo de las pistas está la lista corta; todas, y para cambiarlas, en [Atajos de teclado](#atajos-de-teclado).
 
 **El click.** La última pista del reproductor es un click que sigue al tema: cae en cada tiempo aunque saltes a cualquier parte, repitas un tramo o cambies la velocidad, y como lo genera el navegador en el momento, suena nítido también a velocidades bajas. Para que coincida con el tema hace falta su tempo exacto y dónde cae el primer golpe; se ajustan en "Ajustar el click":
 
@@ -193,6 +194,15 @@ El reproductor ocupa toda la ventana. Arriba están los controles: reproducir, v
 Medido en Edge: el click cae a ~1 ms del tema, también después de saltar y a 125 %; la cuenta y la entrada de la música, a 3 ms. Por debajo de 100 % el navegador demora un poco el tema al estirarlo y song-wizard lo compensa en Brave, Chrome y Edge (en Firefox y Safari, todavía no); a esas velocidades el tema estirado igual "baila" unos ±15 ms de golpe a golpe, por cómo lo estira el navegador.
 
 Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
+
+#### Atajos de teclado
+
+"⌨ atajos" (arriba a la derecha), `?` o "todos los atajos" en Practicar abren la lista de todos los atajos, separados por dónde valen: la biblioteca, Practicar y la ventana de la letra. Mientras escribís en un campo de texto no hacen nada.
+
+- **En la biblioteca**: `↑` y `↓` recorren los temas (el elegido se marca; también se elige tocándolo), y sobre ese tema `Enter` lo escucha, `P` lo abre en Practicar, `L` abre su letra, `.` su menú "más", `X` lo suma a lo elegido (o lo saca), `→` y `←` muestran u ocultan sus stems y versiones. `/` va al filtro. Espacio pausa o sigue el reproductor de abajo, y Shift+`←`/`→` lo mueven 5 segundos.
+- **Cambiar una tecla**: en la lista, tocás la tecla y apretás la nueva. "+" agrega otra tecla para lo mismo y × la saca. Si la tecla nueva ya hace otra cosa en el mismo lugar, pregunta: al cambiar una tecla se intercambian, y al agregarla, la otra acción se queda sin ella. Las cambiadas llevan ✍ y "restablecer todo" vuelve a las de fábrica. Se guardan en el navegador (como los colores). Los botones muestran su atajo al pasar el mouse, con las teclas que tengas.
+- **Pedales**: un pedal para pasar páginas (los de partituras, por Bluetooth o USB) manda teclas como cualquier teclado: se le asigna lo que quieras, por ejemplo reproducir y pausar, para practicar sin sacar las manos del instrumento.
+- **MIDI**: con "usar un aparato MIDI" (el navegador pide permiso una vez) también vale pegarle a un pad, tocar una tecla o pisar un pedal de un aparato MIDI conectado al asignar un atajo: queda como "MIDI nota 36" o "MIDI control 64". Anda en Chrome y Edge; Firefox pide instalar un permiso aparte, y Safari no tiene MIDI.
 
 #### La interfaz y la terminal
 
@@ -482,7 +492,7 @@ Busca la letra de cada tema en una base de letras abierta, por el nombre del arc
 
 En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
 
-- **Marcadores**: como un resaltador de PDF. Elegís un color (o las teclas 1 a 5) y el cursor pasa a ser un marcador de ese color: arrastrás sobre la letra y queda pintada al soltar, o hacés clic en una palabra. Toma palabras enteras. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
+- **Marcadores**: como un resaltador de PDF. Elegís un color (o las teclas 1 a 5, que se pueden cambiar en [Atajos de teclado](#atajos-de-teclado)) y el cursor pasa a ser un marcador de ese color: arrastrás sobre la letra y queda pintada al soltar, o hacés clic en una palabra. Toma palabras enteras. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
 - **Goma** (G): arrastrando saca el color, y con un clic borra toda la marca que tocás.
 - **Nota** (N): clic en una línea para escribirle un comentario ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
 - Esc suelta la herramienta y Ctrl+Z (o "deshacer") vuelve atrás.
