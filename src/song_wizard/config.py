@@ -42,10 +42,20 @@ def get(section, key):
     return load()[section][key]
 
 
-def show():
-    if not CONFIG_PATH.exists():
+def ensure():
+    """Write the settings file (everything commented out) if it isn't there. True if it was written."""
+    if CONFIG_PATH.exists():
+        return False
+    try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         CONFIG_PATH.write_text(TEMPLATE)
+    except OSError:
+        return False  # a read-only home: the defaults apply all the same
+    return True
+
+
+def show():
+    if ensure():
         print(f"Created {CONFIG_PATH} (everything commented out: defaults apply)\n")
     else:
         print(f"Settings file: {CONFIG_PATH}\n")

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from . import results, system
+from . import results, system, tags
 from .paths import music_dir
 
 
@@ -17,7 +17,7 @@ def run(text=None, files=False):
     from .ui import library
 
     root = music_dir()
-    text = (text or "").lower()
+    text = (text or "").strip()
     shown = 0
     for folder in library(root):
         if folder.get("missing"):
@@ -29,7 +29,8 @@ def run(text=None, files=False):
                 shown += 1
             continue
         here = folder_path(root, folder)
-        songs = [s for s in folder["songs"] if not text or text in s["name"].lower() or text in folder["name"].lower()]
+        # Words in any order, accents and case aside, in the name, the folder or the song's data.
+        songs = [s for s in folder["songs"] if not text or tags.matches(text, s["name"], folder["name"], *s.get("tags", {}).values())]
         if text and not songs:
             continue
         playlist = f"  playlist: {folder['playlist']['title']}" if folder["playlist"] else ""

@@ -929,12 +929,13 @@ wheels = [
 
 [[package]]
 name = "song-wizard"
-version = "0.21.0"
+version = "0.22.0"
 source = { editable = "." }
 dependencies = [
     { name = "audio-separator", extra = ["cpu"] },
     { name = "audioread" },
     { name = "essentia" },
+    { name = "mutagen" },
     { name = "numpy" },
     { name = "platformdirs" },
     { name = "soundfile" },
@@ -951,6 +952,7 @@ requires-dist = [
     { name = "audio-separator", extras = ["cpu"] },
     { name = "audioread" },
     { name = "essentia", specifier = ">=2.1b6.dev1177" },
+    { name = "mutagen" },
     { name = "numpy" },
     { name = "platformdirs" },
     { name = "soundfile" },

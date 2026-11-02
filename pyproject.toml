@@ -1,6 +1,6 @@
 [project]
 name = "song-wizard"
-version = "0.21.0"
+version = "0.22.0"
 description = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -15,6 +15,8 @@ dependencies = [
     "platformdirs",
     # audio-separator imports it but no longer gets it through librosa.
     "audioread",
+    # A song's data in WAV files (an ID3 chunk); yt-dlp brings it too.
+    "mutagen",
 ]
 
 [project.scripts]

@@ -48,9 +48,11 @@ def find(path, root=None):
 
 
 def row(n, song, here):
+    from .tags import title_artist
     from .ui import duration
 
-    title, artist = title_of(song["name"])
+    # From the song's data ("title", "artist"), else from its file name.
+    title, artist = title_artist(here / song["name"], song.get("tags"))
     key = (song["key"] or "").split()
     tempo = re.match(r"([\d.]+) BPM", song["bpm"] or "")
     return {"n": n, "title": title, "artist": artist, "path": here / song["name"],

@@ -14,6 +14,7 @@ Herramienta de terminal para preparar temas para ensayar con la banda. Es un pro
 - **speed**: hace un tema más lento (o más rápido) sin cambiar el tono, para sacarlo de a poco.
 - **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
 - **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
+- **tag**: muestra o cambia los datos de un tema (título, artista, álbum, año, género…), en el tema y en todo lo que se generó a partir de él.
 - **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
 - **delete**: manda a la papelera un tema (con todo lo que se generó a partir de él) o archivos sueltos.
 - **list**: muestra los temas de tu carpeta de música (y de donde hayas bajado), con lo que se detectó de cada uno.
@@ -85,7 +86,7 @@ Todo tiene que quedar en verde. También te dice si la separación va a usar la 
 song-wizard config
 ```
 
-Muestra dónde está el archivo de configuración y qué valores se están usando; si no existe, lo crea con todo comentado. Por ahora guarda la carpeta de descargas. Lo que pases en cada comando siempre gana sobre el archivo.
+Muestra dónde está el archivo de configuración y qué valores se están usando. El archivo se crea solo, con todo comentado, la primera vez que corrés cualquier comando. Por ahora guarda la carpeta de descargas. Lo que pases en cada comando siempre gana sobre el archivo.
 
 - Linux/WSL: `~/.config/song-wizard/config.toml`
 - Mac: `~/Library/Application Support/song-wizard/config.toml`
@@ -149,7 +150,7 @@ song-wizard ui
 
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. "más" abre las otras acciones del tema: la letra, renombrar, recortar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" arma la lista de la carpeta para imprimir, y "setlist con lo elegido" (abajo, junto a la selección) la arma con los temas que elegiste, de cualquier carpeta (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
+- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. Cada tema se ve con el nombre de su archivo sin la extensión ("001 - Artista - Título"; el nombre completo, al pasar el mouse), y al lado, en gris, su álbum, año y género si los tiene. "más" abre las otras acciones del tema: sus datos, la letra, recortar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). "más › Datos del tema…" muestra y cambia el título, el artista, el álbum y todo lo que guarda el archivo, y corregir el artista o el título le cambia el nombre (ver [Datos del tema](#datos-del-tema)). El filtro de arriba busca palabras sueltas, en cualquier orden y sin importar tildes ni mayúsculas, en el nombre, la carpeta y los datos de cada tema: "rock ultimo" encuentra los temas de género rock del álbum "Último show". Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" arma la lista de la carpeta para imprimir, y "setlist con lo elegido" (abajo, junto a la selección) la arma con los temas que elegiste, de cualquier carpeta (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
 - **Practicar**: el botón "practicar" de cada tema abre, en toda la ventana, un reproductor con la forma de onda de cada pista y la letra al costado, con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
@@ -199,7 +200,8 @@ Las pistas se escuchan desde la carpeta de música a medida que suenan, sin carg
 
 "⌨ atajos" (arriba a la derecha), `?` o "todos los atajos" en Practicar abren la lista de todos los atajos, separados por dónde valen: la biblioteca, Practicar y la ventana de la letra. Mientras escribís en un campo de texto no hacen nada.
 
-- **En la biblioteca**: `↑` y `↓` recorren los temas (el elegido se marca; también se elige tocándolo), y sobre ese tema `Enter` lo escucha, `P` lo abre en Practicar, `L` abre su letra, `.` su menú "más", `X` lo suma a lo elegido (o lo saca), `→` y `←` muestran u ocultan sus stems y versiones. `/` va al filtro. Espacio pausa o sigue el reproductor de abajo, y Shift+`←`/`→` lo mueven 5 segundos.
+- **En la biblioteca**: `↑` y `↓` recorren los temas (el elegido se marca; también se elige tocándolo), y sobre ese tema `Enter` lo escucha, `P` lo abre en Practicar, `L` abre su letra, `.` su menú "más", `E` sus datos, `X` lo suma a lo elegido (o lo saca), `→` y `←` muestran u ocultan sus stems y versiones. `/` va al filtro. Espacio pausa o sigue el reproductor de abajo, y Shift+`←`/`→` lo mueven 5 segundos.
+- **En los datos del tema**: Enter guarda, Esc cierra sin guardar, y Ctrl+Enter ("guardar y seguir") guarda y abre los datos del tema siguiente de la lista, para corregir una playlist entera de corrido.
 - **Cambiar una tecla**: en la lista, tocás la tecla y apretás la nueva. "+" agrega otra tecla para lo mismo y × la saca. Si la tecla nueva ya hace otra cosa en el mismo lugar, pregunta: al cambiar una tecla se intercambian, y al agregarla, la otra acción se queda sin ella. Las cambiadas llevan ✍ y "restablecer todo" vuelve a las de fábrica. Se guardan en el navegador (como los colores). Los botones muestran su atajo al pasar el mouse, con las teclas que tengas.
 - **Pedales**: un pedal para pasar páginas (los de partituras, por Bluetooth o USB) manda teclas como cualquier teclado: se le asigna lo que quieras, por ejemplo reproducir y pausar, para practicar sin sacar las manos del instrumento.
 - **MIDI**: con "usar un aparato MIDI" (el navegador pide permiso una vez) también vale pegarle a un pad, tocar una tecla o pisar un pedal de un aparato MIDI conectado al asignar un atajo: queda como "MIDI nota 36" o "MIDI control 64". Anda en Chrome y Edge; Firefox pide instalar un permiso aparte, y Safari no tiene MIDI.
@@ -222,7 +224,8 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Convertir para compartir | `song-wizard convert` |
 | Pista de click | `song-wizard click` (`--for TEMA` le pone el nombre del tema) |
 | Ajustar el click (detectar, tempo, primer golpe) | `song-wizard align` (`--bpm`, `--first`, `--meter`) |
-| "más › Renombrar" | `song-wizard rename` |
+| "más › Datos del tema…", y "datos" en un stem o una versión | `song-wizard tag TEMA` (`--set CAMPO=VALOR`, `--unset CAMPO`, `--only`) |
+| Corregir el artista o el título en "Datos del tema…" | `song-wizard tag`, o `song-wizard rename` para ponerle cualquier nombre |
 | "más › Recortar…" | `song-wizard trim TEMA --start T --end T` (`--pad-start S`, `--pad-end S`) |
 | Borrar archivos seleccionados | `song-wizard delete` |
 | Reportar un problema | `song-wizard report` |
@@ -241,7 +244,7 @@ song-wizard download "https://.../playlist?list=..."   # una playlist
 song-wizard download "https://.../watch?v=..."         # un tema suelto
 ```
 
-- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Título.opus`, numeradas en orden. Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
+- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Artista - Título.opus`, numeradas en orden, con el artista y el título que trae el tema. En los videos que no son de un sello o de YouTube Music, el "artista" suele ser quien subió el video y el título trae agregados como "(HQ)": se ve así de entrada para corregirlo en [Datos del tema](#datos-del-tema). Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
 - Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
@@ -437,6 +440,24 @@ song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
 - No pisa archivos que ya existen; `--overwrite` los reemplaza.
 - Para trabajar en un DAW seguí usando los WAV: el MP3 pierde algo de calidad y agrega unos milisegundos de silencio al principio, así que no queda perfectamente alineado con el click ni con los otros stems.
 
+### Datos del tema
+
+```bash
+song-wizard tag "001 - Banda - Tema.opus"                                  # muestra todos sus datos
+song-wizard tag "001 - Banda - Tema.opus" --set "artist=Banda" --set "album=En vivo" --unset genre
+song-wizard tag "001 - Banda - Tema (80%).mp3" --set "comment=la del show" --only
+```
+
+Los datos son los que guarda el archivo y muestran los reproductores (el celular, WhatsApp, Reaper): título, artista, álbum, año, género y cualquier otro, con el nombre que quieras. Se cambian en el tema y en todo lo que se generó a partir de él (el `.wav` o `.mp3`, los stems, las versiones), todos o ninguno; las tomas grabadas en Reaper quedan como están. El audio no se toca. Con `--only`, cambia solo ese archivo: por ejemplo, una nota sobre una versión.
+
+Si cambia el artista o el título, el tema y todo lo suyo pasan a llamarse `001 - Artista - Título` (como `rename`, con la letra, el proyecto de Reaper y los resultados). Los caracteres que Windows no acepta en un nombre de archivo se reemplazan por otros parecidos (`:` por `：`); en los datos quedan como los escribiste.
+
+En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene el archivo, también lo que trajo la descarga (la descripción del video, la fecha en que se subió), sin filtrar nada. Los cambiados se marcan, × saca un dato y "agregar un dato" suma uno conocido (compositor, comentario, número de pista…) u otro con el nombre que quieras. Abajo avisa si el tema va a cambiar de nombre. "guardar y seguir" (Ctrl+Enter) pasa al tema siguiente. En un stem o una versión, "datos" cambia solo ese archivo.
+
+- El link de la descarga (`purl`) se muestra pero no se cambia: `delete` lo usa para saber de qué descarga vino el tema.
+- En los `.wav`, los datos se guardan como en los MP3 (ID3), porque los propios del WAV son pocos: los leen ffmpeg, Reaper y la mayoría de los reproductores; alguno viejo puede mostrar solo los básicos.
+- El setlist, la búsqueda de la letra y la biblioteca toman el título y el artista de los datos; un tema sin datos, del nombre del archivo.
+
 ### Renombrar un tema
 
 ```bash
@@ -448,6 +469,8 @@ Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav`
 La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
 
 Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué link se bajó, no el nombre del archivo.
+
+En la interfaz no hay "renombrar": el nombre sigue al artista y al título, que se corrigen en [Datos del tema](#datos-del-tema). `rename` queda en la terminal para ponerle a un tema cualquier otro nombre.
 
 ### Recortar un tema
 
@@ -488,7 +511,7 @@ song-wizard lyrics --from letra.txt "tema.opus"   # o la toma de un archivo
 song-wizard lyrics --export "tema.opus"   # la guarda lista para imprimir
 ```
 
-Busca la letra de cada tema en una base de letras abierta, por el nombre del archivo ("Artista - Tema") y su duración, y la guarda al lado del tema como `Tema.lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `rename` la renombra y `delete` la borra con él.
+Busca la letra de cada tema en una base de letras abierta, por su artista y título (de [sus datos](#datos-del-tema), o si no tiene, del nombre del archivo "Artista - Tema") y su duración, y la guarda al lado del tema como `Tema.lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `rename` la renombra y `delete` la borra con él.
 
 En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
 
@@ -554,7 +577,7 @@ Muestra la lista en ese orden y no guarda nada en las carpetas (las carpetas sig
 
 - `--lyrics` (o "con las letras" en la ventana) suma, después de la lista, la letra de cada tema que la tenga, con sus colores y notas, una por página y con su número del setlist. Los temas sin letra se saltean.
 - La tonalidad y el tempo salen de lo que ya detectaste con `key` y `bpm` (o pusiste a mano); los que falten quedan en blanco. Un `?` marca una tonalidad dudosa.
-- El nombre se limpia: sin el número, y sin agregados como "(Official Video)" o "[HD]". Si el archivo se llama "Artista - Tema", el artista va más chico al lado. Si quedó al revés, se arregla con ✎ / `rename`.
+- El título y el artista salen de los [datos del tema](#datos-del-tema) (si no tiene, del nombre del archivo, "Artista - Tema"), sin agregados como "(Official Video)" o "[HD]". El artista va más chico al lado. Si algo quedó mal, se corrige en los datos del tema.
 - `--title` cambia el título de arriba (por defecto, el nombre de la playlist o de la carpeta; con temas sueltos, "Setlist").
 - Con una carpeta, `--out` guarda la hoja ahí en vez de en la carpeta.
 
@@ -620,6 +643,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
 - `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.
 - `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
+- `tag`: los datos leídos y escritos en `.opus`, `.wav` y `.mp3` (también con saltos de línea y nombres propios), en el tema y sus stems y versiones pero no en las tomas, el audio intacto, el renombrado al cambiar artista o título (con los caracteres que Windows no acepta), `--only`, el link de la descarga que no se borra, el nombre de lo que se baja, el filtro por palabras sin tildes, el archivo de configuración creado por cualquier comando, y la ventana de la interfaz.
 - `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo desde su propia página). Con temas sueltos: de varias carpetas en el orden pedido, un stem cuenta como su tema, no se guarda nada en las carpetas, un tema que no está da error, y rutas fuera de la carpeta de música rechazadas; las letras con sus marcas después de la lista, solo de los temas que la tienen.
 - El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.
 - Actualizar: las versiones retiradas (no se ofrecen ni se listan, `--to` pide `--force`, quien tiene una retirada es avisado y pasado a la más nueva que no lo esté, y si la lista no se puede leer no frena nada), comparar versiones, leer las versiones publicadas de los tags (y no fallar sin internet), `upgrade --list` y `--to`, que `upgrade` instale el tag más nuevo (o solo actualice lo que usa si ya está en el último, o reinstale desde la carpeta si se instaló así), `upgrade --check`, la consulta desde la interfaz (que se recuerda unas horas, salvo que se pida de nuevo), y que el reinicio pedido desde la página levante una interfaz nueva en el mismo puerto, sin abrir el navegador.

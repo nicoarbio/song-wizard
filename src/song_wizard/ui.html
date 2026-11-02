@@ -85,8 +85,7 @@
   .song .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .song .title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
   .song .fold { color: var(--muted); }
-  .song .rename-box { flex: 1 1 200px; display: flex; gap: 6px; min-width: 0; }
-  .song .rename-box input { flex: 1; min-width: 0; }
+  .song .title .meta { color: var(--muted); font-size: 12px; margin-left: 6px; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
   .badge.warn { color: var(--warn); }
   button.badge { border: 0; font: inherit; font-size: 11px; line-height: inherit; height: auto; cursor: pointer; }
@@ -278,6 +277,15 @@
   dialog#setlist .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   dialog#setlist .where { color: var(--muted); font-size: 12px; white-space: nowrap; }
   dialog#setlist input#setlist-title { width: 100%; box-sizing: border-box; }
+  dialog#data { max-width: min(720px, calc(100vw - 24px)); }
+  #data-list { display: grid; grid-template-columns: minmax(110px, auto) minmax(0, 1fr) auto; gap: 6px 10px; align-items: start; max-height: 60vh; overflow-y: auto; margin: 10px 0; padding-right: 4px; }
+  #data-list label { padding-top: 5px; font-size: 13px; }
+  #data-list label code { display: block; font-size: 10px; color: var(--muted); }
+  #data-list input, #data-list textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; }
+  #data-list textarea { min-height: 4.5em; resize: vertical; }
+  #data-list .changed { border-color: var(--accent); }
+  #data-list .x { align-self: center; }
+  #data-name { font-size: 13px; overflow-wrap: anywhere; }
   dialog#keys { max-width: min(760px, calc(100vw - 24px)); }
   #keys-list { max-height: 62vh; overflow-y: auto; margin-top: 8px; }
   #keys-list h4 { margin: 14px 0 4px; }
@@ -331,7 +339,7 @@
           <button class="small" id="reload" title="Volver a leer la carpeta de música (también se hace solo al volver a esta pestaña)">↻ actualizar</button>
         </span>
       </div>
-      <input type="text" class="filter" id="filter" placeholder="Filtrar temas…">
+      <input type="text" class="filter" id="filter" placeholder="Filtrar: palabras del nombre, la carpeta, el artista, el álbum…">
       <div id="library"><p class="empty">Cargando…</p></div>
     </section>
     <section>
@@ -523,6 +531,25 @@
       <div id="pl-slot"></div>
     </aside>
   </div>
+</dialog>
+
+<dialog id="data" aria-label="Datos del tema">
+  <form id="data-form">
+  <div class="row" style="justify-content:space-between"><h3 id="data-title">Datos</h3><button type="button" class="small" id="data-close">cerrar</button></div>
+  <p class="hint" id="data-scope"></p>
+  <div id="data-list"></div>
+  <div class="row">
+    <label>Agregar un dato <input type="text" id="data-add-name" list="data-known" placeholder="compositor, comentario u otro nombre" size="28"></label>
+    <button type="button" class="small" id="data-add">agregar</button>
+    <datalist id="data-known"></datalist>
+  </div>
+  <p class="hint" id="data-name"></p>
+  <div class="row" style="justify-content:flex-end">
+    <button type="button" id="data-cancel">cancelar</button>
+    <button type="button" id="data-next" title="Guarda y abre los datos del tema siguiente">guardar y seguir</button>
+    <button type="submit" class="primary" id="data-save">guardar</button>
+  </div>
+  </form>
 </dialog>
 
 <dialog id="keys" aria-label="Atajos de teclado">
@@ -830,6 +857,12 @@ function setBox(item, what) {
     el("button", { class: "small", onclick: close }, "cancelar"));
 }
 
+const plainText = (t) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+function matchesWords(words, ...texts) {
+  const hay = plainText(texts.filter(Boolean).join(" "));
+  return words.split(/\s+/).filter(Boolean).every((w) => hay.includes(plainText(w)));
+}
+
 function bpmNumber(text) {
   const m = /([\d.]+)\s*BPM/.exec(text || "");
   return m ? parseFloat(m[1]) : null;
@@ -848,7 +881,8 @@ function renderLibrary() {
   }
   for (const folder of visible) {
     if (folder.missing) { if (!filter) box.append(renderMissing(folder)); continue; }
-    const songs = folder.songs.filter((s) => !filter || s.name.toLowerCase().includes(filter));
+    // Words in any order, accents and case aside: in the name, the folder or the song's data.
+    const songs = folder.songs.filter((s) => !filter || matchesWords(filter, s.name, folder.name, ...Object.values(s.tags || {})));
     if (filter && !songs.length) continue;
     const allChecked = songs.length && songs.every((s) => state.selected.has(s.path));
     const toggleAll = el("input", { type: "checkbox", title: "Elegir todos", onclick: (e) => {
@@ -898,14 +932,16 @@ function renderSong(song) {
   state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song, true);
-  const title = state.renaming === song.path ? renameBox(song) : el("span", { class: "title" }, song.name);
+  const tags = song.tags || {};
+  const meta = [tags.album, tags.date, tags.genre].filter(Boolean).join(" · ");
+  const title = el("span", { class: "title", title: song.name }, song.name.replace(/\.[^.]+$/, ""), meta ? el("span", { class: "meta" }, meta) : null);
   const li = el("li", { class: "song" + (state.cursor === song.path ? " cursor" : ""), "data-path": song.path,
     onpointerdown: () => setCursor(song.path, false) },
     el("div", { class: "head" }, check,
       el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
       title, badges,
       el("button", { class: "small", title: "Practicar: mezclar los stems, bajar la velocidad y repetir un tramo", onclick: () => openPractice(song) }, "practicar"),
-      state.renaming === song.path ? null : moreMenu(song)));
+      moreMenu(song)));
   if (song.files.length) {
     const open = songOpen(song);
     const n = song.files.length;
@@ -918,7 +954,7 @@ function renderSong(song) {
   return li;
 }
 
-// "más": lyrics, rename and the REAPER project, in a menu. One open at a time (state.menu is
+// "más": the song's data, lyrics, trim and the REAPER project, in a menu. One open at a time (state.menu is
 // that song's path), kept open across redraws; a click elsewhere or Escape closes it.
 function moreMenu(song) {
   const open = state.menu === song.path;
@@ -927,15 +963,15 @@ function moreMenu(song) {
   const item = (label, sub, props) => el("button", { role: "menuitem", ...props }, label, sub ? el("span", { class: "sub" }, sub) : null);
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
-                   title: "Más acciones: la letra, renombrar, el proyecto de Reaper", onclick: toggleMenu },
+                   title: "Más acciones: los datos del tema, la letra, recortar, el proyecto de Reaper", onclick: toggleMenu },
        "más ▾", song.lyrics || song.reaper ? el("span", { class: "dot", title: "Tiene letra o proyecto de Reaper" }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
+    item("Datos del tema…", "título, artista, álbum… (artista y título le cambian el nombre)",
+         { onclick: pick(() => openData(song)) }),
     item(song.lyrics ? "Letra ✓" : "Letra", song.lyrics ? "con sus colores y notas" : "buscarla o escribirla, para marcarla",
          { onclick: pick(() => openLyrics(song)) }),
-    item("Renombrar", "con sus stems, versiones y resultados",
-         { onclick: pick(() => { state.renaming = song.path; state.renameDraft = undefined; renderLibrary(); }) }),
     item("Recortar…", "cortar el principio o el final, o agregar silencio",
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
@@ -1041,32 +1077,6 @@ async function reaperProject(song, redo = false) {
   }
 }
 
-// Inline rename: Enter saves, Escape cancels. Stems, versions and key/bpm results follow the
-// song (song-wizard rename does it all, or nothing if a name is taken).
-function renameBox(song) {
-  const ext = song.name.match(/\.[^.]+$/)[0];
-  // The library is redrawn when a job ends or the page gets focus: keep what was typed.
-  const first = state.renameDraft === undefined;
-  if (first) state.renameDraft = song.name.slice(0, -ext.length);
-  const input = el("input", { type: "text", value: state.renameDraft, "aria-label": "Nombre nuevo",
-                               oninput: (e) => { state.renameDraft = e.target.value; } });
-  const cancel = () => { state.renaming = null; state.renameDraft = undefined; renderLibrary(); };
-  const save = () => {
-    const name = input.value.trim();
-    if (!name || name === song.name.slice(0, -ext.length)) return cancel();
-    state.renaming = null;
-    state.renameDraft = undefined;
-    start({ action: "rename", paths: [song.path], name });
-  };
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); });
-  // Select the name but not its "001 - " number, which is kept anyway.
-  const number = (/^\d+ - /.exec(state.renameDraft) || [""])[0].length;
-  requestAnimationFrame(() => { input.focus(); if (first) input.setSelectionRange(number, input.value.length); });
-  return el("span", { class: "rename-box" }, input,
-    el("button", { class: "small primary", onclick: save }, "guardar"),
-    el("button", { class: "small", onclick: cancel }, "cancelar"));
-}
-
 // A song's files (stems, versions...) are folded by default: with every song separated the list
 // gets long. Open ones are remembered in this browser; a song with a picked file stays open so
 // nothing picked is hidden.
@@ -1093,6 +1103,7 @@ function renderFile(file) {
   return el("li", {}, check,
     el("button", { class: "play small", title: "Escuchar", onclick: () => play(file) }, "▶"),
     el("span", { class: "fname" }, file.name), badgesFor(file),
+    el("button", { class: "small", title: "Los datos de este archivo solo (por ejemplo, una nota sobre esta versión)", onclick: () => openData(file, true) }, "datos"),
     el("span", { class: "count" }, `${(file.size / 1e6).toFixed(1)} MB`));
 }
 
@@ -2500,7 +2511,12 @@ function setlistOfSelection() {
 const setlistState = { items: [], drag: null };
 // As the printed sheet shows it (setlist.title_of): no number, no "(Official Video)" or "[HD]".
 const NOISE = /\s*[(\[][^()\[\]]*\b(official|audio|video|lyrics?|hd|hq|4k|remaster(ed)?|visualizer|videoclip)\b[^()\[\]]*[)\]]/gi;
-const songTitle = (name) => name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "").replace(NOISE, "").trim();
+// From the song's data (artist and title) if it has them, else from its file name.
+const songTitle = (song) => {
+  const t = song.tags || {};
+  if (t.title) return [t.artist, t.title.replace(NOISE, "").trim() || t.title].filter(Boolean).join(" - ");
+  return song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "").replace(NOISE, "").trim();
+};
 
 function openSetlist(items, title) {
   if (!items.length) return;
@@ -2527,7 +2543,7 @@ function renderSetlist() {
     const li = el("li", { draggable: "true" },
       el("span", { class: "grip", title: "Arrastrar para mover" }, "⠿"),
       el("span", { class: "num" }, `${i + 1}.`),
-      el("span", { class: "name", title: song.name }, songTitle(song.name)),
+      el("span", { class: "name", title: song.name }, songTitle(song)),
       el("span", { class: "where" }, [key, bpm].filter(Boolean).join(" · ")),
       folders.size > 1 ? el("span", { class: "where", title: "Carpeta" }, folder.name) : null,
       el("button", { class: "small", title: "Subir", disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
@@ -3168,13 +3184,128 @@ $("stems").addEventListener("change", (e) => {
   else if (e.target !== all && e.target.checked) all.checked = false;
 });
 
+// ---------- A song's data ----------
+// Everything the file keeps (what music players show), to change, remove or add to. For a song it
+// goes to the song and its stems and versions (song-wizard tag), and a new artist or title renames
+// them "NNN - Artist - Title"; for one file ("datos" on a stem or version), only that file.
+const TAG_MAIN = ["title", "artist", "album", "date", "genre"];
+const TAG_LABELS = { title: "Título", artist: "Artista", album: "Álbum", date: "Año (o fecha)", genre: "Género",
+  composer: "Compositor", album_artist: "Artista del álbum", track: "Número de pista", disc: "Disco", comment: "Comentario",
+  description: "Descripción", synopsis: "Descripción del video", purl: "Link de la descarga", language: "Idioma",
+  publisher: "Sello", copyright: "Derechos", encoder: "Programa que lo escribió" };
+// Shown, not changed: where the download came from (song-wizard delete uses it), and what ffmpeg
+// writes on its own.
+const TAG_FIXED = { purl: "Lo usa \"borrar\" para saber de qué descarga vino: no se cambia.", encoder: "Lo escribe solo el programa que guarda el archivo." };
+const LOOKALIKE = { "\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "|": "｜" };
+const tagNameFor = (tags) => {
+  const title = (tags.title || "").trim(), artist = (tags.artist || "").trim();
+  if (!title) return null;
+  return (artist ? `${artist} - ${title}` : title).replace(/[\\/:*?"<>|]/g, (c) => LOOKALIKE[c]).replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "") || null;
+};
+const data = { path: null, name: "", only: false, rows: [], files: [] };
+$("data-known").replaceChildren(...Object.entries(TAG_LABELS).filter(([k]) => !TAG_MAIN.includes(k) && !TAG_FIXED[k])
+  .map(([k, label]) => el("option", { value: label })));
+
+async function openData(item, only = false) {
+  data.path = item.path; data.name = item.name; data.only = only; data.rows = []; data.loading = true;
+  $("data-title").textContent = only ? `Datos de ${item.name}` : `Datos: ${item.name.replace(/\.[^.]+$/, "")}`;
+  $("data-list").replaceChildren(el("p", { class: "muted" }, "Leyendo…"));
+  $("data-scope").textContent = $("data-name").textContent = "";
+  $("data-next").hidden = only;
+  if (!$("data").open) $("data").showModal();
+  try {
+    const r = await api(`/api/tags?path=${encodeURIComponent(item.path)}`);
+    if (data.path !== item.path) return;
+    const tags = r.tags || {};
+    data.files = only ? [item.name] : r.files;
+    data.rows = [...TAG_MAIN, ...Object.keys(tags).filter((k) => !TAG_MAIN.includes(k))]
+      .map((key) => ({ key, value: tags[key] ?? "", original: tags[key] }));
+    data.loading = false;
+    renderData();
+    const first = $("data-list").querySelector("input, textarea");
+    if (first) first.focus();
+  } catch (e) {
+    $("data-list").replaceChildren(el("p", { class: "muted" }, `No se pudieron leer los datos: ${e.message}`));
+  }
+}
+
+function renderData() {
+  const rows = data.rows.filter((r) => !r.removed);
+  $("data-list").replaceChildren(...rows.flatMap((row) => {
+    const fixed = TAG_FIXED[row.key], long = row.value.includes("\n") || row.value.length > 90;
+    const input = el(long ? "textarea" : "input", { type: long ? undefined : "text", value: row.value, readonly: fixed ? "" : undefined,
+      title: fixed || "", "aria-label": TAG_LABELS[row.key] || row.key,
+      class: row.value !== (row.original ?? "") ? "changed" : "",
+      oninput: (e) => { row.value = e.target.value; e.target.classList.toggle("changed", row.value !== (row.original ?? "")); renderDataName(); } });
+    if (long) input.value = row.value;
+    return [el("label", {}, TAG_LABELS[row.key] || row.key, TAG_LABELS[row.key] ? el("code", {}, row.key) : null), input,
+      TAG_MAIN.includes(row.key) || fixed ? el("span") : el("button", { type: "button", class: "small x", title: "Sacar este dato",
+        onclick: () => { row.removed = true; renderData(); } }, "×")];
+  }));
+  const n = data.files.length;
+  $("data-scope").textContent = data.only ? "Cambia solo este archivo." :
+    `Se guarda en el tema${n === 2 ? " y en su otro archivo" : n > 2 ? ` y en sus otros ${n - 1} archivos` : ""}${n > 1 ? " (stems, versiones…)" : ""}. Las tomas de Reaper quedan como están.`;
+  renderDataName();
+}
+
+function dataTags() { return Object.fromEntries(data.rows.filter((r) => !r.removed && r.value !== "").map((r) => [r.key, r.value])); }
+function renderDataName() {
+  const was = Object.fromEntries(data.rows.filter((r) => r.original !== undefined).map((r) => [r.key, r.original]));
+  const now = dataTags(), changed = ["artist", "title"].some((k) => (now[k] || "") !== (was[k] || ""));
+  const name = !data.only && changed ? tagNameFor(now) : null;
+  const number = (/^\d+ - /.exec(data.name) || [""])[0], ext = (/\.[^.]+$/.exec(data.name) || [""])[0];
+  $("data-name").textContent = name && number + name + ext !== data.name ? `Va a pasar a llamarse "${number}${name}${ext}", con todos sus archivos.` : "";
+}
+
+function addDataField() {
+  const typed = $("data-add-name").value.trim();
+  if (!typed) return;
+  const known = Object.entries(TAG_LABELS).find(([k, label]) => plainText(label) === plainText(typed) || k === typed);
+  const key = known ? known[0] : typed;
+  if (key.includes("=")) return toast("El nombre de un dato no puede tener =.");
+  const row = data.rows.find((r) => r.key === key);
+  if (row) row.removed = false;
+  else data.rows.push({ key, value: "", original: undefined });
+  $("data-add-name").value = "";
+  renderData();
+  const inputs = $("data-list").querySelectorAll("input, textarea");
+  const at = data.rows.filter((r) => !r.removed).findIndex((r) => r.key === key);
+  if (inputs[at]) inputs[at].focus();
+}
+
+// Only what changed goes: --set for new or different values, --unset for removed ones.
+function saveData() {
+  if (data.loading) return false;
+  const set = {}, unset = [];
+  for (const r of data.rows) {
+    if (TAG_FIXED[r.key]) continue;
+    const had = r.original !== undefined && r.original !== "";
+    if (r.removed || r.value === "") { if (had) unset.push(r.key); }
+    else if (r.value !== r.original) set[r.key] = r.value;
+  }
+  if (Object.keys(set).length || unset.length) start({ action: "tag", paths: [data.path], set, unset, only: data.only });
+  return true;
+}
+function saveDataAndNext() {
+  if (data.only || !saveData()) return;
+  const songs = state.shownSongs || [], at = songs.findIndex((s) => s.path === data.path), next = songs[at + 1];
+  if (!next) { $("data").close(); return toast("Era el último tema de la lista."); }
+  setCursor(next.path);
+  openData(next);
+}
+$("data-form").addEventListener("submit", (e) => { e.preventDefault(); if (saveData()) $("data").close(); });
+$("data-next").onclick = saveDataAndNext;
+$("data-close").onclick = $("data-cancel").onclick = () => $("data").close();
+$("data-add").onclick = addDataField;
+$("data-add-name").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addDataField(); } });
+
 // ---------- Shortcuts ----------
 // Every shortcut is an action in this list: where it works, what it does and its keys. The
 // keys can be changed (remembered in this browser) and a MIDI pad or pedal can be one. A key is
 // written as a combination: "Shift+ArrowLeft", "z", "Ctrl+z", "1", "?", "MIDI 36" (a note) or
 // "MIDI CC 64" (a pedal). Symbols ("?", "[", "+") are taken as typed, whatever it took to type
 // them (on a Spanish keyboard "[" is AltGr plus a key).
-const SCOPES = { library: "Biblioteca", practice: "Practicar", lyrics: "Letra (marcar)", all: "En todas partes" };
+const SCOPES = { library: "Biblioteca", practice: "Practicar", lyrics: "Letra (marcar)", data: "Datos del tema", all: "En todas partes" };
 const ACTIONS = [
   ["help", "all", "Ver y cambiar los atajos", ["?"]],
   ["lib.filter", "library", "Ir al filtro", ["/"]],
@@ -3184,6 +3315,7 @@ const ACTIONS = [
   ["lib.practice", "library", "Practicar el tema", ["p"]],
   ["lib.lyrics", "library", "La letra del tema", ["l"]],
   ["lib.more", "library", "El menú \"más\" del tema", ["."]],
+  ["lib.data", "library", "Los datos del tema (título, artista, álbum…)", ["e"]],
   ["lib.pick", "library", "Elegir el tema (o sacarlo de lo elegido)", ["x"]],
   ["lib.open", "library", "Mostrar sus stems y versiones", ["ArrowRight"]],
   ["lib.close", "library", "Ocultar sus stems y versiones", ["ArrowLeft"]],
@@ -3224,6 +3356,7 @@ const ACTIONS = [
   ["erase", "lyrics", "Goma", ["g"]],
   ["note", "lyrics", "Nota", ["n"]],
   ["undo", "lyrics", "Deshacer", ["Ctrl+z"]],
+  ["data.next", "data", "Guardar y seguir con el tema siguiente", ["Ctrl+Enter"]],
 ].map(([id, scope, label, keys]) => ({ id, scope, label, keys }));
 const ACTION = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
 const KEYS_KEY = "song-wizard:keys", MIDI_KEY = "song-wizard:midi";
@@ -3269,9 +3402,9 @@ const keyHint = (id) => { const k = keysOf(id); return k.length ? ` (${k.map(key
 function scopeNow(target) {
   const open = [...document.querySelectorAll("dialog[open]")].map((d) => d.id);
   const own = target && target.closest ? target.closest("dialog[open]") : null;
-  const top = own ? own.id : open.includes("keys") ? "keys" : open.find((id) => id !== "practice" && id !== "lyrics") || (open.includes("lyrics") ? "lyrics" : open.includes("practice") ? "practice" : null);
+  const top = own ? own.id : open.includes("keys") ? "keys" : open.find((id) => !["practice", "lyrics", "data"].includes(id)) || ["data", "lyrics", "practice"].find((id) => open.includes(id)) || null;
   if (!top) return "library";
-  return top === "practice" || top === "lyrics" ? top : null;
+  return ["practice", "lyrics", "data"].includes(top) ? top : null;
 }
 function actionFor(combo, scope) {
   return ACTIONS.find((a) => (a.scope === scope || a.scope === "all") && keysOf(a.id).includes(combo));
@@ -3286,6 +3419,8 @@ const RUN = {
   "lib.practice": () => withCursor(openPractice),
   "lib.lyrics": () => withCursor(openLyrics),
   "lib.more": () => withCursor((song) => { state.menu = song.path; renderLibrary(); }),
+  "lib.data": () => withCursor((song) => openData(song)),
+  "data.next": saveDataAndNext,
   "lib.pick": () => withCursor((song) => { state.selected.has(song.path) ? state.selected.delete(song.path) : state.selected.add(song.path); state.lastPicked = song.path; renderSelection(); renderLibrary(); }),
   "lib.open": () => withCursor((song) => { if (song.files.length) { setSongOpen(song, true); renderLibrary(); } }),
   "lib.close": () => withCursor((song) => { setSongOpen(song, false); renderLibrary(); }),
@@ -3386,10 +3521,12 @@ function runCombo(combo, e) {
 document.addEventListener("keydown", (e) => {
   if (keys.listening) return captureKey(e);
   const t = e.target;
-  if (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT" ||
-      t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox") return;
   const combo = comboOf(e);
   if (!combo) return;
+  // Typing: the keys are the text's, except in the data window those with Ctrl or Alt.
+  const typing = t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT" ||
+    t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox";
+  if (typing && !(scopeNow(t) === "data" && /^(Ctrl|Alt)\+/.test(combo))) return;
   // In the library, Space and Enter on a focused button or box do what they always do.
   if (scopeNow(t) === "library" && (combo === "Space" || combo === "Enter") && t.closest("button, input, a, summary")) return;
   if (combo === "Escape" && scopeNow(t) === "lyrics" && lyr.tool) { e.preventDefault(); lyr.tool = null; renderLyrics(); return; }  // the dialog stays open
@@ -3470,7 +3607,8 @@ for (const b of document.querySelectorAll(".keys-open")) b.onclick = openKeys;
 
 // Titles and the short list in the player follow the keys as they are now.
 const KEY_TITLES = { "practice-a": "markA", "practice-b": "markB", "practice-loop": "loop", "practice-full": "full", "practice-lyrics-toggle": "lyrics",
-  "practice-zoom-in": "zoomIn", "practice-zoom-out": "zoomOut", "practice-zoom-all": "zoomAll", "practice-speed-reset": "reset", "filter": "lib.filter" };
+  "practice-zoom-in": "zoomIn", "practice-zoom-out": "zoomOut", "practice-zoom-all": "zoomAll", "practice-speed-reset": "reset", "filter": "lib.filter",
+  "data-next": "data.next" };
 function keysChanged() {
   for (const [elId, id] of Object.entries(KEY_TITLES)) {
     const b = $(elId);

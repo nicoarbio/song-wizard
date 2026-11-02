@@ -132,10 +132,10 @@ class Unavailable(OSError):
 def fetch(song):
     """Look up the lyrics of a song file by its name and length. None if not found; Unavailable if
     the database is down or busy; OSError if it can't be reached at all."""
-    from .setlist import title_of
+    from .tags import title_artist
     from .ui import duration
 
-    title, artist = title_of(Path(song).name)
+    title, artist = title_artist(song)
     try:
         return search(title, artist, duration(Path(song)))
     except urllib.error.HTTPError as e:
@@ -269,12 +269,12 @@ def page(title, data):
 
 def export(song):
     """Write the printable page next to the song; returns its path."""
-    from .setlist import title_of
+    from .tags import title_artist
 
     data = load(song)
     if not data:
         die(f"{os.path.basename(song)} has no lyrics yet: song-wizard lyrics finds them.")
-    title, artist = title_of(Path(song).name)
+    title, artist = title_artist(song)
     out = Path(song).parent / f"{base_of(Path(song).name)}.lyrics.html"
     out.write_text(page(f"{title} ({artist})" if artist else title, data), encoding="utf-8")
     return out

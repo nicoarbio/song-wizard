@@ -43,7 +43,7 @@ def build_parser():
     p = sub.add_parser("download", help="download the audio of a link (a song or a playlist), without re-encoding",
                        description="Download the audio of a link, a single song or a playlist, in the best quality "
                                    "available and without re-encoding. Playlists go to <Music>/<playlist "
-                                   "name>/001 - Title.opus, single songs "
+                                   "name>/001 - Artist - Title.opus (as the song's data says), single songs "
                                    "to <Music>/Singles/. <Music> is $SONG_WIZARD_DIR if set, else your Music "
                                    "folder (the Windows one on WSL). An archive per playlist is kept: running "
                                    "it again only downloads new songs.")
@@ -154,6 +154,18 @@ def build_parser():
                                    "name is taken, nothing is renamed.")
     p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
     p.add_argument("name", metavar="NEW_NAME", help="the new name, without extension")
+
+    p = sub.add_parser("tag", help="see or change a song's data (title, artist, album, year, genre...)",
+                       description="Without options, shows the data the file keeps (what music players show). "
+                                   "--set and --unset change it in the song and every file made from it (other "
+                                   "formats, stems, versions), all of them or none; REAPER takes are left alone. A "
+                                   'new artist or title renames them all to "NNN - Artist - Title". With --only, '
+                                   "only this file changes (a note on one version, say) and nothing is renamed.")
+    p.add_argument("path", metavar="FILE", help="the song, or with --only any file")
+    p.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
+                   help='a field and its value, e.g. --set "artist=Someone" (any field name; repeat it for more)')
+    p.add_argument("--unset", action="append", default=[], metavar="FIELD", help="remove a field (repeat it for more)")
+    p.add_argument("--only", action="store_true", help="change only this file, not the files made from the song")
 
     p = sub.add_parser("trim", help="cut a song's start or end (or add silence), with all its stems and versions",
                        description="Cuts the song's start and/or end (a video's intro or credits), or adds silence "
@@ -311,6 +323,8 @@ def main(argv=None):
 def dispatch(argv):
     parser = build_parser()
     args = parser.parse_args(argv)
+    from . import config
+    config.ensure()  # the settings file is always there to look at and change
 
     if args.command == "download":
         from . import download, system
@@ -332,6 +346,9 @@ def dispatch(argv):
         from . import trim
         trim.run(args.path, start=args.start, end=args.end, pad_start=args.pad_start, pad_end=args.pad_end,
                  yes=args.yes)
+    elif args.command == "tag":
+        from . import tags
+        tags.run(args.path, args.set, args.unset, only=args.only)
     elif args.command == "rename":
         from . import rename
         rename.run(args.path, args.name)

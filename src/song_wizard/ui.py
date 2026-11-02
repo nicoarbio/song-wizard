@@ -306,6 +306,12 @@ def library(root):
                           "lyrics": (folder / f"{base}.lyrics.json").is_file(),
                           "reaper": f"{base}.rpp".lower() in entries,
                           "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
+        # The song's data (title, artist, album...), for the library and its filter.
+        from . import tags
+        found = tags.read_many(folder / song["name"] for song in songs)
+        for song in songs:
+            data = found[folder / song["name"]]
+            song["tags"] = {k: data[k] for k in (*tags.MAIN, "composer", "album_artist") if data.get(k)}
         if songs or extras or folder != root:
             playlist = archives.playlist_for(folder, known) if folder != root else None
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
@@ -468,6 +474,16 @@ def make_handler(token, root, runner, port):
             if url.path == "/api/reaper/setting":
                 from . import reaper
                 return self.json({**reaper.setting(), "installed": reaper_installed()})
+            if url.path == "/api/tags":
+                # All the data a file keeps, and what changing it would touch.
+                from . import tags
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                return self.json({"tags": tags.read(path), "files": [os.path.basename(f) for f in tags.song_files(path)]})
             if url.path == "/api/info":
                 try:
                     path = self.resolve(query.get("path", [""])[0])
@@ -478,15 +494,14 @@ def make_handler(token, root, runner, port):
                 return self.json({"duration": duration(path)})
             if url.path in ("/api/lyrics", "/lyrics"):
                 # The lyrics of a song with their marks (for the page), or printable.
-                from . import lyrics
-                from .setlist import title_of
+                from . import lyrics, tags
                 try:
                     path = self.resolve(query.get("path", [""])[0])
                 except PermissionError:
                     return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "no existe")
-                title, artist = title_of(path.name)
+                title, artist = tags.title_artist(path)
                 data = lyrics.load(path)
                 if url.path == "/api/lyrics":
                     return self.json({"lyrics": data, "title": title, "artist": artist,
@@ -762,7 +777,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
                 raise ValueError(f"acción desconocida: {action}")
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -817,6 +832,18 @@ def make_handler(token, root, runner, port):
                     raise ValueError("se renombra de a un tema")
                 name = str(body["name"]).strip()
                 return f"Renombrar {label} → {name}", ["rename", paths[0], name]
+            if action == "tag":
+                if len(paths) != 1:
+                    raise ValueError("los datos se cambian de a un tema")
+                changes = {str(k): str(v) for k, v in (body.get("set") or {}).items()}
+                gone = [str(k) for k in body.get("unset") or []]
+                if any(not k.strip() or "=" in k for k in [*changes, *gone]):
+                    raise ValueError("un nombre de dato no puede estar vacío ni tener =")
+                if not changes and not gone:
+                    raise ValueError("no hay cambios")
+                args = ["tag", paths[0], *[a for k, v in changes.items() for a in ("--set", f"{k}={v}")],
+                        *[a for k in gone for a in ("--unset", k)], *(["--only"] if body.get("only") else [])]
+                return f"Datos: {label}", args
             if action == "trim":
                 if len(paths) != 1:
                     raise ValueError("se recorta de a un tema")

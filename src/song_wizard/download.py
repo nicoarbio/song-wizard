@@ -19,6 +19,21 @@ def node_ok():
     return bool(match) and int(match.group(1)) >= 20
 
 
+def name_by_data(path):
+    from . import rename, tags
+    from .audio import base_of
+
+    new = tags.name_for(tags.read(path))
+    current = base_of(Path(path).name)
+    number = re.match(r"^\d+ - ", current)
+    if not new or (number.group(0) if number else "") + new == current:
+        return
+    try:
+        rename.run(path, new)
+    except SystemExit as e:
+        print(f"  {Path(path).name}: kept its name ({e.code})")
+
+
 def run(url, wav=False, extra=(), to=None):
     sys.exit(fetch(url, wav=wav, extra=extra, to=to))
 
@@ -75,6 +90,10 @@ def fetch(url, wav=False, extra=(), to=None):
         files = [l for l in files_file.read_text(errors="replace").splitlines() if l.strip()]
         title_file.unlink(missing_ok=True)
         files_file.unlink(missing_ok=True)
+    # Named by its data, "001 - Artist - Title", as the song's data window names it: what the
+    # site put there (often the uploader as the artist) shows up front, to be corrected by hand.
+    for path in files:
+        name_by_data(path)
     if archive.exists():
         archives.remember(archive_id, url, lines[-1] if lines else None,
                           folder=str(Path(files[-1]).parent) if files else None, wav=wav)
