@@ -38,7 +38,9 @@ def read(path):
         st = os.stat(path)
     except OSError:
         return {}
-    key = (path, st.st_mtime_ns, st.st_size)
+    # A file replaced has another inode: its time and size alone can match the old one's (on the
+    # Mac, data rewritten in the room kept for it leaves the size as it was).
+    key = (path, st.st_ino, st.st_mtime_ns, st.st_ctime_ns, st.st_size)
     if key not in _cache:
         try:
             out = subprocess.run(["ffprobe", "-v", "error", "-of", "json", "-show_entries",
@@ -183,6 +185,14 @@ def write(paths, tags):
     for temp, path in temps:
         shutil.copymode(path, temp)
         os.replace(temp, path)
+    forget(paths)
+
+
+def forget(paths):
+    """Drop what was read of these files (they were just written)."""
+    gone = {os.fspath(p) for p in paths}
+    for key in [k for k in _cache if k[0] in gone]:
+        del _cache[key]
 
 
 def show(path):

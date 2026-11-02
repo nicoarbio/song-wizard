@@ -87,6 +87,15 @@ def test_field_names_ogg_takes(song, capsys):
     assert tags.read(wav)["Año"] == "1993"
 
 
+def test_reads_again_after_writing(song, monkeypatch):
+    import os
+    old = tags.read(song)
+    st = os.stat(song)
+    tags.write([str(song)], {**old, "album": "Live"})
+    os.utime(song, ns=(st.st_atime_ns, st.st_mtime_ns))  # same time (as the Mac CI showed)
+    assert tags.read(song)["album"] == "Live"
+
+
 def test_purl_stays(song):
     with pytest.raises(SystemExit):
         tags.run(song, unset=["purl"])
