@@ -8,6 +8,28 @@
   // Before the page is drawn, so a theme picked by hand doesn't flash the other one first.
   try { const t = localStorage.getItem("song-wizard:theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
 </script>
+<script src="/static/strings.js"></script>
+<script>
+  // The page's language: the one picked (remembered in this browser), else the browser's. Texts
+  // are written in Spanish in the code; translate() gives them in the page's language (static/strings.js
+  // holds [English, Portuguese] for each), with {name} filled in from vars. A text without its
+  // translation shows in Spanish rather than not at all.
+  const LANG_KEY = "song-wizard:lang";
+  const LANG = (() => {
+    try { const v = localStorage.getItem(LANG_KEY); if (["es", "en", "pt"].includes(v)) return v; } catch {}
+    const n = (navigator.language || "").slice(0, 2).toLowerCase();
+    return n === "es" || n === "pt" ? n : "en";
+  })();
+  document.documentElement.lang = LANG;
+  function translate(text, vars) {
+    let out = text;
+    if (LANG !== "es") {
+      const found = (window.STRINGS || {})[text];
+      if (found && found[LANG === "en" ? 0 : 1]) out = found[LANG === "en" ? 0 : 1];
+    }
+    return vars ? out.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : out;
+  }
+</script>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/static/logo.png" type="image/png">
 <style>
@@ -30,6 +52,7 @@
     --accent: #5fb39a; --accent-ink: #0f1a16; --soft: #1f2c27; --warn: #d9a25b; --bad: #e07a6c;
     --shadow: none; color-scheme: dark;
   }
+  .prefs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
   .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
   .theme button { border: 0; border-radius: 0; background: none; padding: 3px 9px; font-size: 12px; color: var(--muted); }
   .theme button + button { border-left: 1px solid var(--line); }
@@ -320,11 +343,18 @@
     <button class="primary" type="submit">Bajar</button>
     <span class="dest muted">en <button type="button" class="small" id="dest" title="Dónde va la carpeta de una playlist nueva">Música</button></span>
   </form>
+  <div class="prefs">
   <button type="button" class="small keys-open" title="Ver y cambiar los atajos de teclado (?)">⌨ atajos</button>
+  <div class="theme" role="group" aria-label="Idioma" id="lang" translate="no">
+    <button type="button" data-lang="es" title="Español">es</button>
+    <button type="button" data-lang="en" title="English">en</button>
+    <button type="button" data-lang="pt" title="Português">pt</button>
+  </div>
   <div class="theme" role="group" aria-label="Colores de la página" id="theme">
     <button type="button" data-theme="auto" title="Claro u oscuro según el sistema">automático</button>
     <button type="button" data-theme="light" title="Siempre claro">claro</button>
     <button type="button" data-theme="dark" title="Siempre oscuro">oscuro</button>
+  </div>
   </div>
 </header>
 
@@ -684,6 +714,36 @@
 </dialog>
 
 <script>
+// The page's fixed texts, written in Spanish in the markup, in the page's language: text by text
+// (spaces aside), and the titles, placeholders and labels. Done once, before anything reads them.
+function translateStatic(root) {
+  if (LANG === "es" || !window.STRINGS) return;
+  const known = (text) => STRINGS[text.replace(/\s+/g, " ").trim()];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const key = n.nodeValue.replace(/\s+/g, " ").trim();
+    if (key && known(key) && !n.parentElement.closest("script, style, [translate=no]")) {
+      const lead = n.nodeValue.match(/^\s*/)[0], tail = n.nodeValue.match(/\s*$/)[0];
+      n.nodeValue = lead + translate(key) + tail;
+    }
+  }
+  for (const node of root.querySelectorAll("[title], [placeholder], [aria-label]")) {
+    for (const a of ["title", "placeholder", "aria-label"]) {
+      const v = node.getAttribute(a);
+      if (v && known(v)) node.setAttribute(a, translate(v.replace(/\s+/g, " ").trim()));
+    }
+  }
+}
+translateStatic(document.body);
+for (const b of document.querySelectorAll("#lang button")) {
+  b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
+  b.onclick = () => {
+    if (b.dataset.lang === LANG) return;
+    try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch {}
+    location.reload();  // every text is put in once, as the page is drawn
+  };
+}
+
 // Links from before 0.10 had a token in them ("?t="): it isn't needed anymore, so it goes from the
 // address bar (and from a bookmark made from now on).
 if (new URLSearchParams(location.search).has("t")) {
@@ -695,7 +755,7 @@ const $ = (id) => document.getElementById(id);
 const state = { folders: [], selected: new Set(), closedFolders: new Set(), openJob: null, logs: {}, lastDone: new Set() };
 
 async function api(path, body) {
-  const options = { headers: {} };
+  const options = { headers: { "X-Lang": LANG } };  // the server answers in the page's language
   if (body !== undefined) {
     options.method = "POST";
     options.headers["Content-Type"] = "application/json";
@@ -790,9 +850,9 @@ function kindOf(found) {
 // still accepts any file named on purpose; this keeps the interface from doing odd things.
 const ONLY = {
   "songs": { ok: (k) => k === "song",
-             why: "Separar funciona sobre el tema original, no sobre stems, versiones ni otras copias." },
+             why: translate("Separar funciona sobre el tema original, no sobre stems, versiones ni otras copias.") },
   "no-versions": { ok: (k) => k !== "version",
-                   why: "Sobre una versión ya transpuesta o con otra velocidad no: hacelo desde el original (con velocidad y semitonos juntos si hace falta), que suena mejor." },
+                   why: translate("Sobre una versión ya transpuesta o con otra velocidad no: hacelo desde el original (con velocidad y semitonos juntos si hace falta), que suena mejor.") },
 };
 
 // Shift+click picks (or unpicks) everything shown between the last checkbox clicked and this one,
@@ -821,8 +881,8 @@ function badgesFor(item, ghosts = false) {
     const hand = !!text && text.endsWith(HAND);
     const doubt = !!text && !hand && (what === "key" ? text.includes("uncertain") : /uncertain|varies/.test(text));
     const label = !text ? (what === "key" ? "tono?" : "BPM?") : what === "key" ? text.split(/\s+/)[0] : `${bpmNumber(text)} BPM`;
-    const name = what === "key" ? "la tonalidad" : "el tempo";
-    const title = !text ? `Escribir ${name} a mano` : hand ? `Puesto a mano. Clic para cambiarlo` : `${text}\nClic para corregir ${name} a mano`;
+    const name = what === "key" ? translate("la tonalidad") : translate("el tempo");
+    const title = !text ? translate("Escribir {name} a mano", { name }) : hand ? translate("Puesto a mano. Clic para cambiarlo") : translate("{text}\nClic para corregir {name} a mano", { text, name });
     badges.push(el("button", { class: "badge" + (doubt ? " warn" : "") + (hand ? " hand" : "") + (text ? "" : " ghost"), title,
       onclick: () => { state.setting = { path: item.path, what }; state.settingDraft = undefined; renderLibrary(); } }, label));
   }
@@ -833,7 +893,7 @@ function setBox(item, what) {
   const text = item[what];
   const first = state.settingDraft === undefined;
   if (first) state.settingDraft = !text ? "" : what === "key" ? text.split(/\s+/)[0] : String(bpmNumber(text));
-  const input = el("input", { type: "text", value: state.settingDraft, "aria-label": what === "key" ? "Tonalidad" : "Tempo",
+  const input = el("input", { type: "text", value: state.settingDraft, "aria-label": what === "key" ? translate("Tonalidad") : "Tempo",
     placeholder: what === "key" ? "Am, C#, La menor" : "BPM, ej. 120",
     oninput: (e) => { state.settingDraft = e.target.value; } });
   const close = () => { state.setting = null; state.settingDraft = undefined; renderLibrary(); };
@@ -851,10 +911,10 @@ function setBox(item, what) {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
   requestAnimationFrame(() => { input.focus(); if (first) input.select(); });
   return el("span", { class: "set-box" }, input,
-    el("button", { class: "small primary", onclick: save }, "guardar"),
-    el("button", { class: "small", title: "Volver a detectarlo desde el audio (reemplaza lo puesto a mano)",
-      onclick: () => { close(); start({ action: what, paths: [item.path], force: true }); } }, "detectar"),
-    el("button", { class: "small", onclick: close }, "cancelar"));
+    el("button", { class: "small primary", onclick: save }, translate("guardar")),
+    el("button", { class: "small", title: translate("Volver a detectarlo desde el audio (reemplaza lo puesto a mano)"),
+      onclick: () => { close(); start({ action: what, paths: [item.path], force: true }); } }, translate("detectar")),
+    el("button", { class: "small", onclick: close }, translate("cancelar")));
 }
 
 const plainText = (t) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
@@ -876,7 +936,7 @@ function renderLibrary() {
   state.shownSongs = [];  // the songs in open folders, in order (for the keyboard)
   const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing);
   if (!visible.length) {
-    box.append(el("p", { class: "empty" }, "No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música."));
+    box.append(el("p", { class: "empty" }, translate("No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música.")));
     return;
   }
   for (const folder of visible) {
@@ -885,7 +945,7 @@ function renderLibrary() {
     const songs = folder.songs.filter((s) => !filter || matchesWords(filter, s.name, folder.name, ...Object.values(s.tags || {})));
     if (filter && !songs.length) continue;
     const allChecked = songs.length && songs.every((s) => state.selected.has(s.path));
-    const toggleAll = el("input", { type: "checkbox", title: "Elegir todos", onclick: (e) => {
+    const toggleAll = el("input", { type: "checkbox", title: translate("Elegir todos"), onclick: (e) => {
       e.stopPropagation();
       for (const s of songs) e.target.checked ? state.selected.add(s.path) : state.selected.delete(s.path);
       renderLibrary(); renderSelection();
@@ -893,15 +953,15 @@ function renderLibrary() {
     toggleAll.checked = !!allChecked;
     const n = folder.songs.length;
     const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
-      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, `${n} tema${n === 1 ? "" : "s"}`),
-        folder.playlist ? el("button", { class: "small open", title: `Vuelve a mirar la playlist "${folder.playlist.title}" y baja solo los temas que se agregaron`,
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, "buscar temas nuevos") : null,
-        el("button", { class: folder.playlist ? "small" : "small open", title: "Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total",
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, "setlist"),
-        el("button", { class: "small", title: `Abrir esta carpeta en el ${state.fileManager}`,
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, "abrir")));
+      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, translate("{n} tema{v}", { n, v: n === 1 ? "" : "s" })),
+        folder.playlist ? el("button", { class: "small open", title: translate("Vuelve a mirar la playlist \"{title}\" y baja solo los temas que se agregaron", { title: folder.playlist.title }),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, translate("buscar temas nuevos")) : null,
+        el("button", { class: folder.playlist ? "small" : "small open", title: translate("Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total"),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, translate("setlist")),
+        el("button", { class: "small", title: translate("Abrir esta carpeta en el {fileManager}", { fileManager: state.fileManager }),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, translate("abrir"))));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
-    if (folder.location) details.append(el("div", { class: "location", title: "Esta playlist está fuera de tu carpeta de música" }, `en ${folder.location}`));
+    if (folder.location) details.append(el("div", { class: "location", title: translate("Esta playlist está fuera de tu carpeta de música") }, `en ${folder.location}`));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
     if (details.open) state.shownSongs.push(...songs);
@@ -917,18 +977,18 @@ function renderLibrary() {
 function renderMissing(folder) {
   const drive = folder.missing.drive;
   return el("details", { class: "folder missing", open: true },
-    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, "no disponible")),
+    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, translate("no disponible"))),
     el("div", { class: "location" }, `en ${folder.location}`),
     drive
-      ? el("p", { class: "hint" }, `WSL no ve la unidad ${drive}: (pasa con la de Google Drive después de reiniciar WSL), así que sus temas no aparecen. `,
+      ? el("p", { class: "hint" }, translate("WSL no ve la unidad {drive}: (pasa con la de Google Drive después de reiniciar WSL), así que sus temas no aparecen. ", { drive }),
           el("button", { class: "small", onclick: () => showCommand(
-            `Corré este comando en la terminal de WSL (pide tu contraseña) y tocá "↻ actualizar". Para que se conecte sola cada vez, agregá la línea "${drive}: /mnt/${drive.toLowerCase()} drvfs defaults,nofail 0 0" a /etc/fstab.`,
-            folder.missing.command) }, "cómo conectarla"))
-      : el("p", { class: "hint" }, "No encuentro esta carpeta: si la moviste o la renombraste, sus temas no aparecen hasta que esté de nuevo ahí (para una playlist, \"song-wizard archives --move\" anota dónde está ahora)."));
+            translate("Corré este comando en la terminal de WSL (pide tu contraseña) y tocá \"↻ actualizar\". Para que se conecte sola cada vez, agregá la línea \"{drive}: /mnt/{v} drvfs defaults,nofail 0 0\" a /etc/fstab.", { drive, v: drive.toLowerCase() }),
+            folder.missing.command) }, translate("cómo conectarla")))
+      : el("p", { class: "hint" }, translate("No encuentro esta carpeta: si la moviste o la renombraste, sus temas no aparecen hasta que esté de nuevo ahí (para una playlist, \"song-wizard archives --move\" anota dónde está ahora).")));
 }
 
 function renderSong(song) {
-  const check = el("input", { type: "checkbox", title: "Elegir el tema (con Shift, todos desde el último elegido)", onclick: toggle(song.path) });
+  const check = el("input", { type: "checkbox", title: translate("Elegir el tema (con Shift, todos desde el último elegido)"), onclick: toggle(song.path) });
   state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song, true);
@@ -938,17 +998,17 @@ function renderSong(song) {
   const li = el("li", { class: "song" + (state.cursor === song.path ? " cursor" : ""), "data-path": song.path,
     onpointerdown: () => setCursor(song.path, false) },
     el("div", { class: "head" }, check,
-      el("button", { class: "play small", title: "Escuchar", onclick: () => play(song) }, "▶"),
+      el("button", { class: "play small", title: translate("Escuchar"), onclick: () => play(song) }, "▶"),
       title, badges,
-      el("button", { class: "small", title: "Practicar: mezclar los stems, bajar la velocidad y repetir un tramo", onclick: () => openPractice(song) }, "practicar"),
+      el("button", { class: "small practice-open", title: translate("Practicar: mezclar los stems, bajar la velocidad y repetir un tramo"), onclick: () => openPractice(song) }, translate("practicar")),
       moreMenu(song)));
   if (song.files.length) {
     const open = songOpen(song);
     const n = song.files.length;
     li.querySelector(".head").insertBefore(
-      el("button", { class: "small fold", "aria-expanded": String(open), title: open ? "Ocultar sus archivos" : "Mostrar sus stems y versiones",
-        onclick: () => { setSongOpen(song, !open); renderLibrary(); } }, `${open ? "▾" : "▸"} ${n} archivo${n === 1 ? "" : "s"}`),
-      li.querySelector(".head .badge, .head button[title^=Practicar]"));
+      el("button", { class: "small fold", "aria-expanded": String(open), title: open ? translate("Ocultar sus archivos") : translate("Mostrar sus stems y versiones"),
+        onclick: () => { setSongOpen(song, !open); renderLibrary(); } }, translate("{v} {n} archivo{v2}", { v: open ? "▾" : "▸", n, v2: n === 1 ? "" : "s" })),
+      li.querySelector(".head .badge, .head .practice-open"));
     if (open) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
   }
   return li;
@@ -963,25 +1023,25 @@ function moreMenu(song) {
   const item = (label, sub, props) => el("button", { role: "menuitem", ...props }, label, sub ? el("span", { class: "sub" }, sub) : null);
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
-                   title: "Más acciones: los datos del tema, la letra, recortar, el proyecto de Reaper", onclick: toggleMenu },
-       "más ▾", song.lyrics || song.reaper ? el("span", { class: "dot", title: "Tiene letra o proyecto de Reaper" }) : null));
+                   title: translate("Más acciones: los datos del tema, la letra, recortar, el proyecto de Reaper"), onclick: toggleMenu },
+       translate("más ▾"), song.lyrics || song.reaper ? el("span", { class: "dot", title: translate("Tiene letra o proyecto de Reaper") }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
-    item("Datos del tema…", "título, artista, álbum… (artista y título le cambian el nombre)",
+    item(translate("Datos del tema…"), translate("título, artista, álbum… (artista y título le cambian el nombre)"),
          { onclick: pick(() => openData(song)) }),
-    item(song.lyrics ? "Letra ✓" : "Letra", song.lyrics ? "con sus colores y notas" : "buscarla o escribirla, para marcarla",
+    item(song.lyrics ? "Letra ✓" : translate("Letra"), song.lyrics ? translate("con sus colores y notas") : translate("buscarla o escribirla, para marcarla"),
          { onclick: pick(() => openLyrics(song)) }),
-    item("Recortar…", "cortar el principio o el final, o agregar silencio",
+    item(translate("Recortar…"), translate("cortar el principio o el final, o agregar silencio"),
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
     song.reaper
-      ? item("Abrir en Reaper", reaper ? null : "No encontré Reaper instalado en esta computadora",
-             { disabled: !reaper, title: reaper ? `Abre ${song.name.replace(/\.[^.]+$/, "")}.rpp` : "No encontré Reaper instalado en esta computadora",
+      ? item(translate("Abrir en Reaper"), reaper ? null : translate("No encontré Reaper instalado en esta computadora"),
+             { disabled: !reaper, title: reaper ? translate("Abre {name}.rpp", { name: song.name.replace(/\.[^.]+$/, "") }) : translate("No encontré Reaper instalado en esta computadora"),
                onclick: pick(() => reaperProject(song)) })
-      : item("Crear proyecto de Reaper", reaper ? "con los stems, el tempo y el click; y lo abre" : "Reaper no está instalado: solo se crea el archivo",
+      : item(translate("Crear proyecto de Reaper"), reaper ? translate("con los stems, el tempo y el click; y lo abre") : translate("Reaper no está instalado: solo se crea el archivo"),
              { onclick: pick(() => reaperProject(song)) }),
-    song.reaper ? item("Rehacer proyecto de Reaper", "el actual va a la papelera", { onclick: pick(() => reaperProject(song, true)) }) : null);
+    song.reaper ? item(translate("Rehacer proyecto de Reaper"), translate("el actual va a la papelera"), { onclick: pick(() => reaperProject(song, true)) }) : null);
   box.append(menu);
   requestAnimationFrame(() => menu.querySelector("button:not(:disabled)")?.focus());
   return box;
@@ -996,14 +1056,14 @@ document.addEventListener("keydown", (e) => {
 // The setting song-wizard changes in REAPER so takes are named after their song: what it was,
 // what it is, and putting it back. Shown in the "Reaper" box for as long as it matters, and in
 // a dialog when it's changed.
-const factory = (v) => v === null || v === undefined ? "el de fábrica de Reaper" : el("code", {}, v);
+const factory = (v) => v === null || v === undefined ? translate("el de fábrica de Reaper") : el("code", {}, v);
 function settingDetails(s) {
   return el("dl", { class: "setting-list" },
-    el("dt", {}, "Preferencia"), el("dd", {}, 'Options › Preferences › Recording › "Recorded filenames". Vale para todos tus proyectos de Reaper, no solo los de song-wizard.'),
-    el("dt", {}, "Antes"), el("dd", {}, factory(s.before)),
-    el("dt", {}, "Ahora"), el("dd", {}, el("code", {}, s.takes)),
-    el("dt", {}, "Archivo"), el("dd", {}, s.ini || "?"),
-    s.backup ? el("dt", {}, "Copia de antes") : null, s.backup ? el("dd", {}, s.backup) : null);
+    el("dt", {}, translate("Preferencia")), el("dd", {}, 'Options › Preferences › Recording › "Recorded filenames". Vale para todos tus proyectos de Reaper, no solo los de song-wizard.'),
+    el("dt", {}, translate("Antes")), el("dd", {}, factory(s.before)),
+    el("dt", {}, translate("Ahora")), el("dd", {}, el("code", {}, s.takes)),
+    el("dt", {}, translate("Archivo")), el("dd", {}, s.ini || "?"),
+    s.backup ? el("dt", {}, translate("Copia de antes")) : null, s.backup ? el("dd", {}, s.backup) : null);
 }
 function renderReaperSetting(s) {
   state.reaperSetting = s;
@@ -1011,23 +1071,23 @@ function renderReaperSetting(s) {
   $("reaper-box").hidden = !(s.installed || s.exists || s.changed);
   const button = (label, what, title) => el("button", { class: "small", title, onclick: () => reaperSetting(what) }, label);
   const parts = [];
-  if (!s.installed) parts.push(el("p", { class: "hint" }, "No encontré Reaper instalado en esta computadora: los proyectos se pueden crear igual (desde \"más\" en cada tema), pero no abrir desde acá."));
+  if (!s.installed) parts.push(el("p", { class: "hint" }, translate("No encontré Reaper instalado en esta computadora: los proyectos se pueden crear igual (desde \"más\" en cada tema), pero no abrir desde acá.")));
   if (s.ours && s.changed) {
-    parts.push(el("p", {}, `El ${s.changed} song-wizard cambió una preferencia de Reaper, para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca.`),
+    parts.push(el("p", {}, translate("El {changed} song-wizard cambió una preferencia de Reaper, para que las tomas que grabes se llamen como su tema (\"Tema (record 2026-11-01 19-05-12).wav\") y aparezcan con él en la biblioteca.", { changed: s.changed })),
                settingDetails(s),
-               el("div", { class: "row" }, button("restaurar como estaba", "restore", "Vuelve solo esa preferencia a como estaba (con Reaper cerrado); song-wizard no la vuelve a cambiar")),
-               el("p", { class: "hint" }, "Restaurar vuelve solo esa línea a como estaba, sin tocar nada más de Reaper. Después, las tomas nuevas no aparecen con su tema. A mano: en esa preferencia de Reaper, poné lo que dice \"Antes\" (o \"song-wizard reaper --setting restore\" en la terminal)."));
+               el("div", { class: "row" }, button(translate("restaurar como estaba"), "restore", translate("Vuelve solo esa preferencia a como estaba (con Reaper cerrado); song-wizard no la vuelve a cambiar"))),
+               el("p", { class: "hint" }, translate("Restaurar vuelve solo esa línea a como estaba, sin tocar nada más de Reaper. Después, las tomas nuevas no aparecen con su tema. A mano: en esa preferencia de Reaper, poné lo que dice \"Antes\" (o \"song-wizard reaper --setting restore\" en la terminal).")));
   } else if (s.ours) {
-    parts.push(el("p", {}, "Reaper ya nombra las tomas como su tema, así que aparecen con él en la biblioteca."));
+    parts.push(el("p", {}, translate("Reaper ya nombra las tomas como su tema, así que aparecen con él en la biblioteca.")));
   } else if (s.declined) {
-    parts.push(el("p", {}, `El ${s.restored} restauraste el nombre de las tomas de Reaper (`, factory(s.current), "). song-wizard no lo vuelve a cambiar, y las tomas nuevas no aparecen con su tema."),
-               el("div", { class: "row" }, button("volver a ajustarlo", "apply", "Que las tomas se llamen como su tema otra vez (con Reaper cerrado)")));
+    parts.push(el("p", {}, translate("El {restored} restauraste el nombre de las tomas de Reaper (", { restored: s.restored }), factory(s.current), translate("). song-wizard no lo vuelve a cambiar, y las tomas nuevas no aparecen con su tema.")),
+               el("div", { class: "row" }, button(translate("volver a ajustarlo"), "apply", translate("Que las tomas se llamen como su tema otra vez (con Reaper cerrado)"))));
   } else if (s.exists) {
-    parts.push(el("p", {}, "Para que las tomas que grabes se llamen como su tema y aparezcan con él, song-wizard cambia una preferencia de Reaper (con Reaper cerrado) la primera vez que creás o abrís un proyecto desde acá. Te avisa cuando lo hace, y lo podés restaurar desde este apartado."),
+    parts.push(el("p", {}, translate("Para que las tomas que grabes se llamen como su tema y aparezcan con él, song-wizard cambia una preferencia de Reaper (con Reaper cerrado) la primera vez que creás o abrís un proyecto desde acá. Te avisa cuando lo hace, y lo podés restaurar desde este apartado.")),
                el("p", { class: "hint" }, 'Options › Preferences › Recording › "Recorded filenames": de ', factory(s.current), " a ", el("code", {}, s.takes), "."),
-               el("div", { class: "row" }, button("ajustarlo ahora", "apply", "Cambia esa preferencia ahora (con Reaper cerrado)")));
+               el("div", { class: "row" }, button(translate("ajustarlo ahora"), "apply", translate("Cambia esa preferencia ahora (con Reaper cerrado)"))));
   } else if (s.installed) {
-    parts.push(el("p", { class: "hint" }, "Reaper todavía no se abrió en esta computadora. Cuando crees o abras un proyecto desde acá, song-wizard ajusta el nombre de las tomas para que aparezcan con su tema, y te avisa."));
+    parts.push(el("p", { class: "hint" }, translate("Reaper todavía no se abrió en esta computadora. Cuando crees o abras un proyecto desde acá, song-wizard ajusta el nombre de las tomas para que aparezcan con su tema, y te avisa.")));
   }
   box.className = "reaper-setting";
   box.replaceChildren(...parts);
@@ -1039,12 +1099,12 @@ async function reaperSetting(what) {
   try {
     const got = await api("/api/reaper/setting", { do: what });
     renderReaperSetting(got);
-    if (got.done === "running") toast("Reaper está abierto: cerralo primero (guarda sus preferencias al cerrarse y pisaría el cambio).", 7000);
-    else if (got.done === "restored") toast("Listo: la preferencia de Reaper quedó como estaba.", 5000);
+    if (got.done === "running") toast(translate("Reaper está abierto: cerralo primero (guarda sus preferencias al cerrarse y pisaría el cambio)."), 7000);
+    else if (got.done === "restored") toast(translate("Listo: la preferencia de Reaper quedó como estaba."), 5000);
     else if (got.done === "set") showSettingChanged(got);
-    else if (got.done === "not-changed") toast("song-wizard no había cambiado esa preferencia.");
+    else if (got.done === "not-changed") toast(translate("song-wizard no había cambiado esa preferencia."));
   } catch (e) {
-    toast(`No se pudo: ${e.message}`, 6000);
+    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
   }
 }
 function showSettingChanged(s) {
@@ -1052,7 +1112,7 @@ function showSettingChanged(s) {
   $("reaper-changed-body").replaceChildren(
     el("p", {}, 'Para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca, cambié esta preferencia de Reaper:'),
     settingDetails(s),
-    el("p", { class: "hint" }, "Para volver atrás: \"restaurar como estaba\" (acá o en el apartado Reaper), o a mano en esa preferencia de Reaper poniendo lo que dice \"Antes\"."));
+    el("p", { class: "hint" }, translate("Para volver atrás: \"restaurar como estaba\" (acá o en el apartado Reaper), o a mano en esa preferencia de Reaper poniendo lo que dice \"Antes\".")));
   $("reaper-changed").showModal();
 }
 $("reaper-changed-ok").onclick = () => $("reaper-changed").close();
@@ -1060,20 +1120,20 @@ $("reaper-changed-restore").onclick = () => { $("reaper-changed").close(); reape
 
 // Open the song's REAPER project, making it first if there's none (or remaking it: "redo").
 async function reaperProject(song, redo = false) {
-  if (redo && !await askConfirm({ title: "¿Rehacer el proyecto de Reaper?", danger: true, ok: "rehacer",
-                                    text: ["El proyecto actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora."] })) return;
+  if (redo && !await askConfirm({ title: translate("¿Rehacer el proyecto de Reaper?"), danger: true, ok: translate("rehacer"),
+                                    text: [translate("El proyecto actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora.")] })) return;
   try {
     const got = await api("/api/reaper", { path: song.path, redo });
-    const said = [got.created ? (redo ? `Rehice ${got.name}` : `Creé ${got.name}`) : null,
-                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : "Reaper no está instalado, así que no se abrió.")];
-    if (got.timing === "unaligned") said.push("El tempo sale de bpm.txt, pero el tema no quedó alineado a los compases: ajustá el click en practicar y rehacé el proyecto.");
-    if (got.timing === "no-tempo") said.push("No hay tempo detectado para este tema: el proyecto quedó a 120 BPM.");
-    if (got.takes === "running") said.push("Para que las tomas aparezcan con su tema, cerrá Reaper y volvé a abrir el proyecto desde acá (ver el apartado Reaper).");
+    const said = [got.created ? (redo ? translate("Rehice {name}", { name: got.name }) : translate("Creé {name}", { name: got.name })) : null,
+                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : translate("Reaper no está instalado, así que no se abrió."))];
+    if (got.timing === "unaligned") said.push(translate("El tempo sale de bpm.txt, pero el tema no quedó alineado a los compases: ajustá el click en practicar y rehacé el proyecto."));
+    if (got.timing === "no-tempo") said.push(translate("No hay tempo detectado para este tema: el proyecto quedó a 120 BPM."));
+    if (got.takes === "running") said.push(translate("Para que las tomas aparezcan con su tema, cerrá Reaper y volvé a abrir el proyecto desde acá (ver el apartado Reaper)."));
     toast(said.filter(Boolean).join(" "), said.filter(Boolean).length > 1 ? 9000 : 4000);
     if (got.takes === "set") showSettingChanged(got.setting);
     if (got.created) refresh();
   } catch (e) {
-    toast(`No se pudo: ${e.message}`, 6000);
+    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
   }
 }
 
@@ -1097,13 +1157,13 @@ function setAllOpen(open) {
 }
 
 function renderFile(file) {
-  const check = el("input", { type: "checkbox", title: "Elegir solo este archivo (con Shift, todos desde el último elegido)", onclick: toggle(file.path) });
+  const check = el("input", { type: "checkbox", title: translate("Elegir solo este archivo (con Shift, todos desde el último elegido)"), onclick: toggle(file.path) });
   state.shown.push(file.path);
   check.checked = state.selected.has(file.path);
   return el("li", {}, check,
-    el("button", { class: "play small", title: "Escuchar", onclick: () => play(file) }, "▶"),
+    el("button", { class: "play small", title: translate("Escuchar"), onclick: () => play(file) }, "▶"),
     el("span", { class: "fname" }, file.name), badgesFor(file),
-    el("button", { class: "small", title: "Los datos de este archivo solo (por ejemplo, una nota sobre esta versión)", onclick: () => openData(file, true) }, "datos"),
+    el("button", { class: "small", title: translate("Los datos de este archivo solo (por ejemplo, una nota sobre esta versión)"), onclick: () => openData(file, true) }, translate("datos")),
     el("span", { class: "count" }, `${(file.size / 1e6).toFixed(1)} MB`));
 }
 
@@ -1113,16 +1173,16 @@ function renderSelection() {
   const songs = found.filter((f) => f.item === f.song).length;
   const files = found.length - songs;
   const parts = [];
-  if (songs) parts.push(`${songs} tema${songs === 1 ? "" : "s"}`);
-  if (files) parts.push(`${files} archivo${files === 1 ? "" : "s"}`);
+  if (songs) parts.push(translate("{songs} tema{v}", { songs, v: songs === 1 ? "" : "s" }));
+  if (files) parts.push(translate("{files} archivo{v}", { files, v: files === 1 ? "" : "s" }));
   const box = $("selection");
   box.replaceChildren(n
-    ? el("span", {}, `${parts.join(" y ")} elegido${n === 1 ? "" : "s"} `,
-        el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, "limpiar selección"), " ",
-        el("button", { class: "small", title: "Mandar a la papelera lo elegido (pide confirmación)", onclick: confirmDelete }, "borrar archivos seleccionados"), " ",
-        found.some((f) => f.song) ? el("button", { class: "small", title: "Una lista para imprimir con los temas elegidos, de cualquier carpeta, en el orden que quieras (un stem o una versión cuenta como su tema)",
-          onclick: setlistOfSelection }, "setlist con lo elegido") : null)
-    : el("span", { class: "muted" }, "Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas."));
+    ? el("span", {}, translate("{v} elegido{v2} ", { v: parts.join(" y "), v2: n === 1 ? "" : "s" }),
+        el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, translate("limpiar selección")), " ",
+        el("button", { class: "small", title: translate("Mandar a la papelera lo elegido (pide confirmación)"), onclick: confirmDelete }, translate("borrar archivos seleccionados")), " ",
+        found.some((f) => f.song) ? el("button", { class: "small", title: translate("Una lista para imprimir con los temas elegidos, de cualquier carpeta, en el orden que quieras (un stem o una versión cuenta como su tema)"),
+          onclick: setlistOfSelection }, translate("setlist con lo elegido")) : null)
+    : el("span", { class: "muted" }, translate("Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas.")));
   const kinds = found.map(kindOf);
   for (const b of document.querySelectorAll("[data-needs=songs]")) {
     const rule = ONLY[b.dataset.only];
@@ -1162,20 +1222,20 @@ function updateClickBars() {
 function renderArchives(rows) {
   const box = $("archives");
   box.replaceChildren();
-  if (!rows.length) { box.append(el("p", { class: "empty" }, "Todavía no bajaste nada.")); return; }
-  const table = el("table", {}, el("tr", {}, el("th", {}, "Playlist"), el("th", {}, "Temas"), el("th", {}, "Última"), el("th", {})));
+  if (!rows.length) { box.append(el("p", { class: "empty" }, translate("Todavía no bajaste nada."))); return; }
+  const table = el("table", {}, el("tr", {}, el("th", {}, translate("Playlist")), el("th", {}, translate("Temas")), el("th", {}, translate("Última")), el("th", {})));
   for (const r of rows) {
     table.append(el("tr", {}, el("td", {}, r.title), el("td", {}, r.songs), el("td", { class: "muted" }, r.changed),
       el("td", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
-        r.url ? el("button", { class: "small", title: "Baja solo los temas que se agregaron a la playlist",
-          onclick: () => updatePlaylist(r) }, "buscar nuevos") : null,
-        r.url ? el("button", { class: "small", title: r.folder ? `Está en ${r.folder}` : "Llevarla a otra carpeta",
-          onclick: () => askFolder({ title: `Mover "${r.title}"`, note: `Va entera (temas, stems y resultados) a una carpeta nueva dentro de la que elijas, y los temas nuevos se bajan ahí.${r.folder ? ` Ahora está en ${r.folder}.` : ""}`,
-            done: (to) => start({ action: "archives-move", id: r.id, title: r.title, to }) }) }, "mover") : null,
-        el("button", { class: "small", title: "La próxima vez se baja entera de nuevo. Los temas no se borran.",
-          onclick: () => confirmForget([r.number], r.title) }, "olvidar"))));
+        r.url ? el("button", { class: "small", title: translate("Baja solo los temas que se agregaron a la playlist"),
+          onclick: () => updatePlaylist(r) }, translate("buscar nuevos")) : null,
+        r.url ? el("button", { class: "small", title: r.folder ? translate("Está en {folder}", { folder: r.folder }) : translate("Llevarla a otra carpeta"),
+          onclick: () => askFolder({ title: translate("Mover \"{title}\"", { title: r.title }), note: translate("Va entera (temas, stems y resultados) a una carpeta nueva dentro de la que elijas, y los temas nuevos se bajan ahí.") + (r.folder ? " " + translate("Ahora está en {folder}.", { folder: r.folder }) : ""),
+            done: (to) => start({ action: "archives-move", id: r.id, title: r.title, to }) }) }, translate("mover")) : null,
+        el("button", { class: "small", title: translate("La próxima vez se baja entera de nuevo. Los temas no se borran."),
+          onclick: () => confirmForget([r.number], r.title) }, translate("olvidar")))));
   }
-  box.append(table, el("p", { class: "hint" }, "Olvidar una playlist hace que la próxima vez se baje entera de nuevo. Nunca borra los temas."));
+  box.append(table, el("p", { class: "hint" }, translate("Olvidar una playlist hace que la próxima vez se baje entera de nuevo. Nunca borra los temas.")));
 }
 
 // Download the playlist again: its archive makes yt-dlp skip what's already here, so only songs
@@ -1199,7 +1259,7 @@ $("folder-pick").onclick = async () => {
   try {
     const picked = await api("/api/pick-folder", {});
     if (picked.path) $("folder-path").value = picked.path;
-  } catch (e) { toast(`No se pudo abrir el selector: ${e.message}`); }
+  } catch (e) { toast(translate("No se pudo abrir el selector: {message}", { message: e.message })); }
   $("folder-pick").disabled = false;
 };
 
@@ -1208,11 +1268,11 @@ const DEST_KEY = "song-wizard:download-to";
 const downloadTo = () => { try { return localStorage.getItem(DEST_KEY) || ""; } catch { return ""; } };
 function renderDest() {
   const to = downloadTo();
-  $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : "Música";
-  $("dest").title = to ? `Las playlists nuevas van a ${to}` : "Las playlists nuevas van a tu carpeta de música";
+  $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : translate("Música");
+  $("dest").title = to ? translate("Las playlists nuevas van a {to}", { to }) : translate("Las playlists nuevas van a tu carpeta de música");
 }
-$("dest").onclick = () => askFolder({ title: "¿Dónde van las playlists nuevas?", value: downloadTo(), allowDefault: true,
-  note: "Cada playlist nueva se guarda en una carpeta con su nombre dentro de esta. Las que ya bajaste siguen en su lugar (para llevarlas a otro lado, \"mover\" en Playlists bajadas).",
+$("dest").onclick = () => askFolder({ title: translate("¿Dónde van las playlists nuevas?"), value: downloadTo(), allowDefault: true,
+  note: translate("Cada playlist nueva se guarda en una carpeta con su nombre dentro de esta. Las que ya bajaste siguen en su lugar (para llevarlas a otro lado, \"mover\" en Playlists bajadas)."),
   done: (to) => { try { to ? localStorage.setItem(DEST_KEY, to) : localStorage.removeItem(DEST_KEY); } catch {} renderDest(); } });
 renderDest();
 
@@ -1221,8 +1281,8 @@ function updatePlaylist(playlist) {
 }
 
 async function confirmForget(numbers, title) {
-  if (await askConfirm({ title: `¿Olvidar "${title}"?`, ok: "olvidar",
-                         text: ["Los temas bajados no se tocan. Si la volvés a bajar, se bajan todos sus temas de nuevo."] })) {
+  if (await askConfirm({ title: translate("¿Olvidar \"{title}\"?", { title }), ok: translate("olvidar"),
+                         text: [translate("Los temas bajados no se tocan. Si la volvés a bajar, se bajan todos sus temas de nuevo.")] })) {
     start({ action: "archives-delete", numbers });
   }
 }
@@ -1230,8 +1290,8 @@ async function confirmForget(numbers, title) {
 function renderJobs(jobs) {
   const box = $("jobs");
   box.replaceChildren();
-  if (!jobs.length) { box.append(el("p", { class: "empty" }, "Todavía no corriste nada.")); return; }
-  const names = { queued: "en espera", running: "corriendo", done: "listo", failed: "falló", cancelled: "cancelado" };
+  if (!jobs.length) { box.append(el("p", { class: "empty" }, translate("Todavía no corriste nada."))); return; }
+  const names = { queued: translate("en espera"), running: translate("corriendo"), done: translate("listo"), failed: translate("falló"), cancelled: translate("cancelado") };
   for (const job of [...jobs].reverse()) {
     const open = state.openJob === job.id;
     const div = el("div", { class: "job", style: `--t:${Date.now() % 1e6}` },
@@ -1239,8 +1299,8 @@ function renderJobs(jobs) {
         el("span", { class: `status ${job.status}` }, names[job.status] || job.status),
         el("span", { class: "title" }, job.title),
         job.started ? el("span", { class: "elapsed" }, clock((job.ended || job.now) - job.started)) : null,
-        ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, "cancelar") : null,
-        job.status === "failed" ? el("button", { class: "small", title: "Armar un reporte para pedir ayuda", onclick: openReport }, "reportar") : null,
+        ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, translate("cancelar")) : null,
+        job.status === "failed" ? el("button", { class: "small", title: translate("Armar un reporte para pedir ayuda"), onclick: openReport }, translate("reportar")) : null,
         el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
     if (job.status === "running") {
       const known = job.percent !== null && job.percent !== undefined;
@@ -1250,7 +1310,7 @@ function renderJobs(jobs) {
       if (text) div.append(el("div", { class: "progress" }, text));
     }
     if (open) {
-      const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || "(sin salida todavía)");
+      const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || translate("(sin salida todavía)"));
       div.append(pre);
       requestAnimationFrame(() => { pre.scrollTop = pre.scrollHeight; });
     }
@@ -1276,7 +1336,7 @@ async function start(request) {
   try {
     const job = await api("/api/jobs", request);
     state.openJob = job.id;
-    toast(`En marcha: ${job.title}`);
+    toast(translate("En marcha: {title}", { title: job.title }));
     poll();
   } catch (e) {
     if (e.command) showCommand(e.message, e.command);
@@ -1288,7 +1348,7 @@ async function start(request) {
 function showCommand(message, command) {
   $("command-text").textContent = message;
   $("command-code").textContent = command;
-  $("command-copy").textContent = "copiar comando";
+  $("command-copy").textContent = translate("copiar comando");
   $("command").showModal();
 }
 $("command-copy").onclick = async () => {
@@ -1303,7 +1363,7 @@ $("command-copy").onclick = async () => {
     getSelection().addRange(range);
     document.execCommand("copy");
   }
-  $("command-copy").textContent = "copiado ✓";
+  $("command-copy").textContent = translate("copiado ✓");
 };
 $("command-close").onclick = () => $("command").close();
 
@@ -1548,7 +1608,7 @@ function play(file) {
   playerWave.clear();
   playerWave.update({ position: 0 });
   loadPeaks(file.path).then((d) => playerWave.set(d)).catch(() => {});
-  playerAudio.play().catch(() => toast("El navegador no pudo reproducir ese formato."));
+  playerAudio.play().catch(() => toast(translate("El navegador no pudo reproducir ese formato.")));
 }
 
 function renderPlayer() {
@@ -1590,7 +1650,7 @@ const trimRound = (t) => Math.round(t * 100) / 100;
 async function openTrim(song) {
   trim.song = song;
   playerAudio.pause();  // the bottom player would play over what's being trimmed
-  $("trim-title").textContent = `Recortar: ${song.name.replace(/\.[^.]+$/, "")}`;
+  $("trim-title").textContent = translate("Recortar: {v}", { v: song.name.replace(/\.[^.]+$/, "") });
   $("trim-pad-start").value = 0;
   $("trim-pad-end").value = 0;
   $("trim-reaper").hidden = !song.reaper;
@@ -1598,9 +1658,9 @@ async function openTrim(song) {
   const take = (n) => / \(record [^)]*\)(-\d+)?\.[^.]+$/.test(n);
   const audio = (n) => /\.(opus|webm|wav|flac|mp3|m4a|ogg|aac|mkv|mp4|aiff?)$/i.test(n);
   const cut = files.filter((n) => audio(n) && !take(n));
-  $("trim-files-title").textContent = `Se recortan ${cut.length} archivo${cut.length === 1 ? "" : "s"}`;
-  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, " (en proporción a su velocidad)") : null)),
-    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, " (toma de Reaper: queda como está)")));
+  $("trim-files-title").textContent = translate("Se recortan {length} archivo{v}", { length: cut.length, v: cut.length === 1 ? "" : "s" });
+  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, translate(" (en proporción a su velocidad)")) : null)),
+    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, translate(" (toma de Reaper: queda como está)"))));
   trimWave.clear();
   trimNav.clear();
   $("trim").showModal();
@@ -1612,7 +1672,7 @@ async function openTrim(song) {
     trim.overview = await loadPeaks(song.path);
     setTrimView(0, trim.duration);
   } catch (e) {
-    toast(`No se pudo leer el tema: ${e.message}`, 6000);
+    toast(translate("No se pudo leer el tema: {message}", { message: e.message }), 6000);
   }
 }
 
@@ -1643,14 +1703,14 @@ function renderTrim() {
   $("trim-end").value = trim.end.toFixed(2);
   $("trim-start").max = $("trim-end").max = trim.duration.toFixed(2);
   const [a, b] = trim.view;
-  $("trim-view").textContent = b - a < trim.duration - 0.01 ? `viendo ${clockTime(a)} – ${clockTime(b)}` : "";
+  $("trim-view").textContent = b - a < trim.duration - 0.01 ? translate("viendo {v} – {v2}", { v: clockTime(a), v2: clockTime(b) }) : "";
   const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
   const total = trim.end - trim.start + before + after;
   const changed = trim.start > 0 || trim.end < trimRound(trim.duration) || before || after;
-  $("trim-sum").textContent = `Queda ${clockTime(total)} de ${clockTime(trim.duration)}` +
-    (trim.start > 0 ? ` · se cortan ${trim.start.toFixed(2)} s del principio` : "") +
-    (trim.end < trimRound(trim.duration) ? ` · ${(trim.duration - trim.end).toFixed(2)} s del final` : "") +
-    (before ? ` · ${before} s de silencio antes` : "") + (after ? ` · ${after} s después` : "");
+  $("trim-sum").textContent = translate("Queda {v} de {v2}", { v: clockTime(total), v2: clockTime(trim.duration) }) +
+    (trim.start > 0 ? translate(" · se cortan {v} s del principio", { v: trim.start.toFixed(2) }) : "") +
+    (trim.end < trimRound(trim.duration) ? translate(" · {v} s del final", { v: (trim.duration - trim.end).toFixed(2) }) : "") +
+    (before ? translate(" · {before} s de silencio antes", { before }) : "") + (after ? translate(" · {after} s después", { after }) : "");
   $("trim-apply").disabled = !changed;
 }
 
@@ -1710,7 +1770,7 @@ function trimListen(from, to) {
   playerAudio.pause();
   trim.stopAt = Math.min(to, trim.duration);
   a.currentTime = Math.max(0, from);
-  a.play().catch(() => toast("El navegador no pudo reproducir el tema."));
+  a.play().catch(() => toast(translate("El navegador no pudo reproducir el tema.")));
   cancelAnimationFrame(trim.raf);
   const tick = () => {
     trimWave.update({ position: a.currentTime });
@@ -1731,7 +1791,7 @@ $("trim-close").onclick = $("trim-cancel").onclick = () => $("trim").close();
 $("trim").addEventListener("close", trimStop);
 $("trim-apply").onclick = () => {
   const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
-  if (before < 0 || after < 0 || before > 60 || after > 60) { toast("El silencio va de 0 a 60 segundos."); return; }
+  if (before < 0 || after < 0 || before > 60 || after > 60) { toast(translate("El silencio va de 0 a 60 segundos.")); return; }
   const cutEnd = trim.end < trimRound(trim.duration);
   $("trim").close();
   start({ action: "trim", paths: [trim.song.path], start: trim.start, end: cutEnd ? trim.end : null, padStart: before, padEnd: after });
@@ -1749,8 +1809,8 @@ $("trim-apply").onclick = () => {
 // live: each beat is placed on the audio clock from where the song is, so it lands right after
 // any jump, loop or speed change and stays crisp when slowed down (a click file would be
 // stretched along with the song and blur).
-const STEM_NAMES = { vocals: "Voz", drums: "Batería", bass: "Bajo", guitar: "Guitarra", piano: "Piano", other: "Otros",
-                     kick: "Bombo", snare: "Redoblante", toms: "Toms", hihat: "Hi-hat", ride: "Ride", crash: "Crash", "drums rest": "Resto de la batería" };
+const STEM_NAMES = { vocals: "Voz", drums: translate("Batería"), bass: translate("Bajo"), guitar: translate("Guitarra"), piano: "Piano", other: translate("Otros"),
+                     kick: translate("Bombo"), snare: translate("Redoblante"), toms: "Toms", hihat: "Hi-hat", ride: "Ride", crash: "Crash", "drums rest": translate("Resto de la batería") };
 const KIT = ["kick", "snare", "toms", "hihat", "ride", "crash", "drums rest"];
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
 const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
@@ -1785,26 +1845,26 @@ function trackSets(song) {
   for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
   const sets = [];
   if (FULL_SET.every((k) => found[k])) {
-    sets.push({ label: "Todos los instrumentos", tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
+    sets.push({ label: translate("Todos los instrumentos"), tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
   }
   if (KIT.every((k) => found[k])) {
     const kit = KIT.map((k) => ({ name: STEM_NAMES[k], file: found[k] }));
     const others = FULL_SET.every((k) => found[k])
       ? FULL_SET.filter((k) => k !== "drums").map((k) => ({ name: STEM_NAMES[k], file: found[k] }))
-      : found["no drums"] ? [{ name: "Sin batería", file: found["no drums"] }] : null;
-    if (others) sets.push({ label: "Batería en partes", tracks: [...kit, ...others] });
+      : found["no drums"] ? [{ name: translate("Sin batería"), file: found["no drums"] }] : null;
+    if (others) sets.push({ label: translate("Batería en partes"), tracks: [...kit, ...others] });
   }
   for (const k of ["vocals", "drums", "bass", "guitar", "piano"]) {
     if (found[k] && found[`no ${k}`]) {
-      sets.push({ label: `${STEM_NAMES[k]} y el resto`, tracks: [{ name: STEM_NAMES[k], file: found[k] }, { name: `Sin ${STEM_NAMES[k].toLowerCase()}`, file: found[`no ${k}`] }] });
+      sets.push({ label: translate("{v} y el resto", { v: STEM_NAMES[k] }), tracks: [{ name: STEM_NAMES[k], file: found[k] }, { name: translate("Sin {v}", { v: STEM_NAMES[k].toLowerCase() }), file: found[`no ${k}`] }] });
     }
   }
-  sets.push({ label: "El tema original", tracks: [{ name: "Tema", file: song }] });
+  sets.push({ label: translate("El tema original"), tracks: [{ name: translate("Tema"), file: song }] });
   return sets;
 }
 
 // The song's own waveform, on top of the lanes (it stays from one set of tracks to the next).
-const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": "Posición: tocá para moverte" }), { onSeek: (t) => moveTo(t) });
+const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": translate("Posición: tocá para moverte") }), { onSeek: (t) => moveTo(t) });
 // The whole song over the lanes, with a box on what they show.
 const practiceNav = new Wave($("practice-nav"), { interactive: false });
 const practiceZoom = { ready: () => practice.duration, view: () => practice.view || [0, practice.duration], setView: (a, b) => setPracticeView(a, b) };
@@ -1818,7 +1878,7 @@ function openPractice(song) {
   const sets = trackSets(song);
   practice.song = song;
   practice.sets = sets;
-  $("practice-title").textContent = `Practicar: ${song.name.replace(/\.[^.]+$/, "")}`;
+  $("practice-title").textContent = translate("Practicar: {v}", { v: song.name.replace(/\.[^.]+$/, "") });
   $("practice-set").replaceChildren(...sets.map((s, i) => el("option", { value: i }, s.label)));
   $("practice-set-row").hidden = sets.length < 2;
   practice.a = practice.b = null;
@@ -1851,7 +1911,7 @@ function loadSet(index) {
   const ctx = context(), set = practice.sets[index];
   $("practice-set").value = index;
   $("practice-play").disabled = true;
-  $("practice-status").textContent = "Cargando las pistas…";
+  $("practice-status").textContent = translate("Cargando las pistas…");
   practice.tracks = set.tracks.map((t) => {
     const audio = new Audio(`/api/audio?path=${encodeURIComponent(t.file.path)}`);
     audio.preload = "auto";
@@ -1881,7 +1941,7 @@ function loadSet(index) {
     $("practice-status").textContent = "";
     applySpeed();
     renderPractice();
-  }).catch((e) => { $("practice-status").textContent = `El navegador no pudo abrir ${e.message}.`; });
+  }).catch((e) => { $("practice-status").textContent = translate("El navegador no pudo abrir {message}.", { message: e.message }); });
   applyVolumes();
   buildTracks();
   renderPractice();
@@ -1914,19 +1974,19 @@ function buildTracks() {
   for (const t of practice.lanes || []) t.wave.dispose();
   practice.lanes = [];
   box.replaceChildren(
-    el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, "Tema"),
-      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, "tocá una onda para ir ahí; la rueda acerca y aleja")),
+    el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, translate("Tema")),
+      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, translate("tocá una onda para ir ahí; la rueda acerca y aleja"))),
     el("div", { class: "lane main-lane" }, practiceWave.canvas));
   practice.mixer.forEach((t, i) => {
     const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
-    const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": `Volumen de ${t.name}`,
+    const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": translate("Volumen de {name}", { name: t.name }),
       oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); pct.textContent = `${e.target.value} %`; } });
-    const mute = el("button", { class: "small", title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
-    const solo = el("button", { class: "small", title: "Solo esta pista (se pueden sumar otras)", onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
+    const mute = el("button", { class: "small", title: translate("Silenciar"), onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
+    const solo = el("button", { class: "small", title: translate("Solo esta pista (se pueden sumar otras)"), onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
     const ctl = el("div", { class: "lane-ctl", onpointerdown: () => setActiveTrack(i) },
-      el("span", { class: "name", title: t.click ? "El click, al tempo y compás de \"Ajustar el click\"" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
+      el("span", { class: "name", title: t.click ? translate("El click, al tempo y compás de \"Ajustar el click\"") : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
       el("span", { class: "ms" }, mute, solo), vol, pct);
-    const canvas = el("canvas", { "aria-label": `${t.name}: tocá para moverte` });
+    const canvas = el("canvas", { "aria-label": translate("{name}: tocá para moverte", { name: t.name }) });
     const lane = el("div", { class: "lane" }, canvas);
     box.append(ctl, lane);
     const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
@@ -1993,9 +2053,9 @@ function applySpeed() {
 function renderPractice() {
   const t = now(), duration = practice.duration;
   $("practice-play").textContent = practice.playing ? "⏸" : "▶";
-  $("practice-play").title = (practice.playing ? "Pausar" : "Reproducir") + keyHint("play");
+  $("practice-play").title = (practice.playing ? translate("Pausar") : translate("Reproducir")) + keyHint("play");
   $("practice-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(duration).replace(/\.\d$/, "")}`;
-  $("practice-count").textContent = practice.preroll ? "cuenta…" : "";
+  $("practice-count").textContent = practice.preroll ? translate("cuenta…") : "";
   $("practice-a-time").textContent = clockTime(practice.a);
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);
@@ -2156,7 +2216,7 @@ function keepInStep() {
   }
   practice.worst = Math.max(practice.worst, worst);
   const sync = $("practice-sync");
-  if (!sync.hidden) sync.textContent = `desfase entre pistas: ahora ${Math.round(worst * 1000)} ms · máximo ${Math.round(practice.worst * 1000)} ms · demora de arranque aprendida ${Math.round(startLatency() * 1000)} ms`;
+  if (!sync.hidden) sync.textContent = translate("desfase entre pistas: ahora {v} ms · máximo {v2} ms · demora de arranque aprendida {v3} ms", { v: Math.round(worst * 1000), v2: Math.round(practice.worst * 1000), v3: Math.round(startLatency() * 1000) });
 }
 
 // Live pitch: the music (not the click) goes through static/pitch.js when the pitch isn't 0. Its
@@ -2188,7 +2248,7 @@ async function applyPitch() {
   let st = semitones();
   $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st);
   const key = practice.song && practice.song.key, from = key && key.split(/\s+/)[0], to = shiftedKey(key, st);
-  $("practice-pitch-hint").textContent = st && to ? `semitonos: ${from} → ${to}` : "semitonos";
+  $("practice-pitch-hint").textContent = st && to ? translate("semitonos: {from} → {to}", { from, to }) : translate("semitonos");
   if (st && !pitchNode) {
     try {
       pitchLoading = pitchLoading || ctx.audioWorklet.addModule("/static/pitch.js");
@@ -2198,7 +2258,7 @@ async function applyPitch() {
     } catch (e) {
       pitchLoading = null;
       $("practice-pitch").value = 0;
-      toast("Este navegador no pudo cambiar el tono en vivo.", 6000);
+      toast(translate("Este navegador no pudo cambiar el tono en vivo."), 6000);
     }
     st = semitones();  // it may have moved while loading
   }
@@ -2354,7 +2414,7 @@ function setClick(change, save = true) {
       try {
         practice.song.click = await api("/api/click-settings", { path: practice.song.path, bpm: c.bpm, meter: c.meter, first: c.first });
         c.saved = true;
-      } catch (e) { toast(`No se pudo guardar el click: ${e.message}`); }
+      } catch (e) { toast(translate("No se pudo guardar el click: {message}", { message: e.message })); }
     }, 500);
   }
 }
@@ -2365,7 +2425,7 @@ function renderClickPanel(reload) {
   for (const [id, value] of [["pc-bpm", c.bpm.toFixed(2)], ["pc-meter", c.meter], ["pc-first", c.first.toFixed(3)]]) {
     if (document.activeElement !== $(id)) $(id).value = value;
   }
-  $("pc-summary").textContent = c.saved ? `${c.bpm.toFixed(2)} BPM ${c.meter}, primer golpe en ${c.first.toFixed(3)} s` : "sin ajustar todavía";
+  $("pc-summary").textContent = c.saved ? translate("{v} BPM {meter}, primer golpe en {v2} s", { v: c.bpm.toFixed(2), meter: c.meter, v2: c.first.toFixed(3) }) : translate("sin ajustar todavía");
   const end = Math.max(6, first + 2 * perBar * period + period);
   if (reload || !clickWave.view || end > clickWave.view[1] + 0.01 || end < clickWave.view[1] - 4) {
     const view = [0, Math.ceil(end)];
@@ -2415,7 +2475,7 @@ function syncPracticeClick() {
     if (after !== before && s.click) {
       setClick({ bpm: s.click.bpm, meter: s.click.meter, first: s.click.first, saved: true }, false);
       if (practice.clickTrack) { practice.clickTrack.mute = false; applyVolumes(); renderTracks(); }
-      toast("El click quedó ajustado al tema.");
+      toast(translate("El click quedó ajustado al tema."));
     }
   }
 }
@@ -2434,7 +2494,7 @@ const PRACTICE_LYRICS_KEY = "song-wizard:practice-lyrics";
 const lyricsShown = () => !$("practice").classList.contains("no-lyrics");
 function showPracticeLyrics(on, starting = false) {
   $("practice").classList.toggle("no-lyrics", !on);
-  $("practice-lyrics-toggle").textContent = on ? "letra ▸" : "◂ letra";
+  $("practice-lyrics-toggle").textContent = on ? translate("letra ▸") : translate("◂ letra");
   $("practice-lyrics-toggle").setAttribute("aria-pressed", String(on));
   try { on ? localStorage.removeItem(PRACTICE_LYRICS_KEY) : localStorage.setItem(PRACTICE_LYRICS_KEY, "hidden"); } catch {}
   if (on && !starting) { lyr.nowLine = undefined; followLyrics(now()); }
@@ -2446,11 +2506,11 @@ showPracticeLyrics((() => { try { return localStorage.getItem(PRACTICE_LYRICS_KE
 // Esc leaves it and the player stays open.
 function togglePracticeFull() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  else document.documentElement.requestFullscreen().catch(() => toast("El navegador no dejó pasar a pantalla completa."));
+  else document.documentElement.requestFullscreen().catch(() => toast(translate("El navegador no dejó pasar a pantalla completa.")));
 }
 $("practice-full").onclick = togglePracticeFull;
 document.addEventListener("fullscreenchange", () => {
-  $("practice-full").textContent = document.fullscreenElement ? "salir de pantalla completa" : "⛶ pantalla completa";
+  $("practice-full").textContent = document.fullscreenElement ? translate("salir de pantalla completa") : translate("⛶ pantalla completa");
 });
 // Esc in full screen only leaves full screen: the browser takes that one, but some also send
 // it on to the dialog, which would close the player.
@@ -2483,10 +2543,10 @@ function confirmDelete() {
   const plan = deletePlan();
   if (!plan.names.length) return;
   const n = plan.names.length;
-  $("delete-title").textContent = `¿Mandar ${n} archivo${n === 1 ? "" : "s"} a la papelera?`;
+  $("delete-title").textContent = translate("¿Mandar {n} archivo{v} a la papelera?", { n, v: n === 1 ? "" : "s" });
   $("delete-list").replaceChildren(...plan.names.map((name) => el("li", {}, name)));
-  const notes = ["Si te equivocás, los recuperás desde la papelera del sistema."];
-  if (plan.songs.length) notes.push(`Cada tema elegido se va con todos sus archivos y sus resultados (tonalidad, tempo, click); si era de una playlist, "buscar temas nuevos" lo vuelve a bajar.`);
+  const notes = [translate("Si te equivocás, los recuperás desde la papelera del sistema.")];
+  if (plan.songs.length) notes.push(translate("Cada tema elegido se va con todos sus archivos y sus resultados (tonalidad, tempo, click); si era de una playlist, \"buscar temas nuevos\" lo vuelve a bajar."));
   $("delete-note").textContent = notes.join(" ");
   $("delete").showModal();
   $("delete-cancel").focus();
@@ -2541,14 +2601,14 @@ function renderSetlist() {
   list.replaceChildren(...items.map(({ song, folder }, i) => {
     const key = song.key ? song.key.split(/\s+/)[0] : "", bpm = song.bpm ? `${Math.round(parseFloat(song.bpm))} BPM` : "";
     const li = el("li", { draggable: "true" },
-      el("span", { class: "grip", title: "Arrastrar para mover" }, "⠿"),
+      el("span", { class: "grip", title: translate("Arrastrar para mover") }, "⠿"),
       el("span", { class: "num" }, `${i + 1}.`),
       el("span", { class: "name", title: song.name }, songTitle(song)),
       el("span", { class: "where" }, [key, bpm].filter(Boolean).join(" · ")),
-      folders.size > 1 ? el("span", { class: "where", title: "Carpeta" }, folder.name) : null,
-      el("button", { class: "small", title: "Subir", disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
-      el("button", { class: "small", title: "Bajar", disabled: i === items.length - 1, onclick: () => moveSetlist(i, i + 1) }, "↓"),
-      el("button", { class: "small", title: "Sacar de este setlist (no borra nada)", disabled: items.length === 1,
+      folders.size > 1 ? el("span", { class: "where", title: translate("Carpeta") }, folder.name) : null,
+      el("button", { class: "small", title: translate("Más arriba"), disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
+      el("button", { class: "small", title: translate("Más abajo"), disabled: i === items.length - 1, onclick: () => moveSetlist(i, i + 1) }, "↓"),
+      el("button", { class: "small", title: translate("Sacar de este setlist (no borra nada)"), disabled: items.length === 1,
         onclick: () => { items.splice(i, 1); renderSetlist(); } }, "×"));
     li.addEventListener("dragstart", (e) => { setlistState.drag = i; li.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); });
     li.addEventListener("dragend", () => { setlistState.drag = null; li.classList.remove("dragging"); });
@@ -2561,8 +2621,8 @@ function renderSetlist() {
   $("setlist-lyrics").disabled = !withLyrics;
   if (!withLyrics) $("setlist-lyrics").checked = false;
   $("setlist-lyrics-text").textContent = withLyrics
-    ? `con las letras y sus marcas, una por página después de la lista (${withLyrics === items.length ? (items.length === 1 ? "el tema la tiene" : `los ${items.length} temas la tienen`) : `${withLyrics} de ${items.length} temas la tienen`})`
-    : "con las letras (ninguno de estos temas tiene letra todavía: más › Letra)";
+    ? translate("con las letras y sus marcas, una por página después de la lista ({which})", { which: withLyrics === items.length ? (items.length === 1 ? translate("el tema la tiene") : translate("los {n} temas la tienen", { n: items.length })) : translate("{some} de {n} temas la tienen", { some: withLyrics, n: items.length }) })
+    : translate("con las letras (ninguno de estos temas tiene letra todavía: más › Letra)");
 }
 
 $("setlist-cancel").onclick = () => $("setlist").close();
@@ -2571,6 +2631,7 @@ $("setlist-open").onclick = () => {
   for (const { song } of setlistState.items) query.append("path", song.path);
   query.set("title", $("setlist-title").value.trim() || "Setlist");
   if ($("setlist-lyrics").checked) query.set("lyrics", "1");
+  query.set("lang", LANG);
   window.open(`/setlist?${query}`, "_blank");
   $("setlist").close();
 };
@@ -2580,7 +2641,7 @@ $("setlist-open").onclick = () => {
 async function openReport() {
   const dialog = $("report");
   $("report-status").hidden = false;
-  $("report-status").textContent = "Armando el reporte (revisa la instalación, tarda unos segundos)…";
+  $("report-status").textContent = translate("Armando el reporte (revisa la instalación, tarda unos segundos)…");
   $("report-ready").hidden = true;
   dialog.showModal();
   try {
@@ -2591,7 +2652,7 @@ async function openReport() {
     $("report-status").hidden = true;
     $("report-ready").hidden = false;
   } catch (e) {
-    $("report-status").textContent = `No se pudo armar el reporte: ${e.message}. Probá con "song-wizard report" en la terminal.`;
+    $("report-status").textContent = translate("No se pudo armar el reporte: {message}. Probá con \"song-wizard report\" en la terminal.", { message: e.message });
   }
 }
 
@@ -2599,7 +2660,7 @@ async function openFolder(path) {
   try {
     await api("/api/open", { path });
   } catch (e) {
-    toast(`No se pudo abrir: ${e.message}`);
+    toast(translate("No se pudo abrir: {message}", { message: e.message }));
   }
 }
 
@@ -2607,12 +2668,12 @@ async function refresh() {
   peaksCache.clear();  // a file can change under the same name (trimmed)
   try {
     const lib = await api("/api/library");
-    $("root").textContent = `Carpeta de música: ${lib.root}`;
+    $("root").textContent = translate("Carpeta de música: {root}", { root: lib.root });
     state.fileManager = lib.fileManager;
     state.reaperInstalled = lib.reaper;
     loadReaperSetting();
     $("open-root").hidden = false;
-    $("open-root").title = `Abrir la carpeta de música en el ${lib.fileManager}`;
+    $("open-root").title = translate("Abrir la carpeta de música en el {fileManager}", { fileManager: lib.fileManager });
     state.folders = lib.folders;
     const existing = new Set(lib.folders.flatMap((f) => [
       ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
@@ -2621,7 +2682,7 @@ async function refresh() {
     syncPracticeClick();
     renderArchives(await api("/api/archives"));
   } catch (e) {
-    $("library").replaceChildren(el("p", { class: "empty" }, `No se pudo cargar: ${e.message}`));
+    $("library").replaceChildren(el("p", { class: "empty" }, translate("No se pudo cargar: {message}", { message: e.message })));
   }
 }
 
@@ -2661,35 +2722,35 @@ async function checkVersion(force = false) {
   try {
     const v = await api(`/api/version${force ? "?check=1" : ""}`);
     state.version = v;
-    $("version").textContent = v.retired ? `v${v.current} (retirada)` : `v${v.current}`;
+    $("version").textContent = v.retired ? translate("v{current} (retirada)", { current: v.current }) : `v${v.current}`;
     $("version").classList.toggle("retired", Boolean(v.retired));
     $("upgrade").hidden = !v.move;
-    $("upgrade").textContent = `${v.newer ? "actualizar" : "cambiar"} a ${v.latest}`;
-    $("version").title = v.retired ? `Esta versión fue retirada: ${v.retired}`
-      : v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}` : "Es la última versión (tocá para buscar de nuevo)")
-      : "No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)";
-    if (force) toast(v.latest ? (v.newer ? `Hay una versión nueva: ${v.latest}.` : `Tenés la última versión (${v.current}).`) : "No pude consultar si hay una versión nueva (¿hay internet?).");
+    $("upgrade").textContent = `${v.newer ? translate("actualizar") : "cambiar"} a ${v.latest}`;
+    $("version").title = v.retired ? translate("Esta versión fue retirada: {retired}", { retired: v.retired })
+      : v.latest ? (v.newer ? translate("Hay una versión nueva: {latest}", { latest: v.latest }) : translate("Es la última versión (tocá para buscar de nuevo)"))
+      : translate("No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)");
+    if (force) toast(v.latest ? (v.newer ? translate("Hay una versión nueva: {latest}.", { latest: v.latest }) : translate("Tenés la última versión ({current}).", { current: v.current })) : translate("No pude consultar si hay una versión nueva (¿hay internet?)."));
   } catch {}
 }
 $("version").onclick = () => checkVersion(true);
 $("upgrade").onclick = async () => {
   const v = state.version;
   const busy = (state.jobs || []).some((j) => ["queued", "running"].includes(j.status));
-  if (busy) { toast("Hay trabajos corriendo: actualizá cuando terminen.", 5000); return; }
-  if (!await askConfirm({ title: `¿${v.newer ? "Actualizar" : "Cambiar"} a song-wizard ${v.latest}?`, ok: v.newer ? "actualizar" : "cambiar",
-                          text: [v.retired ? `Tenés la ${v.current}, que fue retirada: ${v.retired}.` : `Tenés la ${v.current}.`,
-                                 "Baja esa versión (y lo nuevo de lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola."] })) return;
+  if (busy) { toast(translate("Hay trabajos corriendo: actualizá cuando terminen."), 5000); return; }
+  if (!await askConfirm({ title: `¿${v.newer ? translate("Actualizar") : translate("Cambiar")} a song-wizard ${v.latest}?`, ok: v.newer ? translate("actualizar") : "cambiar",
+                          text: [v.retired ? translate("Tenés la {current}, que fue retirada: {retired}.", { current: v.current, retired: v.retired }) : translate("Tenés la {current}.", { current: v.current }),
+                                 translate("Baja esa versión (y lo nuevo de lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola.")] })) return;
   try {
     const job = await api("/api/jobs", { action: "upgrade" });
     state.openJob = job.id;
     poll();
     $("upgrade").disabled = true;
-    $("upgrade").textContent = "actualizando…";
+    $("upgrade").textContent = translate("actualizando…");
     for (;;) {
       await new Promise((r) => setTimeout(r, 1500));
       const found = (await api(`/api/jobs?job=0`)).find((j) => j.id === job.id);
       if (!found || found.status === "running" || found.status === "queued") continue;
-      if (found.status !== "done") { toast("No se pudo actualizar: el detalle está en Trabajos.", 8000); checkVersion(); $("upgrade").disabled = false; return; }
+      if (found.status !== "done") { toast(translate("No se pudo actualizar: el detalle está en Trabajos."), 8000); checkVersion(); $("upgrade").disabled = false; return; }
       break;
     }
     state.restarting = true;
@@ -2703,9 +2764,9 @@ $("upgrade").onclick = async () => {
         if ((await api("/api/version")).server !== v.server) { location.reload(); return; }
       } catch {}
     }
-    $("restarting").textContent = "La interfaz no volvió sola: en la terminal, song-wizard ui, y recargá esta página.";
+    $("restarting").textContent = translate("La interfaz no volvió sola: en la terminal, song-wizard ui, y recargá esta página.");
   } catch (e) {
-    toast(`No se pudo: ${e.message}`, 6000);
+    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
     $("upgrade").disabled = false;
   }
 };
@@ -2715,9 +2776,9 @@ $("shutdown").onclick = async () => {
   const busy = state.jobs && state.jobs.filter((j) => ["queued", "running"].includes(j.status));
   const running = busy && busy.length;
   if (!await askConfirm({
-    title: "¿Apagar la interfaz?", ok: running ? "cancelar y apagar" : "apagar", danger: Boolean(running),
-    text: [running ? `Todavía está corriendo: ${busy.map((j) => j.title).join("; ")}. Se cancela.` : null,
-           "Para volver a usarla: song-wizard ui en la terminal."].filter(Boolean) })) return;
+    title: translate("¿Apagar la interfaz?"), ok: running ? translate("cancelar y apagar") : translate("apagar"), danger: Boolean(running),
+    text: [running ? translate("Todavía está corriendo: {v}. Se cancela.", { v: busy.map((j) => j.title).join("; ") }) : null,
+           translate("Para volver a usarla: song-wizard ui en la terminal.")].filter(Boolean) })) return;
   try { await api("/api/shutdown", {}); } catch {}
   clearTimeout(poll.timer);
   $("offline").hidden = false;
@@ -2733,7 +2794,7 @@ $("download").addEventListener("submit", (e) => {
 $("filter").addEventListener("input", renderLibrary);
 $("expand-all").onclick = () => setAllOpen(true);
 $("collapse-all").onclick = () => setAllOpen(false);
-$("reload").onclick = () => refresh().then(() => toast("Biblioteca actualizada."));
+$("reload").onclick = () => refresh().then(() => toast(translate("Biblioteca actualizada.")));
 $("open-root").onclick = () => openFolder("");
 $("report-open").onclick = openReport;
 
@@ -2743,9 +2804,9 @@ const lyr = { song: null, data: null, colors: [], noting: null, timer: 0, tool: 
 async function openLyrics(song) {
   lyr.song = song; lyr.data = null; lyr.noting = null; lyr.history = []; lyr.where = "dialog"; lyr.timeline = null;
   $("lyrics").insertBefore($("lyr-view"), $("lyr-editor"));
-  $("lyr-title").textContent = `Letra: ${song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "")}`;
+  $("lyr-title").textContent = translate("Letra: {v}", { v: song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "") });
   $("lyr-editor").hidden = true; $("lyr-view").hidden = false;
-  $("lyr-body").replaceChildren(el("p", { class: "empty-lyrics" }, "Cargando…"));
+  $("lyr-body").replaceChildren(el("p", { class: "empty-lyrics" }, translate("Cargando…")));
   $("lyrics").showModal();
   try {
     const got = await api(`/api/lyrics?path=${encodeURIComponent(song.path)}`);
@@ -2773,43 +2834,43 @@ function renderLyrics() {
   const tools = $("lyr-tools");
   tools.replaceChildren();
   $("lyr-print").disabled = !d;
-  $("lyr-fetch").textContent = d ? "buscar de nuevo" : "buscar la letra";
-  $("lyr-source").textContent = d && d.source ? `Fuente: ${d.source === "pasted" ? "escrita o pegada a mano" : d.source}` : "";
+  $("lyr-fetch").textContent = d ? translate("buscar de nuevo") : translate("buscar la letra");
+  $("lyr-source").textContent = d && d.source ? translate("Fuente: {v}", { v: d.source === "pasted" ? translate("escrita o pegada a mano") : d.source }) : "";
   if (d) {
     // Tools, like a PDF highlighter: pick one, then drag over the text.
     for (const [n, c] of lyr.colors.entries()) {
-      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: `${c.name}: ¿qué es?`, "aria-label": `Qué significa el ${c.name}`,
+      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: translate("{name}: ¿qué es?", { name: c.name }), "aria-label": translate("Qué significa el {name}", { name: c.name }),
         onchange: (e) => { d.legend = { ...(d.legend || {}), [c.id]: e.target.value }; saveLyrics(); } });
       tools.append(el("span", { class: "swatch" + (lyr.tool === c.id ? " active" : "") },
-        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: `Marcador ${c.name}${lyr.where === "practice" ? "" : keyHint(`color${n + 1}`)}`,
+        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: translate("Marcador {name}", { name: c.name }) + (lyr.where === "practice" ? "" : keyHint(`color${n + 1}`)),
           onmousedown: (e) => e.preventDefault(), onclick: () => pickTool(c.id) }), input));
     }
     tools.append(
-      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: "Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color" + (lyr.where === "practice" ? "" : keyHint("erase")),
-        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, "goma"),
-      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: "Nota: hacé clic en una línea para escribirle un comentario" + (lyr.where === "practice" ? "" : keyHint("note")),
-        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, "nota"),
-      el("button", { class: "small", title: "Deshacer el último cambio" + (lyr.where === "practice" ? "" : keyHint("undo")), disabled: !lyr.history.length, onclick: undoLyrics }, "deshacer"));
+      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: translate("Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color") + (lyr.where === "practice" ? "" : keyHint("erase")),
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, translate("goma")),
+      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: translate("Nota: hacé clic en una línea para escribirle un comentario") + (lyr.where === "practice" ? "" : keyHint("note")),
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, translate("nota")),
+      el("button", { class: "small", title: translate("Deshacer el último cambio") + (lyr.where === "practice" ? "" : keyHint("undo")), disabled: !lyr.history.length, onclick: undoLyrics }, translate("deshacer")));
     if (lyr.where === "practice") {
       tools.append(el("button", { class: "small tool" + (lyr.showTimes ? " active" : ""), "aria-pressed": String(!!lyr.showTimes),
-        title: "Mostrar la columna con el momento en que empieza cada línea, para ponerlos o corregirlos",
-        onclick: () => { lyr.showTimes = !lyr.showTimes; try { localStorage.setItem("song-wizard:lyric-times", lyr.showTimes ? "1" : ""); } catch {} renderLyrics(); } }, "tiempos"));
+        title: translate("Mostrar la columna con el momento en que empieza cada línea, para ponerlos o corregirlos"),
+        onclick: () => { lyr.showTimes = !lyr.showTimes; try { localStorage.setItem("song-wizard:lyric-times", lyr.showTimes ? "1" : ""); } catch {} renderLyrics(); } }, translate("tiempos")));
       if (lyr.showTimes) tools.append(
-        el("button", { class: "small", title: "Todos los tiempos medio segundo antes", onclick: () => shiftTimes(-0.5) }, "−0.5 s"),
-        el("button", { class: "small", title: "Todos los tiempos medio segundo después", onclick: () => shiftTimes(0.5) }, "+0.5 s"));
+        el("button", { class: "small", title: translate("Todos los tiempos medio segundo antes"), onclick: () => shiftTimes(-0.5) }, "−0.5 s"),
+        el("button", { class: "small", title: translate("Todos los tiempos medio segundo después"), onclick: () => shiftTimes(0.5) }, "+0.5 s"));
     }
   }
   const inPractice = lyr.where === "practice";
-  const toolName = lyr.tool === "erase" ? "Goma" : lyr.tool === "note" ? "Nota" : lyr.tool ? `Marcador ${(lyr.colors.find((c) => c.id === lyr.tool) || {}).name}` : null;
+  const toolName = lyr.tool === "erase" ? translate("Goma") : lyr.tool === "note" ? translate("Nota") : lyr.tool ? translate("Marcador {v}", { v: (lyr.colors.find((c) => c.id === lyr.tool) || {}).name }) : null;
   $("lyr-hint").textContent = inPractice && lyr.showTimes && !lyr.tool
-    ? `Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse${keysOf("tap").length ? ` (o ${keyLabel(keysOf("tap")[0])} para la siguiente)` : ""}. × lo borra. Doble clic en una línea: ir a ese momento.`
+    ? translate("Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse{key}. × lo borra. Doble clic en una línea: ir a ese momento.", { key: keysOf("tap").length ? translate(" (o {key} para la siguiente)", { key: keyLabel(keysOf("tap")[0]) }) : "" })
     : inPractice
-    ? (lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar." : toolName ? `${toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.`
-       : "Elegí un marcador y pasalo por la letra, o clic en una palabra." + (lyr.timeline ? " La línea que suena se resalta sola." : ""))
+    ? (lyr.tool === "note" ? translate("Nota: hacé clic en la línea que querés comentar.") : toolName ? translate("{toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.", { toolName })
+       : translate("Elegí un marcador y pasalo por la letra, o clic en una palabra.") + (lyr.timeline ? translate(" La línea que suena se resalta sola.") : ""))
     : !toolName
-    ? `Elegí un marcador (un color${keyHint("color1") ? ", o sus teclas" : ""}) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo.`
-    : lyr.tool === "note" ? "Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta."
-    : `${toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta${keysOf("undo").length ? `, ${keyLabel(keysOf("undo")[0])} deshace` : ""}.`;
+    ? translate("Elegí un marcador (un color{v}) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo.", { v: keyHint("color1") ? translate(", o sus teclas") : "" })
+    : lyr.tool === "note" ? translate("Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta.")
+    : translate("{toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta{undo}.", { toolName, undo: keysOf("undo").length ? translate(", {key} deshace", { key: keyLabel(keysOf("undo")[0]) }) : "" });
   const body = $("lyr-body");
   body.className = "lyr-body" + (lyr.where === "practice" && lyr.showTimes ? " with-times" : "") + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
   const tint = lyr.tool && lyr.tool !== "erase" && lyr.tool !== "note" ? (lyr.colors.find((c) => c.id === lyr.tool) || {}).shade : null;
@@ -2821,9 +2882,9 @@ function renderLyrics() {
   body.replaceChildren();
   if (!d) {
     body.append(el("p", { class: "empty-lyrics" },
-      lyr.where === "practice" ? "Este tema todavía no tiene letra. " : "Este tema todavía no tiene letra. \"buscar la letra\" la busca por su nombre y duración; si no aparece, \"escribir o pegar\". ",
-      lyr.where === "practice" ? el("button", { class: "small", onclick: fetchLyrics }, "buscar la letra") : null,
-      lyr.where === "practice" ? " (para escribirla o pegarla: \"letra\" en la biblioteca)" : null));
+      lyr.where === "practice" ? translate("Este tema todavía no tiene letra. ") : translate("Este tema todavía no tiene letra. \"buscar la letra\" la busca por su nombre y duración; si no aparece, \"escribir o pegar\". "),
+      lyr.where === "practice" ? el("button", { class: "small", onclick: fetchLyrics }, translate("buscar la letra")) : null,
+      lyr.where === "practice" ? translate(" (para escribirla o pegarla: \"letra\" en la biblioteca)") : null));
     return;
   }
   const lines = d.text.split("\n");
@@ -2836,19 +2897,19 @@ function renderLyrics() {
     if (lyr.where === "practice" && lyr.showTimes) {
       const at = (d.times || {})[i];
       row.prepend(plain(line) ? el("span", { class: "lyr-time" + (at === undefined ? " unset" : "") },
-        el("button", { title: at === undefined ? "Poner acá el momento que está sonando" : "Cambiarlo por el momento que está sonando",
+        el("button", { title: at === undefined ? translate("Poner acá el momento que está sonando") : translate("Cambiarlo por el momento que está sonando"),
           onclick: (e) => { e.stopPropagation(); setLineTime(i, now()); } }, at === undefined ? "poner" : clockShort(at)),
-        at === undefined ? null : el("button", { class: "x", title: "Borrar este tiempo", onclick: (e) => { e.stopPropagation(); setLineTime(i, null); } }, "×"))
+        at === undefined ? null : el("button", { class: "x", title: translate("Borrar este tiempo"), onclick: (e) => { e.stopPropagation(); setLineTime(i, null); } }, "×"))
         : el("span", { class: "lyr-time" }));
     }
     if (lyr.noting === i) row.append(noteBox(i, note || ""));
-    else if (note) row.append(el("span", { class: "lyr-note", title: "Tocá para cambiarla (vacía la borra)", onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
+    else if (note) row.append(el("span", { class: "lyr-note", title: translate("Tocá para cambiarla (vacía la borra)"), onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
     body.append(row);
   });
 }
 
 function noteBox(i, value) {
-  const input = el("input", { type: "text", value, placeholder: "nota para esta línea", "aria-label": "Nota" });
+  const input = el("input", { type: "text", value, placeholder: translate("nota para esta línea"), "aria-label": translate("Nota") });
   const done = (save) => {
     if (save) { rememberLyrics(); lyr.data.notes = { ...(lyr.data.notes || {}) }; if (input.value.trim()) lyr.data.notes[i] = input.value.trim(); else delete lyr.data.notes[i]; saveLyrics(); }
     lyr.noting = null; renderLyrics();
@@ -2885,7 +2946,7 @@ async function loadPracticeLyrics(song) {
     lyr.data = got.lyrics;
   } catch (e) { $("pl-summary").textContent = ""; }
   buildTimeline();
-  $("pl-summary").textContent = !lyr.data ? "(todavía no tiene)" : lyr.timeline ? "(sigue al tema)" : "(sin tiempos: \"tiempos\" para ponerlos)";
+  $("pl-summary").textContent = !lyr.data ? translate("(todavía no tiene)") : lyr.timeline ? translate("(sigue al tema)") : translate("(sin tiempos: \"tiempos\" para ponerlos)");
   renderLyrics();
 }
 
@@ -2921,7 +2982,7 @@ function setLineTime(i, t) {
   lyr.nowLine = undefined;
   saveLyrics();
   renderLyrics();
-  $("pl-summary").textContent = lyr.timeline ? "(sigue al tema)" : "(sin tiempos: \"tiempos\" para ponerlos)";
+  $("pl-summary").textContent = lyr.timeline ? translate("(sigue al tema)") : translate("(sin tiempos: \"tiempos\" para ponerlos)");
 }
 function shiftTimes(by) {
   const d = lyr.data;
@@ -2945,7 +3006,7 @@ function tapNextLine() {
   }
   let next = lyr.lastTap + 1;
   while (next < lines.length && !plain(lines[next])) next++;
-  if (next >= lines.length) { toast("Ya no quedan líneas."); return; }
+  if (next >= lines.length) { toast(translate("Ya no quedan líneas.")); return; }
   lyr.lastTap = next;
   if (!lyr.showTimes) { lyr.showTimes = true; try { localStorage.setItem("song-wizard:lyric-times", "1"); } catch {} }
   setLineTime(next, t);
@@ -3092,7 +3153,7 @@ function saveLyrics() {
   const song = lyr.song, data = lyr.data;
   lyr.timer = setTimeout(async () => {
     try { await api("/api/lyrics", { path: song.path, lyrics: data }); }
-    catch (e) { toast(`No se pudo guardar la letra: ${e.message}`, 6000); }
+    catch (e) { toast(translate("No se pudo guardar la letra: {message}", { message: e.message }), 6000); }
   }, 300);
 }
 
@@ -3100,8 +3161,8 @@ $("lyr-fetch").onclick = () => fetchLyrics();
 async function fetchLyrics() {
   const d = lyr.data;
   if (d && ((d.marks || []).length || Object.keys(d.notes || {}).length) &&
-      !await askConfirm({ title: "¿Buscar la letra de nuevo?", ok: "buscar de nuevo", danger: true,
-                          text: ["Reemplaza la letra, y se pierden sus colores y notas (la leyenda queda)."] })) return;
+      !await askConfirm({ title: translate("¿Buscar la letra de nuevo?"), ok: translate("buscar de nuevo"), danger: true,
+                          text: [translate("Reemplaza la letra, y se pierden sus colores y notas (la leyenda queda).")] })) return;
   $("lyr-fetch").disabled = true;
   try {
     lyr.data = await api("/api/lyrics/fetch", { path: lyr.song.path });
@@ -3127,7 +3188,7 @@ $("lyr-save").onclick = async () => {
     notes: old ? Object.fromEntries(Object.entries(old.notes || {}).filter(([i]) => same(+i))) : {},
     times: old ? Object.fromEntries(Object.entries(old.times || {}).filter(([i]) => same(+i))) : {},
     legend: old ? old.legend || {} : {}, source: old && old.text === text ? old.source : "pasted" };
-  if (!text.trim()) { toast("La letra está vacía."); return; }
+  if (!text.trim()) { toast(translate("La letra está vacía.")); return; }
   try {
     lyr.data = await api("/api/lyrics", { path: lyr.song.path, lyrics: data });
     lyr.song.lyrics = true;
@@ -3136,10 +3197,10 @@ $("lyr-save").onclick = async () => {
     renderLyrics(); renderLibrary();
   } catch (e) { toast(e.message, 6000); }
 };
-$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}`, "_blank");
+$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}&lang=${LANG}`, "_blank");
 $("lyr-close").onclick = () => $("lyrics").close();
 $("report-close").onclick = () => $("report").close();
-$("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(`No se pudo abrir: ${e.message}`));
+$("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(translate("No se pudo abrir: {message}", { message: e.message })));
 // Coming back from the file manager (files renamed, copied or deleted): read the folder again.
 // Both events usually fire together: one reload is enough.
 function refreshOnReturn() {
@@ -3153,7 +3214,7 @@ $("do-key").onclick = () => start({ action: "key", paths: selectedPaths() });
 $("do-bpm").onclick = () => start({ action: "bpm", paths: selectedPaths() });
 $("do-separate").onclick = () => {
   const stems = [...document.querySelectorAll("#stems input:checked")].map((i) => i.value);
-  if (!stems.length) return toast("Elegí al menos un instrumento.");
+  if (!stems.length) return toast(translate("Elegí al menos un instrumento."));
   start({ action: "separate", stems, cpu: $("cpu").checked, paths: selectedPaths() });
 };
 $("do-transpose").onclick = () => start({ action: "transpose", semitones: parseFloat($("semitones").value), paths: selectedPaths() });
@@ -3171,7 +3232,7 @@ $("do-click").onclick = () => {
   // One song (or one of its files) picked: the click is named after it and listed with it.
   if (selectedPaths().length === 1 && where && where.song) request.for = first;
   if (mode === "like") {
-    if (!first) return toast('Elegí un tema para "tan largo como el tema", o poné una duración.');
+    if (!first) return toast('Elegí un tema para translate("tan largo como el tema"), o poné una duración.');
     request.like = first;
   } else if (mode === "bars") request.bars = parseInt($("click-bars").value, 10);
   else request.duration = $("click-duration").value;
@@ -3189,14 +3250,14 @@ $("stems").addEventListener("change", (e) => {
 // goes to the song and its stems and versions (song-wizard tag), and a new artist or title renames
 // them "NNN - Artist - Title"; for one file ("datos" on a stem or version), only that file.
 const TAG_MAIN = ["title", "artist", "album", "date", "genre"];
-const TAG_LABELS = { title: "Título", artist: "Artista", album: "Álbum", date: "Año (o fecha)", genre: "Género",
-  composer: "Compositor", album_artist: "Artista del álbum", track: "Número de pista", disc: "Disco", comment: "Comentario",
-  description: "Descripción", synopsis: "Descripción del video", purl: "Link de la descarga", language: "Idioma",
-  publisher: "Sello", copyright: "Derechos", encoder: "Programa que lo escribió", encoded_by: "Hecho con" };
+const TAG_LABELS = { title: translate("Título"), artist: translate("Artista"), album: translate("Álbum"), date: translate("Año (o fecha)"), genre: translate("Género"),
+  composer: translate("Compositor"), album_artist: translate("Artista del álbum"), track: translate("Número de pista"), disc: translate("Disco"), comment: translate("Comentario"),
+  description: translate("Descripción"), synopsis: translate("Descripción del video"), purl: translate("Link de la descarga"), language: translate("Idioma"),
+  publisher: translate("Sello"), copyright: translate("Derechos"), encoder: translate("Programa que lo escribió"), encoded_by: translate("Hecho con") };
 // Shown, not changed: where the download came from (song-wizard delete uses it), and what ffmpeg
 // writes on its own.
-const TAG_FIXED = { purl: "Lo usa \"borrar\" para saber de qué descarga vino: no se cambia.", encoder: "Lo escribe solo el programa que guarda el archivo.",
-  encoded_by: "La versión de song-wizard que hizo este archivo (cada archivo tiene la suya): no se cambia." };
+const TAG_FIXED = { purl: translate("Lo usa \"borrar\" para saber de qué descarga vino: no se cambia."), encoder: translate("Lo escribe solo el programa que guarda el archivo."),
+  encoded_by: translate("La versión de song-wizard que hizo este archivo (cada archivo tiene la suya): no se cambia.") };
 const LOOKALIKE = { "\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "|": "｜" };
 const tagNameFor = (tags) => {
   const title = (tags.title || "").trim(), artist = (tags.artist || "").trim();
@@ -3209,8 +3270,8 @@ $("data-known").replaceChildren(...Object.entries(TAG_LABELS).filter(([k]) => !T
 
 async function openData(item, only = false) {
   data.path = item.path; data.name = item.name; data.only = only; data.rows = []; data.loading = true;
-  $("data-title").textContent = only ? `Datos de ${item.name}` : `Datos: ${item.name.replace(/\.[^.]+$/, "")}`;
-  $("data-list").replaceChildren(el("p", { class: "muted" }, "Leyendo…"));
+  $("data-title").textContent = only ? translate("Datos de {name}", { name: item.name }) : translate("Datos: {v}", { v: item.name.replace(/\.[^.]+$/, "") });
+  $("data-list").replaceChildren(el("p", { class: "muted" }, translate("Leyendo…")));
   $("data-scope").textContent = $("data-name").textContent = "";
   $("data-next").hidden = only;
   if (!$("data").open) $("data").showModal();
@@ -3226,7 +3287,7 @@ async function openData(item, only = false) {
     const first = $("data-list").querySelector("input, textarea");
     if (first) first.focus();
   } catch (e) {
-    $("data-list").replaceChildren(el("p", { class: "muted" }, `No se pudieron leer los datos: ${e.message}`));
+    $("data-list").replaceChildren(el("p", { class: "muted" }, translate("No se pudieron leer los datos: {message}", { message: e.message })));
   }
 }
 
@@ -3240,12 +3301,12 @@ function renderData() {
       oninput: (e) => { row.value = e.target.value; e.target.classList.toggle("changed", row.value !== (row.original ?? "")); renderDataName(); } });
     if (long) input.value = row.value;
     return [el("label", {}, TAG_LABELS[row.key] || row.key, TAG_LABELS[row.key] ? el("code", {}, row.key) : null), input,
-      TAG_MAIN.includes(row.key) || fixed ? el("span") : el("button", { type: "button", class: "small x", title: "Sacar este dato",
+      TAG_MAIN.includes(row.key) || fixed ? el("span") : el("button", { type: "button", class: "small x", title: translate("Sacar este dato"),
         onclick: () => { row.removed = true; renderData(); } }, "×")];
   }));
   const n = data.files.length;
-  $("data-scope").textContent = data.only ? "Cambia solo este archivo." :
-    `Se guarda en el tema${n === 2 ? " y en su otro archivo" : n > 2 ? ` y en sus otros ${n - 1} archivos` : ""}${n > 1 ? " (stems, versiones…)" : ""}. Las tomas de Reaper quedan como están.`;
+  $("data-scope").textContent = data.only ? translate("Cambia solo este archivo.") :
+    translate("Se guarda en el tema{others}{kinds}. Las tomas de Reaper quedan como están.", { others: n === 2 ? translate(" y en su otro archivo") : n > 2 ? translate(" y en sus otros {n} archivos", { n: n - 1 }) : "", kinds: n > 1 ? translate(" (stems, versiones…)") : "" });
   renderDataName();
 }
 
@@ -3255,7 +3316,7 @@ function renderDataName() {
   const now = dataTags(), changed = ["artist", "title"].some((k) => (now[k] || "") !== (was[k] || ""));
   const name = !data.only && changed ? tagNameFor(now) : null;
   const number = (/^\d+ - /.exec(data.name) || [""])[0], ext = (/\.[^.]+$/.exec(data.name) || [""])[0];
-  $("data-name").textContent = name && number + name + ext !== data.name ? `Va a pasar a llamarse "${number}${name}${ext}", con todos sus archivos.` : "";
+  $("data-name").textContent = name && number + name + ext !== data.name ? translate("Va a pasar a llamarse \"{number}{name}{ext}\", con todos sus archivos.", { number, name, ext }) : "";
 }
 
 function addDataField() {
@@ -3263,7 +3324,7 @@ function addDataField() {
   if (!typed) return;
   const known = Object.entries(TAG_LABELS).find(([k, label]) => plainText(label) === plainText(typed) || k === typed);
   const key = known ? known[0] : typed;
-  if (key.includes("=")) return toast("El nombre de un dato no puede tener =.");
+  if (key.includes("=")) return toast(translate("El nombre de un dato no puede tener =."));
   const row = data.rows.find((r) => r.key === key);
   if (row) row.removed = false;
   else data.rows.push({ key, value: "", original: undefined });
@@ -3290,7 +3351,7 @@ function saveData() {
 function saveDataAndNext() {
   if (data.only || !saveData()) return;
   const songs = state.shownSongs || [], at = songs.findIndex((s) => s.path === data.path), next = songs[at + 1];
-  if (!next) { $("data").close(); return toast("Era el último tema de la lista."); }
+  if (!next) { $("data").close(); return toast(translate("Era el último tema de la lista.")); }
   setCursor(next.path);
   openData(next);
 }
@@ -3306,58 +3367,58 @@ $("data-add-name").addEventListener("keydown", (e) => { if (e.key === "Enter") {
 // written as a combination: "Shift+ArrowLeft", "z", "Ctrl+z", "1", "?", "MIDI 36" (a note) or
 // "MIDI CC 64" (a pedal). Symbols ("?", "[", "+") are taken as typed, whatever it took to type
 // them (on a Spanish keyboard "[" is AltGr plus a key).
-const SCOPES = { library: "Biblioteca", practice: "Practicar", lyrics: "Letra (marcar)", data: "Datos del tema", all: "En todas partes" };
+const SCOPES = { library: translate("Biblioteca"), practice: translate("Practicar"), lyrics: translate("Letra (marcar)"), data: translate("Datos del tema"), all: translate("En todas partes") };
 const ACTIONS = [
-  ["help", "all", "Ver y cambiar los atajos", ["?"]],
-  ["lib.filter", "library", "Ir al filtro", ["/"]],
-  ["lib.down", "library", "Tema siguiente", ["ArrowDown"]],
-  ["lib.up", "library", "Tema anterior", ["ArrowUp"]],
-  ["lib.play", "library", "Escuchar el tema", ["Enter"]],
-  ["lib.practice", "library", "Practicar el tema", ["p"]],
-  ["lib.lyrics", "library", "La letra del tema", ["l"]],
-  ["lib.more", "library", "El menú \"más\" del tema", ["."]],
-  ["lib.data", "library", "Los datos del tema (título, artista, álbum…)", ["e"]],
-  ["lib.pick", "library", "Elegir el tema (o sacarlo de lo elegido)", ["x"]],
-  ["lib.open", "library", "Mostrar sus stems y versiones", ["ArrowRight"]],
-  ["lib.close", "library", "Ocultar sus stems y versiones", ["ArrowLeft"]],
-  ["lib.pause", "library", "Reproductor de abajo: pausar o seguir", ["Space"]],
-  ["lib.back", "library", "Reproductor de abajo: 5 s atrás", ["Shift+ArrowLeft"]],
-  ["lib.fwd", "library", "Reproductor de abajo: 5 s adelante", ["Shift+ArrowRight"]],
-  ["play", "practice", "Reproducir / pausar", ["Space"]],
-  ["back", "practice", "5 s atrás", ["ArrowLeft"]],
-  ["fwd", "practice", "5 s adelante", ["ArrowRight"]],
-  ["barBack", "practice", "Un compás atrás", ["Shift+ArrowLeft"]],
-  ["barFwd", "practice", "Un compás adelante", ["Shift+ArrowRight"]],
-  ["start", "practice", "Al principio (o a A, si está marcado)", ["Home"]],
-  ["markA", "practice", "Marcar A", ["["]],
-  ["markB", "practice", "Marcar B", ["]"]],
-  ["loop", "practice", "Repetir el tramo A-B", ["l"]],
-  ["slower", "practice", "Más lento", ["-"]],
-  ["faster", "practice", "Más rápido", ["+", "="]],
-  ["pitchDown", "practice", "Tono: un semitono abajo", [","]],
-  ["pitchUp", "practice", "Tono: un semitono arriba", ["."]],
-  ["reset", "practice", "Velocidad y tono normales", ["r"]],
-  ["trackUp", "practice", "Elegir la pista de arriba", ["ArrowUp"]],
-  ["trackDown", "practice", "Elegir la pista de abajo", ["ArrowDown"]],
-  ["trackMute", "practice", "Silenciar la pista elegida", ["m"]],
-  ["trackSolo", "practice", "Solo la pista elegida", ["s"]],
-  ["trackLouder", "practice", "Subir el volumen de la pista elegida", ["Shift+ArrowUp"]],
-  ["trackSofter", "practice", "Bajar el volumen de la pista elegida", ["Shift+ArrowDown"]],
-  ["click", "practice", "Prender o apagar el click", ["c"]],
-  ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", `Silenciar la pista ${i + 1}`, [String((i + 1) % 10)]]),
-  ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", `Solo la pista ${i + 1}`, [`Shift+${(i + 1) % 10}`]]),
-  ["zoomIn", "practice", "Acercar las ondas", ["z"]],
-  ["zoomOut", "practice", "Alejar las ondas", ["x"]],
-  ["zoomAll", "practice", "Ver el tema entero", ["v"]],
-  ["full", "practice", "Pantalla completa", ["f"]],
-  ["lyrics", "practice", "Mostrar u ocultar la letra", ["y"]],
-  ["tap", "practice", "Tiempos de la letra: marcar la línea siguiente", ["t"]],
-  ["sync", "practice", "Ver cuánto se separan las pistas", ["d"]],
-  ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", `Marcador ${i + 1}`, [String(i + 1)]]),
-  ["erase", "lyrics", "Goma", ["g"]],
-  ["note", "lyrics", "Nota", ["n"]],
-  ["undo", "lyrics", "Deshacer", ["Ctrl+z"]],
-  ["data.next", "data", "Guardar y seguir con el tema siguiente", ["Ctrl+Enter"]],
+  ["help", "all", translate("Ver y cambiar los atajos"), ["?"]],
+  ["lib.filter", "library", translate("Ir al filtro"), ["/"]],
+  ["lib.down", "library", translate("Tema siguiente"), ["ArrowDown"]],
+  ["lib.up", "library", translate("Tema anterior"), ["ArrowUp"]],
+  ["lib.play", "library", translate("Escuchar el tema"), ["Enter"]],
+  ["lib.practice", "library", translate("Practicar el tema"), ["p"]],
+  ["lib.lyrics", "library", translate("La letra del tema"), ["l"]],
+  ["lib.more", "library", translate("El menú \"más\" del tema"), ["."]],
+  ["lib.data", "library", translate("Los datos del tema (título, artista, álbum…)"), ["e"]],
+  ["lib.pick", "library", translate("Elegir el tema (o sacarlo de lo elegido)"), ["x"]],
+  ["lib.open", "library", translate("Mostrar sus stems y versiones"), ["ArrowRight"]],
+  ["lib.close", "library", translate("Ocultar sus stems y versiones"), ["ArrowLeft"]],
+  ["lib.pause", "library", translate("Reproductor de abajo: pausar o seguir"), ["Space"]],
+  ["lib.back", "library", translate("Reproductor de abajo: 5 s atrás"), ["Shift+ArrowLeft"]],
+  ["lib.fwd", "library", translate("Reproductor de abajo: 5 s adelante"), ["Shift+ArrowRight"]],
+  ["play", "practice", translate("Reproducir / pausar"), ["Space"]],
+  ["back", "practice", translate("5 s atrás"), ["ArrowLeft"]],
+  ["fwd", "practice", translate("5 s adelante"), ["ArrowRight"]],
+  ["barBack", "practice", translate("Un compás atrás"), ["Shift+ArrowLeft"]],
+  ["barFwd", "practice", translate("Un compás adelante"), ["Shift+ArrowRight"]],
+  ["start", "practice", translate("Al principio (o a A, si está marcado)"), ["Home"]],
+  ["markA", "practice", translate("Marcar A"), ["["]],
+  ["markB", "practice", translate("Marcar B"), ["]"]],
+  ["loop", "practice", translate("Repetir el tramo A-B"), ["l"]],
+  ["slower", "practice", translate("Más lento"), ["-"]],
+  ["faster", "practice", translate("Más rápido"), ["+", "="]],
+  ["pitchDown", "practice", translate("Tono: un semitono abajo"), [","]],
+  ["pitchUp", "practice", translate("Tono: un semitono arriba"), ["."]],
+  ["reset", "practice", translate("Velocidad y tono normales"), ["r"]],
+  ["trackUp", "practice", translate("Elegir la pista de arriba"), ["ArrowUp"]],
+  ["trackDown", "practice", translate("Elegir la pista de abajo"), ["ArrowDown"]],
+  ["trackMute", "practice", translate("Silenciar la pista elegida"), ["m"]],
+  ["trackSolo", "practice", translate("Solo la pista elegida"), ["s"]],
+  ["trackLouder", "practice", translate("Subir el volumen de la pista elegida"), ["Shift+ArrowUp"]],
+  ["trackSofter", "practice", translate("Bajar el volumen de la pista elegida"), ["Shift+ArrowDown"]],
+  ["click", "practice", translate("Prender o apagar el click"), ["c"]],
+  ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", translate("Silenciar la pista {v}", { v: i + 1 }), [String((i + 1) % 10)]]),
+  ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", translate("Solo la pista {v}", { v: i + 1 }), [`Shift+${(i + 1) % 10}`]]),
+  ["zoomIn", "practice", translate("Acercar las ondas"), ["z"]],
+  ["zoomOut", "practice", translate("Alejar las ondas"), ["x"]],
+  ["zoomAll", "practice", translate("Ver el tema entero"), ["v"]],
+  ["full", "practice", translate("Pantalla completa"), ["f"]],
+  ["lyrics", "practice", translate("Mostrar u ocultar la letra"), ["y"]],
+  ["tap", "practice", translate("Tiempos de la letra: marcar la línea siguiente"), ["t"]],
+  ["sync", "practice", translate("Ver cuánto se separan las pistas"), ["d"]],
+  ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", translate("Marcador {v}", { v: i + 1 }), [String(i + 1)]]),
+  ["erase", "lyrics", translate("Goma"), ["g"]],
+  ["note", "lyrics", translate("Nota"), ["n"]],
+  ["undo", "lyrics", translate("Deshacer"), ["Ctrl+z"]],
+  ["data.next", "data", translate("Guardar y seguir con el tema siguiente"), ["Ctrl+Enter"]],
 ].map(([id, scope, label, keys]) => ({ id, scope, label, keys }));
 const ACTION = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
 const KEYS_KEY = "song-wizard:keys", MIDI_KEY = "song-wizard:midi";
@@ -3388,12 +3449,12 @@ function comboOf(e) {
   } else base = e.key;
   return (ctrl ? "Ctrl+" : "") + (alt ? "Alt+" : "") + (shift ? "Shift+" : "") + base;
 }
-const KEY_LABELS = { Space: "espacio", ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Home: "Inicio", End: "Fin",
-  PageUp: "RePág", PageDown: "AvPág", Enter: "Enter", Backspace: "Retroceso", Delete: "Supr", Insert: "Insert", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift" };
+const KEY_LABELS = { Space: translate("espacio"), ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Home: translate("Inicio"), End: translate("Fin"),
+  PageUp: translate("RePág"), PageDown: translate("AvPág"), Enter: "Enter", Backspace: translate("Retroceso"), Delete: translate("Supr"), Insert: "Insert", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift" };
 function keyLabel(combo) {
   const note = /^MIDI (\d+)$/.exec(combo), cc = /^MIDI CC (\d+)$/.exec(combo);
-  if (note) return `MIDI nota ${note[1]}`;
-  if (cc) return `MIDI control ${cc[1]}`;
+  if (note) return translate("MIDI nota {v}", { v: note[1] });
+  if (cc) return translate("MIDI control {v}", { v: cc[1] });
   return combo.split(/\+(?=.)/).map((p) => KEY_LABELS[p] || (p.length === 1 ? p.toUpperCase() : p)).join("+");
 }
 const keyHint = (id) => { const k = keysOf(id); return k.length ? ` (${k.map(keyLabel).join(" o ")})` : ""; };
@@ -3506,7 +3567,7 @@ function moveCursor(step) {
 }
 function withCursor(action) {
   const song = (state.shownSongs || []).find((s) => s.path === state.cursor);
-  if (song) action(song); else toast("Primero elegí un tema con ↑ ↓ (o tocándolo).");
+  if (song) action(song); else toast(translate("Primero elegí un tema con ↑ ↓ (o tocándolo)."));
 }
 
 function runCombo(combo, e) {
@@ -3550,14 +3611,14 @@ function renderKeys() {
     const rows = ACTIONS.filter((a) => a.scope === scope).map((a) => {
       const listening = keys.listening && keys.listening.id === a.id;
       const chips = keysOf(a.id).map((k, i) => listening && keys.listening.index === i
-        ? el("span", { class: "chip listening" }, "apretá una tecla… (Esc cancela)")
+        ? el("span", { class: "chip listening" }, translate("apretá una tecla… (Esc cancela)"))
         : el("span", { class: "chip" },
-            el("button", { title: "Cambiar esta tecla", onclick: () => listen(a.id, i) }, keyLabel(k)),
-            el("button", { title: "Sacar esta tecla", "aria-label": `Sacar ${keyLabel(k)}`, onclick: () => setKeys(a.id, keysOf(a.id).filter((_, j) => j !== i)) }, "×")));
-      if (listening && keys.listening.index === -1) chips.push(el("span", { class: "listening" }, "apretá una tecla… (Esc cancela)"));
+            el("button", { title: translate("Cambiar esta tecla"), onclick: () => listen(a.id, i) }, keyLabel(k)),
+            el("button", { title: translate("Sacar esta tecla"), "aria-label": translate("Sacar {v}", { v: keyLabel(k) }), onclick: () => setKeys(a.id, keysOf(a.id).filter((_, j) => j !== i)) }, "×")));
+      if (listening && keys.listening.index === -1) chips.push(el("span", { class: "listening" }, translate("apretá una tecla… (Esc cancela)")));
       return el("div", { class: "key-row" + (customKeys[a.id] ? " changed" : ""), "data-id": a.id }, el("span", {}, a.label),
         el("span", { class: "keys" }, ...chips,
-          el("button", { class: "small", title: "Agregar otra tecla para lo mismo", onclick: () => listen(a.id, -1) }, "+")));
+          el("button", { class: "small", title: translate("Agregar otra tecla para lo mismo"), onclick: () => listen(a.id, -1) }, "+")));
     });
     return [el("h4", {}, title), ...rows];
   }).flat();
@@ -3583,10 +3644,10 @@ async function assignKey(combo) {
     (a.scope === action.scope || a.scope === "all" || action.scope === "all"));
   if (clash) {
     const old = index >= 0 ? mine[index] : null;
-    const ok = await askConfirm({ title: `${keyLabel(combo)} ya es "${clash.label}"`,
-      text: old ? `Se intercambian: "${action.label}" pasa a ${keyLabel(combo)} y "${clash.label}" a ${keyLabel(old)}.`
-                : `"${clash.label}" se queda sin ${keyLabel(combo)} y pasa a "${action.label}".`,
-      ok: old ? "intercambiar" : "pasarla" });
+    const ok = await askConfirm({ title: translate("{v} ya es \"{label}\"", { v: keyLabel(combo), label: clash.label }),
+      text: old ? translate("Se intercambian: \"{label}\" pasa a {v} y \"{label2}\" a {v2}.", { label: action.label, v: keyLabel(combo), label2: clash.label, v2: keyLabel(old) })
+                : translate("\"{label}\" se queda sin {v} y pasa a \"{label2}\".", { label: clash.label, v: keyLabel(combo), label2: action.label }),
+      ok: old ? translate("intercambiar") : translate("pasarla") });
     if (!ok) { renderKeys(); return; }
     const theirs = keysOf(clash.id).map((k) => k === combo ? old : k).filter(Boolean);
     setKeys(clash.id, [...new Set(theirs)]);
@@ -3598,7 +3659,7 @@ $("keys").addEventListener("cancel", (e) => { if (keys.listening) e.preventDefau
 $("keys-close").onclick = () => $("keys").close();
 $("keys-reset").onclick = async () => {
   if (!Object.keys(customKeys).length) return;
-  if (await askConfirm({ title: "¿Volver a los atajos de fábrica?", text: "Se borran todos los cambios que hiciste en los atajos.", ok: "restablecer" })) {
+  if (await askConfirm({ title: translate("¿Volver a los atajos de fábrica?"), text: translate("Se borran todos los cambios que hiciste en los atajos."), ok: translate("restablecer") })) {
     customKeys = {};
     try { localStorage.removeItem(KEYS_KEY); } catch {}
     keysChanged();
@@ -3616,13 +3677,13 @@ function keysChanged() {
     if (b.dataset.title === undefined) b.dataset.title = b.title || ACTION[id].label;
     b.title = b.dataset.title + keyHint(id);
   }
-  const shown = [["play", "reproducir/pausar"], ["back", "", "fwd", "5 s"], ["barBack", "", "barFwd", "un compás"], ["markA", "", "markB", "A y B"], ["loop", "repetir"],
-    ["slower", "", "faster", "velocidad"], ["trackUp", "", "trackDown", "elegir pista"], ["trackMute", "silenciar"], ["trackSolo", "solo"],
-    ["click", "click"], ["zoomIn", "", "zoomOut", "acercar"], ["full", "pantalla completa"], ["lyrics", "letra"]];
+  const shown = [["play", translate("reproducir/pausar")], ["back", "", "fwd", "5 s"], ["barBack", "", "barFwd", translate("un compás")], ["markA", "", "markB", translate("A y B")], ["loop", translate("repetir")],
+    ["slower", "", "faster", translate("velocidad")], ["trackUp", "", "trackDown", translate("elegir pista")], ["trackMute", translate("silenciar")], ["trackSolo", translate("solo")],
+    ["click", "click"], ["zoomIn", "", "zoomOut", translate("acercar")], ["full", translate("pantalla completa")], ["lyrics", translate("letra")]];
   const kbd = (id) => keysOf(id).slice(0, 1).map((k) => el("kbd", {}, keyLabel(k)));
   const parts = shown.map((p) => p.length === 2 ? [...kbd(p[0]), ` ${p[1]}`] : [...kbd(p[0]), " ", ...kbd(p[2]), ` ${p[3]}`]);
   $("practice-keys").replaceChildren(...parts.flatMap((p, i) => i ? [" · ", ...p] : p), " · ",
-    el("button", { class: "small keys-open", onclick: openKeys }, `todos los atajos${keyHint("help")}`));
+    el("button", { class: "small keys-open", onclick: openKeys }, translate("todos los atajos{v}", { v: keyHint("help") })));
   if ($("keys").open) renderKeys();
   if (practice.lanes) renderPractice();
   if (lyr.data) renderLyrics();
@@ -3631,9 +3692,9 @@ function keysChanged() {
 // ---- MIDI: a note (a pad, a key) or a pedal (a controller going on) is a key like any other.
 const midi = { access: null, cc: {} };
 async function enableMidi(asked) {
-  if (!navigator.requestMIDIAccess) { if (asked) toast("Este navegador no maneja MIDI (Chrome y Edge sí).", 6000); return; }
+  if (!navigator.requestMIDIAccess) { if (asked) toast(translate("Este navegador no maneja MIDI (Chrome y Edge sí)."), 6000); return; }
   try { midi.access = await navigator.requestMIDIAccess(); }
-  catch { if (asked) toast("El navegador no dio permiso para usar MIDI.", 6000); return; }
+  catch { if (asked) toast(translate("El navegador no dio permiso para usar MIDI."), 6000); return; }
   const hook = () => { for (const input of midi.access.inputs.values()) input.onmidimessage = onMidi; renderMidiState(); };
   midi.access.onstatechange = hook;
   hook();
@@ -3655,7 +3716,7 @@ function onMidi(e) {
 function renderMidiState() {
   const names = midi.access ? [...midi.access.inputs.values()].map((i) => i.name) : [];
   $("keys-midi").hidden = !!midi.access;
-  $("keys-midi-state").textContent = !midi.access ? "" : names.length ? `MIDI: ${names.join(", ")}` : "MIDI activo, sin aparatos conectados";
+  $("keys-midi-state").textContent = !midi.access ? "" : names.length ? translate("MIDI: {names}", { names: names.join(", ") }) : translate("MIDI activo, sin aparatos conectados");
 }
 $("keys-midi").onclick = () => enableMidi(true);
 try { if (localStorage.getItem(MIDI_KEY) === "on") enableMidi(false); } catch {}

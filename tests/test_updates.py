@@ -91,7 +91,9 @@ def test_interface(server, monkeypatch):  # noqa: F811
     assert len(asked) == 2  # ...unless asked to look again
     # The upgrade job runs the CLI's upgrade.
     handler = ui.make_handler(TOKEN, root, ui.Runner(), port)
-    assert handler.command_for(None, {"action": "upgrade"}) == ("Actualizar song-wizard", ["upgrade"])
+    from types import SimpleNamespace
+    spanish_page = SimpleNamespace(say=lambda text, **values: text)  # a request from a page in Spanish
+    assert handler.command_for(spanish_page, {"action": "upgrade"}) == ("Actualizar song-wizard", ["upgrade"])
 
 
 def test_restart_endpoint(server, monkeypatch):  # noqa: F811

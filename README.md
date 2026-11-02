@@ -27,8 +27,6 @@ Everything but `download` works with any audio file you have: rehearsal recordin
 
 It runs on **Macs with an M chip** (M1 to M5, with macOS 15 or newer), **Linux** and **Windows with WSL**. It doesn't run on Intel Macs.
 
-The interface (`song-wizard ui`) is in Spanish for now; English and Portuguese are on the way. This README already names its buttons in English.
-
 ## Requirements
 
 song-wizard is written in Python, but it uses a few outside programs that are installed separately. The commands in [Installation](#installation) install them all; this is what each one is for. They're all free and open source, installed from their official sources.
@@ -163,6 +161,7 @@ Opens a page in the browser (on WSL, the Windows browser) with everything song-w
 - **Bottom player**: any file's ▶ plays it there, with its waveform; clicking the picture jumps to that part.
 - **Jobs**: what's running, with a progress bar and the time it's taken; it can be cancelled. They run one at a time.
 - **Keyboard shortcuts**: almost everything can be done with the keyboard, and the keys can be changed. "⌨ shortcuts" at the top (or `?`) shows them all. See [Keyboard shortcuts](#keyboard-shortcuts).
+- **Language**: "es · en · pt" at the top right switches the interface between Spanish, English and Portuguese (the first time, it takes the browser's language). The browser remembers it, and the pages to print (setlist, lyrics) and the server's messages follow it.
 - **Colors**: at the top right, "auto" follows the system (light or dark, as you have it on Windows or the Mac), and "light" or "dark" keep it fixed. The browser remembers it. The pages to print (setlist, lyrics) are always light.
 - **Downloaded playlists**: the same as `song-wizard archives`, with the option to check for new songs, move them to another folder (they go whole and still show in the library, with their location) or forget them. Folders that are a playlist also have "check for new songs": it downloads only what was added to the playlist since last time.
 
@@ -655,6 +654,7 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `setlist`: order, clean names, doubtful key marked, total, names with HTML shown as text, and the page from the interface (only from its own page). With loose songs: from several folders in the order asked, a stem counts as its song, nothing is saved in the folders, a song that isn't there gives an error, and paths outside the music folder refused; the lyrics with their marks after the list, only of the songs that have them.
 - The player's live pitch (running the processor with Node): exact tuning, nothing added and the same delay for every pitch.
 - Upgrading: retired versions (not offered or listed, `--to` asks for `--force`, whoever has a retired one is told and moved to the newest that isn't, and if the list can't be read nothing stops), comparing versions, reading the published versions from the tags (and not failing without internet), `upgrade --list` and `--to`, that `upgrade` installs the newest tag (or only updates what it uses if it's already on the latest, or reinstalls from the folder if it was installed that way), `upgrade --check`, the check from the interface (remembered for a few hours, unless asked again), and that a restart asked from the page brings up a new interface on the same port, without opening the browser.
+- Translations: every text the interface shows (on the page and from the server) has its English and Portuguese, without asking for anything the page doesn't give, and the server answers in the page's language.
 - `ui`: security (it only serves its own page: another page, even from another server on this computer, can't act or read anything; the domain; paths outside the music folder; invalid actions), that it runs in the background (it starts once, is reused, shuts down with `--stop`, with its internal key, or from the page), the library grouped by song, playing by parts and a click job end to end.
 
 `separate` doesn't run in the automated tests because it needs to download the models (1.3 GB); it can be tested by hand with `uv run pytest -m slow`, which checks that instrument + rest add up to the original. To run the tests on your computer, from the project's folder: `uv run pytest`.

@@ -105,10 +105,11 @@ def text(name, items):
     return "\n".join(lines) + "\n"
 
 
-def page(name, items, with_lyrics=False):
+def page(name, items, with_lyrics=False, lang="es"):
     """The printable page; with the lyrics of the songs that have them, one song per page after
     the list. Everything shown is escaped: names come from downloaded titles."""
     from . import lyrics
+    from .i18n import say
 
     total = sum(r["seconds"] or 0 for r in items)
     # Big enough to read from the floor, small enough to fit the whole set on one A4 page.
@@ -126,7 +127,7 @@ def page(name, items, with_lyrics=False):
                           + (f' <span class=a>{html.escape(r["artist"])}</span>' if r["artist"] else "")
                           + f'</h2>\n{lyrics.section(data)}\n</section>')
     return f"""<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setlist: {html.escape(name)}</title>
 <style>
   @page {{ size: A4; margin: 12mm; }}
@@ -148,12 +149,12 @@ def page(name, items, with_lyrics=False):
 {lyrics.STYLE}</style></head>
 <body>
 <h1>{html.escape(name)}</h1>
-<div class="meta">{len(items)} temas · {clock(total)}</div>
-<table><thead><tr><th class=n>#</th><th>Tema</th><th class=k>Tono</th><th class=b>BPM</th><th class=d>Dura</th></tr></thead>
+<div class="meta">{html.escape(say(lang, "{n} temas · {total}", n=len(items), total=clock(total)))}</div>
+<table><thead><tr><th class=n>#</th><th>{say(lang, "Tema")}</th><th class=k>{say(lang, "Tono")}</th><th class=b>BPM</th><th class=d>{say(lang, "Dura")}</th></tr></thead>
 <tbody>
 {body}
 </tbody></table>
-<button class="print" onclick="print()">Imprimir</button>
+<button class="print" onclick="print()">{say(lang, "Imprimir")}</button>
 {chr(10).join(sheets)}
 </body></html>
 """

@@ -245,13 +245,15 @@ def section(data):
             f'<div class="lyrics{" long" if len(lines) > 40 else ""}">\n' + "\n".join(body) + "\n</div>")
 
 
-def page(title, data):
+def page(title, data, lang="es"):
     """The lyrics with their highlights, notes and legend, as a page to print or keep."""
     from html import escape
 
+    from .i18n import say
+
     return f"""<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Letra: {escape(title)}</title>
+<html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{escape(say(lang, "Letra: {v}", v=title))}</title>
 <style>
   @page {{ size: A4; margin: 14mm; }}
   body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 760px; padding: 0 16px; }}
@@ -262,7 +264,7 @@ def page(title, data):
 <body>
 <h1>{escape(title)}</h1>
 {section(data)}
-<button class="print" onclick="print()">Imprimir</button>
+<button class="print" onclick="print()">{say(lang, "Imprimir")}</button>
 </body></html>
 """
 

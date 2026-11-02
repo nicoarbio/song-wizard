@@ -29,12 +29,14 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
 from . import align, archives, log, paths, results, system
+from .i18n import LANGS, Said, say
 from .audio import AUDIO_EXTS, GENERATED, MAIN_FORMATS, base_of
 from .paths import music_dir
 
 PORT = 8765
 STATIC = {"/favicon.ico": ("favicon.ico", "image/x-icon"), "/static/logo.png": ("logo.png", "image/png"),
-          "/static/pitch.js": ("pitch.js", "text/javascript")}
+          "/static/pitch.js": ("pitch.js", "text/javascript"),
+          "/static/strings.js": ("strings.js", "text/javascript; charset=utf-8")}
 # Output of a job that is kept to show in the page.
 LOG_LINES = 2000
 
@@ -209,11 +211,11 @@ def peaks(path, n, start=None, end=None):
 AUDIO_CHUNK = 2 << 20
 
 
-class NeedsCommand(ValueError):
+class NeedsCommand(Said):
     """A request that can't go on until the user runs a command; the page offers to copy it."""
 
-    def __init__(self, message, command):
-        super().__init__(message)
+    def __init__(self, command, text, **values):
+        super().__init__(text, **values)
         self.command = command
 
 
@@ -224,11 +226,11 @@ def folder_from(text):
         return None
     path = Path(system.local_path(str(text)))
     if letter := system.unmounted_drive(path):
-        raise NeedsCommand(f"WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo este "
-                           "comando en la terminal de WSL (pide tu contraseña) y probá de nuevo.",
-                           system.mount_command(letter))
+        raise NeedsCommand(system.mount_command(letter),
+                           "WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo este "
+                           "comando en la terminal de WSL (pide tu contraseña) y probá de nuevo.", letter=letter)
     if not path.is_absolute() or not path.is_dir():
-        raise ValueError(f"no existe la carpeta {text}")
+        raise Said("no existe la carpeta {folder}", folder=text)
     return str(path)
 
 
@@ -399,8 +401,18 @@ def make_handler(token, root, runner, port):
         def json(self, data, status=HTTPStatus.OK):
             self.send(status, json.dumps(data, ensure_ascii=False).encode())
 
-        def error(self, status, message):
-            self.json({"error": message}, status)
+        @property
+        def lang(self):
+            """The page's language: it says so in every request (and in links it opens)."""
+            wanted = self.headers.get("X-Lang") or parse_qs(urlparse(self.path).query).get("lang", [""])[0]
+            return wanted if wanted in LANGS else "es"
+
+        def say(self, text, **values):
+            return say(self.lang, text, **values)
+
+        def error(self, status, message, **values):
+            """message: in Spanish, as written here; it goes out in the page's language."""
+            self.json({"error": self.say(message, **values)}, status)
 
         def authorized(self, query, page=False):
             # The Host check is against DNS rebinding (another site's name pointed at 127.0.0.1).
@@ -505,11 +517,11 @@ def make_handler(token, root, runner, port):
                 data = lyrics.load(path)
                 if url.path == "/api/lyrics":
                     return self.json({"lyrics": data, "title": title, "artist": artist,
-                                      "colors": [{"id": c, "shade": lyrics.SHADES[c], "name": lyrics.NAMES[c]} for c in lyrics.COLORS]})
+                                      "colors": [{"id": c, "shade": lyrics.SHADES[c], "name": self.say(lyrics.NAMES[c])} for c in lyrics.COLORS]})
                 if not data:
                     return self.error(HTTPStatus.NOT_FOUND, "este tema no tiene letra todavía")
                 page_title = f"{title} ({artist})" if artist else title
-                return self.send(HTTPStatus.OK, lyrics.page(page_title, data).encode(), "text/html; charset=utf-8")
+                return self.send(HTTPStatus.OK, lyrics.page(page_title, data, self.lang).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
                 # The printable setlist, in its own tab: of a folder, or of songs from any folders
                 # in the order given (?path=...&path=...). Shown only: nothing is saved.
@@ -531,7 +543,7 @@ def make_handler(token, root, runner, port):
                         return self.error(HTTPStatus.NOT_FOUND, "esa carpeta no tiene temas")
                     items = setlist.rows(folder, here)
                     title = title or (folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist"))
-                return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics).encode(), "text/html; charset=utf-8")
+                return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics, self.lang).encode(), "text/html; charset=utf-8")
             if url.path == "/api/peaks":
                 try:
                     path = self.resolve(query.get("path", [""])[0])
@@ -611,9 +623,11 @@ def make_handler(token, root, runner, port):
                 except PermissionError:
                     return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
                 except NeedsCommand as e:
-                    return self.json({"error": str(e), "command": e.command}, HTTPStatus.BAD_REQUEST)
+                    return self.json({"error": self.say(e.text, **e.values), "command": e.command}, HTTPStatus.BAD_REQUEST)
+                except Said as e:
+                    return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
                 except (KeyError, ValueError, TypeError) as e:
-                    return self.error(HTTPStatus.BAD_REQUEST, f"pedido inválido: {e}")
+                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido: {detail}", detail=e)
                 return self.json(runner.add(title, args).summary())
             if url.path == "/api/shutdown":
                 # "apagar" on the page, or song-wizard ui --stop. Not from this request's thread:
@@ -700,15 +714,15 @@ def make_handler(token, root, runner, port):
                 if what == "key":
                     found = keys.parse(value)
                     if not found:
-                        return self.error(HTTPStatus.BAD_REQUEST, f'"{value}" no es una tonalidad: probá Am, C#, Bb mayor o La menor')
+                        return self.error(HTTPStatus.BAD_REQUEST, '"{value}" no es una tonalidad: probá Am, C#, Bb mayor o La menor', value=value)
                     text = keys.describe(*found, results.HAND)
                 else:
                     number = tempo.parse(value)
                     if number is None:
-                        return self.error(HTTPStatus.BAD_REQUEST, f'"{value}" no es un tempo: un número de BPM entre 20 y 400')
+                        return self.error(HTTPStatus.BAD_REQUEST, '"{value}" no es un tempo: un número de BPM entre 20 y 400', value=value)
                     text = f"{number:.1f} BPM  {results.HAND}"
                     if tempo.click_note(path, number):
-                        note = "El click de práctica de este tema sigue ajustado al tempo anterior: corregilo en practicar → ajustar el click."
+                        note = self.say("El click de práctica de este tema sigue ajustado al tempo anterior: corregilo en practicar → ajustar el click.")
                 results.save(what, [(str(path), text)])
                 log.info("set %s by hand: %s -> %s", what, path.name, text)
                 return self.json({"text": text, "note": note})
@@ -718,7 +732,7 @@ def make_handler(token, root, runner, port):
                 with runner.lock:
                     busy = [j.title for j in runner.jobs.values() if j.status in ("queued", "running")]
                 if busy:
-                    return self.error(HTTPStatus.CONFLICT, f"Todavía está corriendo: {'; '.join(busy)}.")
+                    return self.error(HTTPStatus.CONFLICT, "Todavía está corriendo: {jobs}.", jobs="; ".join(busy))
                 log.info("interface: restarting from the page")
                 restart(port)
                 return self.json({})
@@ -778,87 +792,87 @@ def make_handler(token, root, runner, port):
             music folder, and nothing but these commands can be run."""
             action = body["action"]
             if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
-                raise ValueError(f"acción desconocida: {action}")
+                raise Said("acción desconocida: {action}", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
                 songs = [str(self.resolve(p)) for p in body.get("songs", [])]
                 files = [str(self.resolve(p)) for p in body.get("files", [])]
                 if not songs and not files:
-                    raise ValueError("no hay nada elegido")
+                    raise Said("no hay nada elegido")
                 names = ", ".join(os.path.basename(p) for p in [*songs, *files])[:120]
-                return f"Borrar: {names}", ["delete", "--yes", *songs, *[a for f in files for a in ("--file", f)]]
-            label = ", ".join(os.path.basename(p) or "carpeta principal" for p in paths)[:120]
+                return self.say("Borrar: {names}", names=names), ["delete", "--yes", *songs, *[a for f in files for a in ("--file", f)]]
+            label = ", ".join(os.path.basename(p) or self.say("carpeta principal") for p in paths)[:120]
             if action == "download":
                 url = str(body["url"]).strip()
                 if not re.match(r"https?://", url):
-                    raise ValueError("la URL tiene que empezar con http:// o https://")
-                title = f"Buscar temas nuevos: {body['title']}" if body.get("title") else f"Bajar {url}"
+                    raise Said("la URL tiene que empezar con http:// o https://")
+                title = self.say("Buscar temas nuevos: {title}", title=body["title"]) if body.get("title") else self.say("Bajar {url}", url=url)
                 to = folder_from(body.get("to"))
                 return title, ["download", *(["--wav"] if body.get("wav") else []), *(["--to", to] if to else []), url]
             if action == "archives-move":
                 to = folder_from(body.get("to"))
                 if not to:
-                    raise ValueError("falta la carpeta")
+                    raise Said("falta la carpeta")
                 which = str(body["id"])
                 if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
-                    raise ValueError("playlist inválida")
-                return f"Mover {body.get('title') or which} a {to}", ["archives", "--move", which, to]
+                    raise Said("playlist inválida")
+                return self.say("Mover {title} a {to}", title=body.get("title") or which, to=to), ["archives", "--move", which, to]
             if action == "upgrade":
-                return "Actualizar song-wizard", ["upgrade"]
+                return self.say("Actualizar song-wizard"), ["upgrade"]
             if not paths and action not in ("click", "archives-delete"):
-                raise ValueError("no hay archivos elegidos")
+                raise Said("no hay archivos elegidos")
             force = ["--force"] if body.get("force") else []
             if action == "key":
-                return f"Tonalidad: {label}", ["key", *force, *paths]
+                return self.say("Tonalidad: {label}", label=label), ["key", *force, *paths]
             if action == "bpm":
-                return f"Tempo: {label}", ["bpm", *force, *paths]
+                return self.say("Tempo: {label}", label=label), ["bpm", *force, *paths]
             if action == "separate":
                 stems = [s for s in body["stems"] if s in ("vocals", "drums", "bass", "guitar", "piano", "drumkit", "all")]
                 if not stems:
-                    raise ValueError("elegí al menos un instrumento")
+                    raise Said("elegí al menos un instrumento")
                 args = ["separate", *[a for s in stems for a in ("--stem", s)]]
-                return f"Separar ({', '.join(stems)}): {label}", [*args, *(["--cpu"] if body.get("cpu") else []), *paths]
+                return self.say("Separar ({stems}): {label}", stems=", ".join(stems), label=label), [*args, *(["--cpu"] if body.get("cpu") else []), *paths]
             if action == "transpose":
                 n = float(body["semitones"])
-                return f"Transponer {n:+g}: {label}", ["transpose", f"{n:+g}", *paths]
+                return self.say("Transponer {n}: {label}", n=f"{n:+g}", label=label), ["transpose", f"{n:+g}", *paths]
             if action == "speed":
                 percent, n = float(body["percent"]), float(body.get("semitones") or 0)
                 args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
-                return f"Velocidad {percent:g}%" + (f" y tono {n:+g}" if n else "") + f": {label}", args
+                return self.say("Velocidad {percent}%{pitch}: {label}", percent=f"{percent:g}", pitch=self.say(" y tono {n}", n=f"{n:+g}") if n else "", label=label), args
             if action == "align":
-                return f"Tempo y primer golpe: {label}", ["align", *paths]
+                return self.say("Tempo y primer golpe: {label}", label=label), ["align", *paths]
             if action == "rename":
                 if len(paths) != 1:
-                    raise ValueError("se renombra de a un tema")
+                    raise Said("se renombra de a un tema")
                 name = str(body["name"]).strip()
-                return f"Renombrar {label} → {name}", ["rename", paths[0], name]
+                return self.say("Renombrar {label} → {name}", label=label, name=name), ["rename", paths[0], name]
             if action == "tag":
                 if len(paths) != 1:
-                    raise ValueError("los datos se cambian de a un tema")
+                    raise Said("los datos se cambian de a un tema")
                 changes = {str(k): str(v) for k, v in (body.get("set") or {}).items()}
                 gone = [str(k) for k in body.get("unset") or []]
                 if any(not k.strip() or "=" in k for k in [*changes, *gone]):
-                    raise ValueError("un nombre de dato no puede estar vacío ni tener =")
+                    raise Said("un nombre de dato no puede estar vacío ni tener =")
                 if not changes and not gone:
-                    raise ValueError("no hay cambios")
+                    raise Said("no hay cambios")
                 args = ["tag", paths[0], *[a for k, v in changes.items() for a in ("--set", f"{k}={v}")],
                         *[a for k in gone for a in ("--unset", k)], *(["--only"] if body.get("only") else [])]
-                return f"Datos: {label}", args
+                return self.say("Datos: {label}", label=label), args
             if action == "trim":
                 if len(paths) != 1:
-                    raise ValueError("se recorta de a un tema")
+                    raise Said("se recorta de a un tema")
                 start, end = float(body.get("start") or 0), body.get("end")
                 pad_start, pad_end = float(body.get("padStart") or 0), float(body.get("padEnd") or 0)
                 args = ["trim", paths[0], "--yes", "--start", f"{start:.4f}",
                         *(["--end", f"{float(end):.4f}"] if end not in (None, "") else []),
                         *(["--pad-start", f"{pad_start:g}"] if pad_start else []),
                         *(["--pad-end", f"{pad_end:g}"] if pad_end else [])]
-                return f"Recortar: {label}", args
+                return self.say("Recortar: {label}", label=label), args
             if action == "convert":
                 fmt = body.get("format", "mp3")
                 if fmt not in ("mp3", "m4a"):
-                    raise ValueError("formato inválido")
-                return f"Convertir a {fmt}: {label}", ["convert", "--format", fmt, *paths]
+                    raise Said("formato inválido")
+                return self.say("Convertir a {fmt}: {label}", fmt=fmt, label=label), ["convert", "--format", fmt, *paths]
             if action == "click":
                 bpm = float(body["bpm"])
                 meter = str(body.get("meter", "4/4"))
@@ -874,11 +888,11 @@ def make_handler(token, root, runner, port):
                     args += ["--duration", str(body["duration"])]
                 if int(body.get("subdivide", 1)) > 1:
                     args += ["--subdivide", str(int(body["subdivide"]))]
-                return f"Click {bpm:g} BPM {meter}", args
+                return self.say("Click {bpm} BPM {meter}", bpm=f"{bpm:g}", meter=meter), args
             if action == "archives-delete":
                 which = [str(int(n)) for n in body["numbers"]] if body.get("numbers") != "all" else ["all"]
-                return "Olvidar registros", ["archives", "--delete", *which, "--yes"]
-            raise ValueError(f"acción desconocida: {action}")
+                return self.say("Olvidar registros"), ["archives", "--delete", *which, "--yes"]
+            raise Said("acción desconocida: {action}", action=action)
 
     return Handler
 
