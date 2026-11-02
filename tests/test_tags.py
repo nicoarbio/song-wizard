@@ -207,3 +207,39 @@ def test_interface(server, monkeypatch):
     for bad in [{"set": {"a=b": "x"}}, {"set": {}, "unset": []}, {"set": {"x": "y"}, "paths": ["001 - C - B.opus", "001 - C - B (drums).wav"]}]:
         body = {"action": "tag", "paths": ["001 - C - B.opus"], **bad}
         assert request(port, "POST", "/api/jobs", body)[0].status == 400, bad
+
+
+# ---- What song-wizard makes carries the song's data and its mark ----
+
+def test_made_files_carry_the_data_and_mark(song, capsys):
+    from song_wizard import __version__, click, convert, transpose, trim
+    mark = f"song-wizard {__version__}"
+    transpose.run(2, [str(song)])
+    convert.run([str(song.parent / "001 - Someone - Song (HQ) (+2).wav")], "mp3")  # from a file with the data
+    click.run(120, duration="0:02", song=str(song))
+    for name in ["001 - Someone - Song (HQ) (+2).wav", "001 - Someone - Song (HQ) (+2).mp3",
+                 "001 - Someone - Song (HQ) (click 120 BPM 4-4).wav"]:
+        data = tags.read(song.parent / name)
+        assert (data.get("title"), data.get("artist"), data.get("encoded_by")) == ("Song (HQ)", "Uploader", mark), (name, data)
+        assert data.get("purl") == "https://example.com/watch?v=1", name
+    trim.run(str(song), start=0.1, yes=True)
+    assert tags.read(song)["encoded_by"] == mark and tags.read(song)["title"] == "Song (HQ)"
+
+
+def test_saving_keeps_each_files_mark(song):
+    from song_wizard import __version__
+    drums = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    tags.write([str(drums)], {"title": "Song (HQ)", "encoded_by": "song-wizard 0.1.0"})
+    tags.run(song, ["album=Live", "encoded_by=me"])  # the mark isn't the user's to set
+    assert tags.read(drums)["encoded_by"] == "song-wizard 0.1.0"  # the version that made it
+    assert tags.read(song)["encoded_by"] == f"song-wizard {__version__}"  # had none: gets this one
+    assert tags.read(drums)["album"] == tags.read(song)["album"] == "Live"
+    with pytest.raises(SystemExit):
+        tags.run(song, unset=["encoded_by"])
+
+
+def test_download_marks_what_it_got(song):
+    from song_wizard import __version__
+    download.name_by_data(str(song))
+    got = song.parent / "001 - Uploader - Song (HQ).opus"
+    assert tags.read(got)["encoded_by"] == f"song-wizard {__version__}" and tags.read(got)["artist"] == "Uploader"

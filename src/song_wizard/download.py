@@ -26,12 +26,18 @@ def name_by_data(path):
     new = tags.name_for(tags.read(path))
     current = base_of(Path(path).name)
     number = re.match(r"^\d+ - ", current)
-    if not new or (number.group(0) if number else "") + new == current:
-        return
-    try:
-        rename.run(path, new)
-    except SystemExit as e:
-        print(f"  {Path(path).name}: kept its name ({e.code})")
+    target = (number.group(0) if number else "") + new if new else current
+    if target != current:
+        try:
+            rename.run(path, new)
+        except SystemExit as e:
+            print(f"  {Path(path).name}: kept its name ({e.code})")
+            target = current
+    # song-wizard's mark on what it downloaded (and the .wav made from it).
+    final = Path(path).with_name(target + Path(path).suffix)
+    if final.is_file():
+        for f in tags.song_files(final):
+            tags.stamp(f, f)
 
 
 def run(url, wav=False, extra=(), to=None):

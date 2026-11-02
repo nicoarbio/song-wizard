@@ -89,6 +89,8 @@ def run(bpm, meter="4/4", duration=None, bars=None, like=None, subdivide=1, outp
     if out is None:
         out = os.path.join(output, name) if os.path.isdir(output) else output
     sf.write(out, track, SR, subtype="PCM_16")
+    from . import tags
+    tags.stamp(out, song)  # the song's data, if it's a song's click
     minutes, secs = divmod(bars * bar, 60)
     print(f"  {bpm:g} BPM  {meter}  {bars} bars ({int(minutes)}:{secs:05.2f})"
           + (f"  subdivided by {subdivide}" if subdivide > 1 else "") + f"  {out}")

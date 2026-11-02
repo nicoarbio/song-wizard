@@ -16,7 +16,7 @@ from collections import defaultdict
 import numpy as np
 import soundfile as sf
 
-from . import log
+from . import log, tags
 from .audio import expand, load, output_path, save
 from .device import pick
 from .paths import MODELS_DIR
@@ -79,9 +79,11 @@ def run(stems, paths, force_cpu=False):
         def keep(f, mix, parts):
             for stem, part in parts.items():
                 save(output_path(f, stem), part, SR)
+                tags.stamp(output_path(f, stem), f)
                 # With "all", muting a track does what "no X" would; piano isn't in "all".
                 if not every or stem not in EVERY:
                     save(output_path(f, f"no {stem}"), mix - part, SR)
+                    tags.stamp(output_path(f, f"no {stem}"), f)
                 print(f"  {stem:<6}  {output_path(f, stem)}")
 
         # Outer loop over models so each model is loaded only once.
@@ -101,6 +103,7 @@ def run(stems, paths, force_cpu=False):
                     part, _ = sf.read(output_path(f, stem), dtype="float32", always_2d=True)
                     other -= part.T
                 save(output_path(f, "other"), other, SR)
+                tags.stamp(output_path(f, "other"), f)
                 print(f"  {'other':<6}  {output_path(f, 'other')}")
 
         if kit:
@@ -111,8 +114,10 @@ def run(stems, paths, force_cpu=False):
                 # Parts + rest add back up to the exact drums, like every stem here.
                 for stem, part in parts.items():
                     save(output_path(f, stem), part, SR)
+                    tags.stamp(output_path(f, stem), f)
                     print(f"  {stem:<6}  {output_path(f, stem)}")
                 save(output_path(f, KIT_REST), mix - sum(parts.values()), SR)
+                tags.stamp(output_path(f, KIT_REST), f)
                 print(f"  {'rest':<6}  {output_path(f, KIT_REST)}")
             separate_with(KIT_MODEL, KIT_PARTS, drums, device, tmp, keep_kit)
 

@@ -455,6 +455,8 @@ Si cambia el artista o el título, el tema y todo lo suyo pasan a llamarse `001 
 En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene el archivo, también lo que trajo la descarga (la descripción del video, la fecha en que se subió), sin filtrar nada. Los cambiados se marcan, × saca un dato y "agregar un dato" suma uno conocido (compositor, comentario, número de pista…) u otro con el nombre que quieras. Abajo avisa si el tema va a cambiar de nombre. "guardar y seguir" (Ctrl+Enter) pasa al tema siguiente. En un stem o una versión, "datos" cambia solo ese archivo.
 
 - Un dato con nombre propio, en un `.opus` (o `.ogg`, `.flac`), no puede llevar tildes ni eñes en el nombre (el valor sí): `Ano` en vez de `Año`.
+- Lo que song-wizard genera después (stems, versiones con otro tono o velocidad, el click del tema, los MP3) sale con los datos del tema, así que un archivo suelto (en un pendrive, en WhatsApp) sigue diciendo de dónde viene.
+- Cada archivo que song-wizard baja, genera, convierte o recorta lleva su marca en `encoded_by` ("Hecho con"): `song-wizard 0.23.0`, la versión que lo hizo. Guardar los datos no la cambia (un archivo que no tenía, la recibe); no se edita.
 - El link de la descarga (`purl`) se muestra pero no se cambia: `delete` lo usa para saber de qué descarga vino el tema.
 - En los `.wav`, los datos van en la lista propia del WAV (título, artista, álbum, año, género, comentario) y todos, también los propios, en una parte ID3 adentro del archivo, que leen ffmpeg y la mayoría de los reproductores. El Explorador de Windows no muestra datos de ningún WAV (los `.opus` sí).
 - El setlist, la búsqueda de la letra y la biblioteca toman el título y el artista de los datos; un tema sin datos, del nombre del archivo.

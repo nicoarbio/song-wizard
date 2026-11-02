@@ -19,9 +19,11 @@ from .audio import AUDIO_EXTS, base_of, die
 # The fields shown first, in this order, and the ones the library and the filter use.
 MAIN = ("title", "artist", "album", "date", "genre")
 # Kept by a download for "song-wizard delete" to find where it came from: never removed.
-KEEP = ("purl",)
+KEEP = ("purl", "encoded_by")
+# Each file's own: "song-wizard 0.22.6", the version that made it (downloaded, separated, ...).
+MARK = "encoded_by"
 # Fields with their own ID3 frame in a WAV (others go as TXXX, by name).
-FRAMES = {"title": "TIT2", "artist": "TPE1", "album": "TALB", "genre": "TCON", "composer": "TCOM",
+FRAMES = {"encoded_by": "TENC", "title": "TIT2", "artist": "TPE1", "album": "TALB", "genre": "TCON", "composer": "TCOM",
           "album_artist": "TPE2", "track": "TRCK", "disc": "TPOS", "publisher": "TPUB", "copyright": "TCOP"}
 # A take recorded in REAPER: "Title (record 2026-01-03 2015).wav".
 TAKE = re.compile(r"^ \(record [^)]*\)(-\d+)?$")
@@ -223,15 +225,31 @@ def _ffmpeg_copy(source, ext, tags, temp):
     subprocess.run(command, check=True, capture_output=True)
 
 
-def write(paths, tags):
-    """These fields, and only these, on every file: all of them or none."""
+def mark():
+    from . import __version__
+    return f"song-wizard {__version__}"
+
+
+def stamp(new, source=None):
+    """On a file song-wizard just made: the data of the file it came from (its song, say) and
+    song-wizard's mark. A failure here only warns: the file itself is fine."""
+    try:
+        data = {k: v for k, v in (read(source) if source else {}).items() if k not in (MARK, "encoder")}
+        write([new], {**data, MARK: mark()})
+    except (SystemExit, Exception) as e:
+        print(f"  (couldn't write the data of {os.path.basename(new)}: {e})")
+
+
+def write(paths, tags, own=None):
+    """These fields, and only these, on every file: all of them or none. own(path) adds that
+    file's own fields (its mark)."""
     temps = []
     try:
         for path in paths:
             folder, name = os.path.split(path)
             temp = os.path.join(folder, f".{name}.song-wizard-tags{os.path.splitext(name)[1]}")
             temps.append((temp, path))
-            _write_copy(path, tags, temp)
+            _write_copy(path, {**tags, **(own(path) if own else {})}, temp)
     except Exception as e:  # ffmpeg, the disk, or mutagen (a field name an Ogg file can't take)
         for temp, _ in temps:
             if os.path.exists(temp):
@@ -282,13 +300,14 @@ def run(path, set_=(), unset=(), only=False):
         tags.pop(k, None)
     tags = {k: v for k, v in tags.items() if v != "" or k in KEEP}
     tags.pop("encoder", None)  # ffmpeg writes its own
+    tags.pop(MARK, None)  # each file keeps its own mark (or gets this version's)
     files = [path] if only else song_files(path)
     # Ogg and FLAC files take field names of plain letters only.
     odd = [k for k in tags if not re.fullmatch(r"[\x20-\x3c\x3e-\x7d]+", k)]
     if odd and any(os.path.splitext(f)[1].lower() in VORBIS for f in files):
         die(f"Nothing changed: {', '.join(odd)}: a field name in an .opus, .ogg or .flac file can't have accents "
             "or other special letters (Ano instead of Año, say).")
-    write(files, tags)
+    write(files, tags, own=lambda f: {MARK: read(f).get(MARK) or mark()})
     for f in files:
         print(f"  {os.path.basename(f)}")
     print(f"Saved the data in {len(files)} file{'s' if len(files) != 1 else ''}.")

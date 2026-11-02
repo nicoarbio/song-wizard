@@ -3192,10 +3192,11 @@ const TAG_MAIN = ["title", "artist", "album", "date", "genre"];
 const TAG_LABELS = { title: "Título", artist: "Artista", album: "Álbum", date: "Año (o fecha)", genre: "Género",
   composer: "Compositor", album_artist: "Artista del álbum", track: "Número de pista", disc: "Disco", comment: "Comentario",
   description: "Descripción", synopsis: "Descripción del video", purl: "Link de la descarga", language: "Idioma",
-  publisher: "Sello", copyright: "Derechos", encoder: "Programa que lo escribió" };
+  publisher: "Sello", copyright: "Derechos", encoder: "Programa que lo escribió", encoded_by: "Hecho con" };
 // Shown, not changed: where the download came from (song-wizard delete uses it), and what ffmpeg
 // writes on its own.
-const TAG_FIXED = { purl: "Lo usa \"borrar\" para saber de qué descarga vino: no se cambia.", encoder: "Lo escribe solo el programa que guarda el archivo." };
+const TAG_FIXED = { purl: "Lo usa \"borrar\" para saber de qué descarga vino: no se cambia.", encoder: "Lo escribe solo el programa que guarda el archivo.",
+  encoded_by: "La versión de song-wizard que hizo este archivo (cada archivo tiene la suya): no se cambia." };
 const LOOKALIKE = { "\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "|": "｜" };
 const tagNameFor = (tags) => {
   const title = (tags.title || "").trim(), artist = (tags.artist || "").trim();

@@ -13,6 +13,7 @@ import tempfile
 
 import soundfile as sf
 
+from . import tags
 from .audio import Progress, die, expand, load, output_path, save
 
 # rubberband clips everything above 0 dB, even in float. Scaling by a power of two before
@@ -51,6 +52,7 @@ def stretch(paths, options, label):
             shifted, _ = sf.read(dst, dtype="float32", always_2d=True)
             out = output_path(f, label)
             save(out, shifted.T / SCALE, sr)
+            tags.stamp(out, f)
             progress.clear()
             print(f"  {label}  {out}")
 

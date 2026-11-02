@@ -222,6 +222,10 @@ def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     except system.TrashError as e:
         print(f"  The trimmed files are in place, but the old ones couldn't go to the trash ({e}): "
               f"they're next to them, ending in {OLD}; delete them when you like.")
+    # Remade: this version's mark on each (their data came along with ffmpeg).
+    from . import tags
+    for path in swapped:
+        tags.stamp(path, path)
     factors = dict(files)
     if n := shift_click(folder, list(factors), start, pad_start, factors):
         print(f"  moved the practice click's first beat ({n} file{'s' if n != 1 else ''})")

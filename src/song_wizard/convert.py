@@ -5,6 +5,7 @@ import subprocess
 
 import numpy as np
 
+from . import tags
 from .audio import expand, load, require_ffmpeg
 
 FORMATS = {
@@ -45,6 +46,7 @@ def run(paths, fmt="mp3", overwrite=False):
         if gain < 1.0:
             cmd += ["-af", f"volume={gain:.6f}"]
         subprocess.run([*cmd, *FORMATS[fmt], out], check=True)
+        tags.stamp(out, f)
 
         size = os.path.getsize(out) / 1e6
         note = f"  (turned down {20 * np.log10(gain):.1f} dB so the peaks don't clip)" if gain < 1.0 else ""
