@@ -4,61 +4,65 @@
 
 [![CI](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml/badge.svg)](https://github.com/nicoarbio/song-wizard/actions/workflows/ci.yml)
 
-Herramienta de terminal para preparar temas para ensayar con la banda. Es un proyecto personal, hecho por hobby y sin fines comerciales.
+**English** · [Español](README.es.md)
 
-- **download**: baja el audio de un link (un tema o una playlist) en la mejor calidad disponible, sin recomprimir.
-- **key**: detecta la tonalidad.
-- **bpm**: detecta el tempo y avisa si varía a lo largo del tema.
-- **click**: genera una pista de click fija, con el tempo, el compás y la duración que quieras.
-- **transpose**: sube o baja el tono sin cambiar el tempo.
-- **speed**: hace un tema más lento (o más rápido) sin cambiar el tono, para sacarlo de a poco.
-- **separate**: separa tu instrumento del resto del tema (voz, batería, bajo o guitarra).
-- **convert**: convierte a MP3 (o M4A) para compartir, por ejemplo por WhatsApp.
-- **tag**: muestra o cambia los datos de un tema (título, artista, álbum, año, género…), en el tema y en todo lo que se generó a partir de él.
-- **rename**: cambia el nombre de un tema y de todo lo que se generó a partir de él.
-- **delete**: manda a la papelera un tema (con todo lo que se generó a partir de él) o archivos sueltos.
-- **list**: muestra los temas de tu carpeta de música (y de donde hayas bajado), con lo que se detectó de cada uno.
-- **report**: si algo falla, arma un reporte para pedir ayuda.
-- **ui**: todo lo anterior desde una página en el navegador, sin usar la terminal.
+A terminal tool to get songs ready for rehearsing with your band. It's a personal project, made as a hobby and not for profit.
 
-Todo menos `download` funciona con cualquier archivo de audio que tengas: grabaciones de ensayo, temas comprados, maquetas propias, etc.
+- **download**: downloads the audio of a link (a song or a playlist) in the best quality available, without re-encoding.
+- **key**: detects the key.
+- **bpm**: detects the tempo and tells you if it drifts along the song.
+- **click**: makes a steady click track, with the tempo, meter and length you want.
+- **transpose**: raises or lowers the pitch without changing the tempo.
+- **speed**: makes a song slower (or faster) without changing the pitch, to learn it bit by bit.
+- **separate**: splits your instrument from the rest of the song (vocals, drums, bass or guitar).
+- **convert**: converts to MP3 (or M4A) to share, over WhatsApp for example.
+- **tag**: shows or changes a song's data (title, artist, album, year, genre…), in the song and everything made from it.
+- **rename**: renames a song and everything made from it.
+- **delete**: sends a song (with everything made from it) or single files to the trash.
+- **list**: shows the songs in your music folder (and wherever you downloaded to), with what was detected for each.
+- **report**: if something fails, puts together a report to ask for help.
+- **ui**: all of the above from a page in the browser, without the terminal.
 
-Funciona en **Mac con chip M** (M1 a M5, con macOS 15 o más nuevo), **Linux** y **Windows con WSL**. No funciona en Mac con procesador Intel.
+Everything but `download` works with any audio file you have: rehearsal recordings, songs you bought, your own demos, and so on.
 
-## Requerimientos
+It runs on **Macs with an M chip** (M1 to M5, with macOS 15 or newer), **Linux** and **Windows with WSL**. It doesn't run on Intel Macs.
 
-song-wizard está escrito en Python, pero usa algunos programas externos que hay que instalar aparte. Los comandos de [Instalación](#instalación) instalan todos; acá se explica para qué sirve cada uno. Todos son programas libres y de código abierto, y se instalan desde sus fuentes oficiales.
+The interface (`song-wizard ui`) is in Spanish for now; English and Portuguese are on the way. This README already names its buttons in English.
 
-| Programa | Por qué hace falta | Cómo lo usa song-wizard |
+## Requirements
+
+song-wizard is written in Python, but it uses a few outside programs that are installed separately. The commands in [Installation](#installation) install them all; this is what each one is for. They're all free and open source, installed from their official sources.
+
+| Program | Why it's needed | How song-wizard uses it |
 |---|---|---|
-| [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
-| [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio (y para generar los `.wav` con `--wav`). |
-| [**deno**](https://deno.com) | Algunos sitios exigen resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).wav`; `speed` le pasa la velocidad y genera `Título (80%).wav`. |
+| [**uv**](https://docs.astral.sh/uv/) | Installs song-wizard and its Python libraries in an isolated environment, without touching the system's Python. If needed, it also gets Python 3.12. | `uv tool install` makes the `song-wizard` command available, and `song-wizard upgrade` updates it. |
+| [**ffmpeg**](https://ffmpeg.org) | Reads and converts any audio format (Opus, MP3, M4A, WAV…). | Decodes songs before detecting the key, transposing or separating. In `download`, yt-dlp uses it to extract the audio (and to make the `.wav` files with `--wav`). |
+| [**deno**](https://deno.com) | Some sites require solving a JavaScript challenge before letting you download, and deno is the program that runs that JavaScript. Node v20 or newer works too. | yt-dlp, the download engine, finds it and uses it only in `download`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Changes the pitch without changing the tempo, or the tempo without changing the pitch, with very good quality. | `transpose` gives it the semitones and makes `Title (+2).wav`; `speed` gives it the speed and makes `Title (80%).wav`. |
 
-En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y `build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada. En Mac no hace falta, porque el compilador ya lo instala Homebrew.
+On Linux and WSL, `curl` is also installed (to get the official uv and deno installers), and `build-essential` + `python3-dev`, to compile a Python library that doesn't come precompiled. On a Mac they're not needed, because Homebrew already installs the compiler.
 
-Las librerías de Python que hacen el trabajo pesado las instala uv automáticamente: [yt-dlp](https://github.com/yt-dlp/yt-dlp) para las descargas, [Essentia](https://essentia.upf.edu) para la tonalidad, y [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) y [PyTorch](https://pytorch.org) para separar instrumentos.
+The Python libraries that do the heavy lifting are installed by uv automatically: [yt-dlp](https://github.com/yt-dlp/yt-dlp) for downloads, [Essentia](https://essentia.upf.edu) for the key, and [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) and [PyTorch](https://pytorch.org) to separate instruments.
 
-Todo se procesa en tu computadora: song-wizard no manda tus archivos a ningún servidor. Solo se conecta a internet para bajar los temas que le pidas, bajar los modelos de separación la primera vez y actualizarse.
+Everything is processed on your computer: song-wizard doesn't send your files to any server. It only goes online to download the songs you ask for, to download the separation models the first time, and to update itself.
 
-`song-wizard setup` revisa que estén todos instalados.
+`song-wizard setup` checks that they're all installed.
 
-## Instalación
+## Installation
 
 ### Mac
 
-1. Si no tenés Homebrew, instalalo siguiendo las instrucciones de [brew.sh](https://brew.sh).
-2. Abrí la Terminal y corré:
+1. If you don't have Homebrew, install it following the instructions at [brew.sh](https://brew.sh).
+2. Open the Terminal and run:
 
    ```bash
    brew install ffmpeg deno rubberband uv
    uv tool install git+https://github.com/nicoarbio/song-wizard
    ```
 
-### Linux o WSL (Ubuntu)
+### Linux or WSL (Ubuntu)
 
-En Windows, si no tenés WSL: abrí PowerShell como administrador, corré `wsl --install`, reiniciá y abrí "Ubuntu" desde el menú Inicio. Después, en esa terminal:
+On Windows, if you don't have WSL: open PowerShell as administrator, run `wsl --install`, restart and open "Ubuntu" from the Start menu. Then, in that terminal:
 
 ```bash
 sudo apt update && sudo apt install -y ffmpeg rubberband-cli curl build-essential python3-dev
@@ -66,71 +70,71 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 curl -fsSL https://deno.land/install.sh | sh
 ```
 
-Cerrá y volvé a abrir la terminal, y después:
+Close and open the terminal again, and then:
 
 ```bash
 uv tool install git+https://github.com/nicoarbio/song-wizard
 ```
 
-### Comprobar que quedó todo bien
+### Check that everything works
 
 ```bash
 song-wizard setup
 ```
 
-Todo tiene que quedar en verde. También te dice si la separación va a usar la placa de video (mucho más rápido) o solo el procesador.
+Everything should be green. It also tells you whether separation will use the graphics card (much faster) or only the processor.
 
-### Configuración
+### Settings
 
 ```bash
 song-wizard config
 ```
 
-Muestra dónde está el archivo de configuración y qué valores se están usando. El archivo se crea solo, con todo comentado, la primera vez que corrés cualquier comando. Por ahora guarda la carpeta de descargas. Lo que pases en cada comando siempre gana sobre el archivo.
+Shows where the settings file is and which values are in use. The file is created on its own, with everything commented out, the first time you run any command. For now it holds the download folder. Whatever you pass to a command always wins over the file.
 
 - Linux/WSL: `~/.config/song-wizard/config.toml`
 - Mac: `~/Library/Application Support/song-wizard/config.toml`
 
 ```toml
 [download]
-music_dir = "~/Ensayos"
+music_dir = "~/Rehearsals"
 ```
 
-### Actualizar
+### Upgrading
 
 ```bash
-song-wizard upgrade              # instala la versión más nueva
-song-wizard upgrade --check      # solo dice si hay una versión nueva
-song-wizard upgrade --list       # las versiones publicadas
-song-wizard upgrade --to 0.12.0  # instala otra versión, más nueva o más vieja
+song-wizard upgrade              # installs the newest version
+song-wizard upgrade --check      # only tells you if there's a new version
+song-wizard upgrade --list       # the published versions
+song-wizard upgrade --to 0.12.0  # installs another version, newer or older
 ```
 
-Cada versión publicada es un tag `vX.Y.Z` en GitHub. `upgrade` instala el más nuevo si tenés uno anterior; si ya tenés el más nuevo, actualiza lo que usa song-wizard (yt-dlp, sobre todo). Una versión con un problema grave se puede **retirar**: queda en `retired.txt` (en este repositorio) con el motivo, y entonces `upgrade` y la interfaz no la ofrecen, `--list` no la muestra (`--list --all` sí, con el motivo), `--to` no la instala salvo con `--force`, y a quien la tenga se le avisa y `upgrade` lo pasa a la más nueva que no esté retirada, aunque sea anterior. El tag no se borra.
+Every published version is a `vX.Y.Z` tag on GitHub. `upgrade` installs the newest one if you have an older one; if you already have the newest, it updates what song-wizard uses (yt-dlp, mostly). A version with a serious problem can be **retired**: it's listed in `retired.txt` (in this repository) with the reason, and then `upgrade` and the interface don't offer it, `--list` doesn't show it (`--list --all` does, with the reason), `--to` doesn't install it unless with `--force`, and whoever has it is told so and `upgrade` moves them to the newest one that isn't retired, even if it's older. The tag isn't deleted.
 
-Las versiones anteriores a la 0.15 no saben moverse por tags: si volvés a una de ellas con `--to`, para volver a la más nueva corré `uv tool install --force git+https://github.com/nicoarbio/song-wizard`.
+Versions before 0.15 don't know how to move between tags: if you go back to one with `--to`, to return to the newest run `uv tool install --force git+https://github.com/nicoarbio/song-wizard`.
 
-En la interfaz, la versión aparece arriba, al lado del nombre (tocándola, busca de nuevo). Si hay una nueva, aparece "actualizar a …": actualiza, reinicia la interfaz y la misma página se recarga sola cuando está lista. Busca versiones nuevas a lo sumo cada 6 horas.
+In the interface, the version shows at the top, next to the name (click it to check again). If there's a new one, "update to …" shows up: it updates, restarts the interface, and the same page reloads on its own when it's ready. It checks for new versions at most every 6 hours.
 
-Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dejar de andar hasta actualizar.
+It's worth doing often: sites change a lot, and downloads can stop working until you update.
 
-### Qué se guarda en tu computadora
+### What's stored on your computer
 
-| Qué | Dónde | Tamaño |
+| What | Where | Size |
 |---|---|---|
-| song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
-| Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB si usás los cuatro instrumentos (el piano sale del mismo modelo que la guitarra), y 0.4 GB más para la batería en partes; se bajan la primera vez que se usa cada uno |
-| Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
-| Log (qué comandos corrieron y los errores, para resolver problemas) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB como máximo: lo más viejo se borra solo |
-| Reportes de `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | unos pocos KB cada uno; se pueden borrar |
-| Qué cambió song-wizard en Reaper (para mostrarlo y restaurarlo) | Linux/WSL: `~/.local/share/song-wizard/reaper.json`<br>Mac: `~/Library/Application Support/song-wizard/reaper.json` | menos de 1 KB |
-| Copia de las preferencias de Reaper de antes de cambiarlas | Al lado de las de Reaper: `reaper.ini.before-song-wizard` (en Windows, en `%APPDATA%\REAPER`) | lo que pesen las de Reaper |
-| Tus temas | La carpeta Música (o la que elijas) | lo que bajes |
+| song-wizard and its libraries | `~/.local/share/uv/tools/song-wizard` | ~6 GB on Linux/WSL (it includes NVIDIA's libraries to use the graphics card); much less on a Mac |
+| Separation models | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB if you use all four instruments (piano comes from the same model as the guitar), and 0.4 GB more for the drum kit; each is downloaded the first time it's used |
+| Record of songs already downloaded | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | a few KB |
+| Log (which commands ran and the errors, to solve problems) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB at most: the oldest is deleted on its own |
+| Reports from `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | a few KB each; they can be deleted |
+| What song-wizard changed in REAPER (to show it and put it back) | Linux/WSL: `~/.local/share/song-wizard/reaper.json`<br>Mac: `~/Library/Application Support/song-wizard/reaper.json` | under 1 KB |
+| A copy of REAPER's preferences from before changing them | Next to REAPER's: `reaper.ini.before-song-wizard` (on Windows, in `%APPDATA%\REAPER`) | as big as REAPER's |
+| Your songs | The Music folder (or the one you choose) | whatever you download |
 
-Los modelos se bajan de fuentes públicas: los de Demucs, de los servidores de Meta (que lo creó), y los demás, de los repositorios públicos en GitHub del proyecto [UVR](https://github.com/Anjok07/ultimatevocalremovergui) y de audio-separator.
+The models are downloaded from public sources: Demucs's from the servers of Meta (who made it), and the others from the public GitHub repositories of the [UVR](https://github.com/Anjok07/ultimatevocalremovergui) project and of audio-separator.
 
-### Desinstalar
+### Uninstalling
 
-Si song-wizard cambió la preferencia de Reaper para las tomas (ver [Reaper](#reaper)) y la querés como estaba, restaurala antes: `song-wizard reaper --setting restore`.
+If song-wizard changed REAPER's preference for takes (see [REAPER](#reaper)) and you want it as it was, put it back first: `song-wizard reaper --setting restore`.
 
 ```bash
 uv tool uninstall song-wizard
@@ -138,123 +142,123 @@ rm -rf ~/.local/share/song-wizard                    # Linux/WSL
 rm -rf ~/Library/Application\ Support/song-wizard    # Mac
 ```
 
-Tus temas no se tocan. Si no usás ffmpeg, deno, rubberband ni uv para otra cosa, también podés desinstalarlos con `brew uninstall` (Mac) o `sudo apt remove` (Linux).
+Your songs aren't touched. If you don't use ffmpeg, deno, rubberband or uv for anything else, you can uninstall them too with `brew uninstall` (Mac) or `sudo apt remove` (Linux).
 
-## Uso
+## Usage
 
-### Interfaz en el navegador
+### Browser interface
 
 ```bash
 song-wizard ui
 ```
 
-Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
+Opens a page in the browser (on WSL, the Windows browser) with everything song-wizard does, without typing commands:
 
-- **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. Cada tema se ve con el nombre de su archivo sin la extensión ("001 - Artista - Título"; el nombre completo, al pasar el mouse), y al lado, en gris, su álbum, año y género si los tiene. "más" abre las otras acciones del tema: sus datos, la letra, recortar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). "más › Datos del tema…" muestra y cambia el título, el artista, el álbum y todo lo que guarda el archivo, y corregir el artista o el título le cambia el nombre (ver [Datos del tema](#datos-del-tema)). El filtro de arriba busca palabras sueltas, en cualquier orden y sin importar tildes ni mayúsculas, en el nombre, la carpeta y los datos de cada tema: "rock ultimo" encuentra los temas de género rock del álbum "Último show". Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" arma la lista de la carpeta para imprimir, y "setlist con lo elegido" (abajo, junto a la selección) la arma con los temas que elegiste, de cualquier carpeta (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
-- **Practicar**: el botón "practicar" de cada tema abre, en toda la ventana, un reproductor con la forma de onda de cada pista y la letra al costado, con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) y la repetición de un tramo entre dos marcas A y B. Ver [Practicar](#practicar).
-- **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
-- **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
-- **Pista de click**: con un tema elegido se completan su tempo (si ya lo detectaste), su duración y los compases que la cubren; para un compás más, le sumás 1.
-- **Acciones** sobre los temas elegidos, o sobre un archivo suelto (por ejemplo, para cambiar la velocidad solo de la batería separada o medir el tempo sobre ella): tonalidad, tempo, separar instrumentos, transponer, cambiar la velocidad, convertir y generar un click.
-- **Reproductor de abajo**: el ▶ de cualquier archivo lo escucha ahí, con su forma de onda; tocando el dibujo se salta a esa parte.
-- **Trabajos**: lo que está corriendo, con una barra de avance y el tiempo que lleva; se puede cancelar. Corren de a uno.
-- **Atajos de teclado**: casi todo se puede hacer con el teclado, y las teclas se pueden cambiar. "⌨ atajos" arriba (o `?`) los muestra todos. Ver [Atajos de teclado](#atajos-de-teclado).
-- **Colores**: arriba a la derecha, "automático" sigue al sistema (claro u oscuro, como lo tengas en Windows o en el Mac), y "claro" u "oscuro" lo dejan fijo. El navegador lo recuerda. Las hojas para imprimir (setlist, letra) son siempre claras.
-- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
+- **Library**: the folders in your music folder with their songs, each one's key and tempo if you already detected them, and the files made from each song (stems, versions transposed or at another speed, MP3s), each with its checkbox to use it in the actions (with Shift, the checkbox picks or drops everything between the last one you clicked and this one). Each song's files start folded ("▸ 5 files") so the list doesn't get long; "expand all" and "collapse all" open and close them at once, and the browser remembers which ones you left open. ▶ plays any of them. Each song shows its file name without the extension ("001 - Artist - Title"; the full name on hover), and next to it, in gray, its album, year and genre if it has them. "more" opens the song's other actions: its data, lyrics, trimming and the REAPER project (the dot on "more" means the song already has lyrics or a project). "more › Song data…" shows and changes the title, artist, album and everything the file keeps, and correcting the artist or title renames it (see [Song data](#song-data)). The filter at the top looks for loose words, in any order and regardless of accents and case, in each song's name, folder and data: "rock ultimo" finds the rock songs of the album "Último show". Clicking the key or tempo corrects by hand what was detected (see [Fixing the key or tempo by hand](#fixing-the-key-or-tempo-by-hand)). "more › Lyrics" shows the song's lyrics to mark them with colors and notes (see [Lyrics](#lyrics)), and "more › Create REAPER project" or "Open in REAPER" takes it to REAPER (see [REAPER](#reaper)). "setlist" makes the folder's list to print, and "setlist of the picked songs" (below, next to the selection) makes it with the songs you picked, from any folder (see [Setlist](#setlist)). "open" shows the folder in the File Explorer (or the Finder on a Mac). If you change files outside (copy, rename or delete them), the library updates on its own when you come back to the page, or with "↻ refresh".
+- **Practice**: each song's "practice" button opens, in the whole window, a player with each track's waveform and the lyrics on the side, with a track per separated instrument (with volume, mute and solo for each), a click that follows the song with a count-in, the speed live without changing the pitch (from 50 % to 150 %), the pitch live without changing the speed (6 semitones each way) and looping a section between two marks, A and B. See [Practice](#practice).
+- **Download**: paste the link of a song or a playlist at the very top. "in Music" picks another folder for new playlists (typing the path or with "choose…", which opens the system's folder picker).
+- **Delete**: "delete selected files", next to the selection, shows exactly which files go and sends them to the system's trash. See [Deleting](#deleting).
+- **Click track**: with a song picked, its tempo (if you already detected it), its length and the bars that cover it are filled in; for one more bar, add 1.
+- **Actions** on the picked songs, or on a single file (to change the speed of just the separated drums, say, or measure the tempo on them): key, tempo, separate instruments, transpose, change the speed, convert and make a click.
+- **Bottom player**: any file's ▶ plays it there, with its waveform; clicking the picture jumps to that part.
+- **Jobs**: what's running, with a progress bar and the time it's taken; it can be cancelled. They run one at a time.
+- **Keyboard shortcuts**: almost everything can be done with the keyboard, and the keys can be changed. "⌨ shortcuts" at the top (or `?`) shows them all. See [Keyboard shortcuts](#keyboard-shortcuts).
+- **Colors**: at the top right, "auto" follows the system (light or dark, as you have it on Windows or the Mac), and "light" or "dark" keep it fixed. The browser remembers it. The pages to print (setlist, lyrics) are always light.
+- **Downloaded playlists**: the same as `song-wizard archives`, with the option to check for new songs, move them to another folder (they go whole and still show in the library, with their location) or forget them. Folders that are a playlist also have "check for new songs": it downloads only what was added to the playlist since last time.
 
-La interfaz queda corriendo de fondo y la terminal queda libre para otra cosa (o para cerrarla). Volver a escribir `song-wizard ui` abre la misma interfaz, sin arrancar otra. Para cerrarla: "apagar" (abajo, en Trabajos) o `song-wizard ui --stop`; si hay algo corriendo, pregunta antes. `song-wizard ui --restart` la cierra y la vuelve a abrir (por ejemplo después de `upgrade`, que avisa si la interfaz sigue con la versión anterior). Con `--foreground` queda en la terminal como antes, y Ctrl+C la cierra.
+The interface keeps running in the background and the terminal is free for something else (or to close it). Typing `song-wizard ui` again opens the same interface, without starting another. To close it: "shut down" (below, in Jobs) or `song-wizard ui --stop`; if something is running, it asks first. `song-wizard ui --restart` closes it and opens it again (after `upgrade`, say, which tells you if the interface is still on the old version). With `--foreground` it stays in the terminal as before, and Ctrl+C closes it.
 
-En WSL, Linux se apaga solo un rato después de cerrar todas sus terminales, y la interfaz con él: si la usás con todas las ventanas de Ubuntu cerradas y deja de responder, volvé a abrirla con `song-wizard ui`.
+On WSL, Linux shuts down on its own a while after all its terminals are closed, and the interface with it: if you use it with every Ubuntu window closed and it stops responding, open it again with `song-wizard ui`.
 
-Funciona solo en tu computadora: el servidor no acepta conexiones de afuera, y solo atiende a su propia página, así que otras páginas abiertas en el navegador no pueden usarla (el navegador le dice de dónde viene cada pedido). El link es siempre `http://127.0.0.1:8765` (o el puerto que muestre la terminal, si ese está ocupado), así que se puede guardar en favoritos. Si el navegador no se abre solo, abrí el link que muestra la terminal.
+It only works on your computer: the server doesn't take outside connections, and only serves its own page, so other pages open in the browser can't use it (the browser tells it where each request comes from). The link is always `http://127.0.0.1:8765` (or the port the terminal shows, if that one is taken), so it can be bookmarked. If the browser doesn't open on its own, open the link the terminal shows.
 
-#### Practicar
+#### Practice
 
-Con "Todos" separado, el reproductor tiene las cinco pistas (voz, batería, bajo, guitarra y otros); si separaste un instrumento solo, ese instrumento y el resto del tema (y si separaste varios por separado, elegís cuál arriba); sin stems, el tema original, que igual sirve para practicar más lento o repetir un tramo.
+With "All" separated, the player has the five tracks (vocals, drums, bass, guitar and other); if you separated a single instrument, that instrument and the rest of the song (and if you separated several one by one, you pick which at the top); with no stems, the original song, which is still good for practicing slower or looping a section.
 
-El reproductor ocupa toda la ventana. Arriba están los controles: reproducir, velocidad, tono, el tramo A-B y el volumen maestro. Abajo, una fila por pista con su forma de onda, todas sobre el mismo eje de tiempo, y a la derecha, la letra. "⛶ pantalla completa" (o `F`) saca además las barras del navegador; Esc vuelve, y el reproductor sigue abierto.
+The player fills the whole window. The controls are at the top: play, speed, pitch, the A-B section and the master volume. Below, a row per track with its waveform, all on the same timeline, and on the right, the lyrics. "⛶ full screen" (or `F`) also hides the browser's bars; Esc goes back, and the player stays open.
 
-- Cada pista tiene su fila: el nombre, **M** para silenciarla, **S** para escuchar solo esa (se pueden sumar varias en solo), su volumen y su forma de onda. Una pista que no suena se ve atenuada. Arriba de todas está la onda del tema entero. Tocando cualquier onda se salta a ese momento, y la posición y el tramo A-B se ven sobre todas. **Maestro**, arriba, sube o baja todo junto (el navegador lo recuerda).
-- **Acercar**: la rueda del mouse sobre cualquier onda acerca y aleja todas las pistas juntas, alrededor del mouse (con Shift se mueve a los costados); también están − y +, "todo" y "tramo", que acerca al tramo A-B. Arriba de las pistas hay una barra con el tema entero y un recuadro sobre lo que se ve: se arrastra para moverse, un clic salta a otra parte y la rueda sobre la barra mueve a los costados. De cerca, cada onda se dibuja con más detalle. Mientras suena, la vista pasa de página cuando la posición llega al borde (si la acabás de mover a mano, espera unos segundos), y si saltás a otro momento, va ahí.
-- La fila del click muestra sus golpes (si no entran, solo los compases), con el primero de cada compás marcado.
-- La velocidad cambia mientras suena y el tono no cambia. Para guardar una versión más lenta como archivo, está [Cambiar la velocidad](#cambiar-la-velocidad).
-- **Tono**: sube o baja el tema hasta 6 semitonos sin cambiar la velocidad, por ejemplo para probar otra tonalidad para el que canta; si el tema tiene tonalidad detectada, muestra a cuál queda (Am → Gm). El click no cambia y sigue a tiempo. Al cambiarlo hay un instante de silencio. Es calidad de ensayo: para una versión prolija como archivo (por ejemplo para compartir), está [Cambiar el tono](#cambiar-el-tono), que suena mejor.
-- Para repetir un tramo: **A** donde empieza y **B** donde termina; al marcar B empieza a repetir. "repetir" lo prende y apaga, y el tramo se ve sobre las ondas.
-- **Letra**: en la columna de la derecha está la letra del tema (en pantallas angostas, debajo de las pistas). "letra ▸" (o `Y`) la pliega para que las ondas ganen ancho, y el navegador lo recuerda. Viene con sus colores y notas, y se puede marcar ahí mismo con el mouse. Si la letra tiene tiempos, la línea que suena se resalta y la letra avanza sola (si la moviste con la rueda, espera unos segundos antes de seguir), y con doble clic en una línea el tema salta a ese momento. Si el tema no tiene letra, se puede buscar desde ahí.
-- **Tiempos de la letra**: "tiempos" abre una columna a la izquierda con el momento en que empieza cada línea. Mientras suena el tema, tocás el tiempo de una línea justo cuando empieza a cantarse, o apretás T y se marca la línea siguiente: así una letra pegada queda sincronizada escuchando el tema una vez. La × borra un tiempo, y −0.5 s / +0.5 s corren todos juntos (por ejemplo, si tu versión tiene otra intro que la de la base de letras, de donde vienen los tiempos cuando los hay). Ctrl+Z deshace también esto.
-- Con el teclado: espacio reproduce y pausa, las flechas saltan 5 segundos y con Shift un compás (según el click), `Inicio` vuelve al principio (o a A), `[` y `]` marcan A y B, `L` repite, `-` y `+` cambian la velocidad, `,` y `.` el tono, `R` vuelve todo a lo normal, `Z` y `X` acercan y alejan, `F` pasa a pantalla completa y `Y` muestra u oculta la letra. Para las pistas: `↑` y `↓` eligen una (se marca), `M` la silencia, `S` la pone en solo y Shift+`↑`/`↓` le cambian el volumen; además `1` a `9` y `0` (la décima) silencian una pista directo, Shift+número la pone en solo, y `C` prende o apaga el click. `D` muestra cuánto se separan las pistas entre sí (deberían quedar en unos pocos milisegundos). Debajo de las pistas está la lista corta; todas, y para cambiarlas, en [Atajos de teclado](#atajos-de-teclado).
+- Each track has its row: the name, **M** to mute it, **S** to hear only that one (several can be soloed together), its volume and its waveform. A track that isn't sounding is dimmed. Above them all is the whole song's waveform. Clicking any waveform jumps to that moment, and the position and the A-B section show on all of them. **Master**, at the top, turns everything up or down together (the browser remembers it).
+- **Zoom**: the mouse wheel on any waveform zooms all the tracks in and out together, around the mouse (with Shift it moves sideways); there are also − and +, "all" and "section", which zooms into the A-B section. Above the tracks there's a bar with the whole song and a box over what's in view: drag it to move, a click jumps elsewhere and the wheel on the bar moves sideways. Up close, each waveform is drawn in more detail. While playing, the view turns the page when the position reaches its edge (if you just moved it by hand, it waits a few seconds), and if you jump to another moment, it goes there.
+- The click's row shows its beats (if they don't fit, only the bars), with the first of each bar marked.
+- The speed changes while playing and the pitch doesn't change. To save a slower version as a file, there's [Changing the speed](#changing-the-speed).
+- **Pitch**: raises or lowers the song up to 6 semitones without changing the speed, to try another key for the singer, say; if the song's key was detected, it shows where it ends up (Am → Gm). The click doesn't change and stays in time. Changing it brings a moment of silence. It's rehearsal quality: for a clean version as a file (to share, say), there's [Changing the key](#changing-the-key), which sounds better.
+- To loop a section: **A** where it starts and **B** where it ends; marking B starts the loop. "loop" turns it on and off, and the section shows over the waveforms.
+- **Lyrics**: the right column has the song's lyrics (on narrow screens, below the tracks). "lyrics ▸" (or `Y`) folds it so the waveforms get wider, and the browser remembers it. It comes with its colors and notes, and can be marked right there with the mouse. If the lyrics have times, the line being sung is highlighted and the lyrics scroll on their own (if you scrolled them with the wheel, it waits a few seconds before going on), and double-clicking a line jumps the song to that moment. If the song has no lyrics, they can be looked up from there.
+- **Lyrics times**: "times" opens a column on the left with the moment each line starts. While the song plays, you click a line's time right when it starts being sung, or press T and the next line is marked: that way pasted lyrics get synced by listening to the song once. × clears a time, and −0.5 s / +0.5 s move them all together (if your version has a different intro than the lyrics database's, where the times come from when there are any). Ctrl+Z undoes this too.
+- With the keyboard: Space plays and pauses, the arrows jump 5 seconds and with Shift one bar (by the click), `Home` goes back to the start (or to A), `[` and `]` mark A and B, `L` loops, `-` and `+` change the speed, `,` and `.` the pitch, `R` puts everything back to normal, `Z` and `X` zoom in and out, `F` goes full screen and `Y` shows or hides the lyrics. For the tracks: `↑` and `↓` pick one (it's marked), `M` mutes it, `S` solos it and Shift+`↑`/`↓` change its volume; also `1` to `9` and `0` (the tenth) mute a track directly, Shift+number solos it, and `C` turns the click on or off. `D` shows how far apart the tracks are from each other (they should stay within a few milliseconds). Below the tracks is the short list; all of them, and how to change them, in [Keyboard shortcuts](#keyboard-shortcuts).
 
-**El click.** La última pista del reproductor es un click que sigue al tema: cae en cada tiempo aunque saltes a cualquier parte, repitas un tramo o cambies la velocidad, y como lo genera el navegador en el momento, suena nítido también a velocidades bajas. Para que coincida con el tema hace falta su tempo exacto y dónde cae el primer golpe; se ajustan en "Ajustar el click":
+**The click.** The player's last track is a click that follows the song: it falls on every beat even if you jump anywhere, loop a section or change the speed, and since the browser makes it on the spot, it sounds crisp at low speeds too. To line up with the song it needs its exact tempo and where the first beat falls; they're set in "Adjust the click":
 
-- "detectar" los busca en el tema (lo mismo que `song-wizard align`, ver abajo). Si el tempo quedó a la mitad o al doble del real, ÷2 y ×2 lo corrigen.
-- La vista ampliada muestra el principio del tema con las líneas del click encima (la marcada es el primer tiempo de cada compás): arrastrando sobre el dibujo se mueven hasta que caigan sobre los golpes. Para el ajuste fino, −10 ms y +10 ms; si el primer tiempo quedó en otro tiempo del compás, −1 tiempo y +1 tiempo. "escuchar el principio" lo reproduce con el click para comprobarlo de oído.
-- Se guarda solo, en `click.txt` en la carpeta del tema (como `key.txt` y `bpm.txt`), y `rename` lo renombra con el tema.
+- "detect" finds them in the song (the same as `song-wizard align`, see below). If the tempo came out half or double the real one, ÷2 and ×2 fix it.
+- The zoomed view shows the start of the song with the click's lines on top (the marked one is the first beat of each bar): dragging over the picture moves them until they fall on the hits. For fine-tuning, −10 ms and +10 ms; if the first beat landed on another beat of the bar, −1 beat and +1 beat. "listen to the start" plays it with the click to check by ear.
+- It's saved on its own, in `click.txt` in the song's folder (like `key.txt` and `bpm.txt`), and `rename` renames it with the song.
 
-**La cuenta.** Con el click encendido, al dar play desde el principio suena la cuenta (uno o dos compases, o ninguna) y la música entra en su tiempo: si el tema empieza con un silencio, parte de la cuenta cae sobre ese silencio, así que la música entra justo donde corresponde. Con "también al seguir desde una pausa", la cuenta suena también al retomar desde cualquier punto, para practicar una parte.
+**The count-in.** With the click on, pressing play from the start plays the count-in (one or two bars, or none) and the music comes in on time: if the song starts with silence, part of the count falls over that silence, so the music comes in exactly where it should. With "also when resuming", the count-in also plays when resuming from any point, to practice a part.
 
-Medido en Edge: el click cae a ~1 ms del tema, también después de saltar y a 125 %; la cuenta y la entrada de la música, a 3 ms. Por debajo de 100 % el navegador demora un poco el tema al estirarlo y song-wizard lo compensa en Brave, Chrome y Edge (en Firefox y Safari, todavía no); a esas velocidades el tema estirado igual "baila" unos ±15 ms de golpe a golpe, por cómo lo estira el navegador.
+Measured in Edge: the click falls within ~1 ms of the song, also after jumping and at 125 %; the count-in and the music coming in, within 3 ms. Below 100 % the browser delays the song a bit while stretching it, and song-wizard makes up for it in Brave, Chrome and Edge (not yet in Firefox and Safari); at those speeds the stretched song still "wobbles" about ±15 ms from hit to hit, because of how the browser stretches it.
 
-Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
+The tracks are streamed from the music folder as they play, without loading them whole into memory.
 
-#### Atajos de teclado
+#### Keyboard shortcuts
 
-"⌨ atajos" (arriba a la derecha), `?` o "todos los atajos" en Practicar abren la lista de todos los atajos, separados por dónde valen: la biblioteca, Practicar y la ventana de la letra. Mientras escribís en un campo de texto no hacen nada.
+"⌨ shortcuts" (top right), `?` or "all shortcuts" in Practice open the list of every shortcut, grouped by where they work: the library, Practice and the lyrics window. While you're typing in a text field they do nothing.
 
-- **En la biblioteca**: `↑` y `↓` recorren los temas (el elegido se marca; también se elige tocándolo), y sobre ese tema `Enter` lo escucha, `P` lo abre en Practicar, `L` abre su letra, `.` su menú "más", `E` sus datos, `X` lo suma a lo elegido (o lo saca), `→` y `←` muestran u ocultan sus stems y versiones. `/` va al filtro. Espacio pausa o sigue el reproductor de abajo, y Shift+`←`/`→` lo mueven 5 segundos.
-- **En los datos del tema**: Enter guarda, Esc cierra sin guardar, y Ctrl+Enter ("guardar y seguir") guarda y abre los datos del tema siguiente de la lista, para corregir una playlist entera de corrido.
-- **Cambiar una tecla**: en la lista, tocás la tecla y apretás la nueva. "+" agrega otra tecla para lo mismo y × la saca. Si la tecla nueva ya hace otra cosa en el mismo lugar, pregunta: al cambiar una tecla se intercambian, y al agregarla, la otra acción se queda sin ella. Las cambiadas llevan ✍ y "restablecer todo" vuelve a las de fábrica. Se guardan en el navegador (como los colores). Los botones muestran su atajo al pasar el mouse, con las teclas que tengas.
-- **Pedales**: un pedal para pasar páginas (los de partituras, por Bluetooth o USB) manda teclas como cualquier teclado: se le asigna lo que quieras, por ejemplo reproducir y pausar, para practicar sin sacar las manos del instrumento.
-- **MIDI**: con "usar un aparato MIDI" (el navegador pide permiso una vez) también vale pegarle a un pad, tocar una tecla o pisar un pedal de un aparato MIDI conectado al asignar un atajo: queda como "MIDI nota 36" o "MIDI control 64". Anda en Chrome y Edge; Firefox pide instalar un permiso aparte, y Safari no tiene MIDI.
+- **In the library**: `↑` and `↓` go through the songs (the current one is marked; clicking a song makes it current too), and on that song `Enter` plays it, `P` opens it in Practice, `L` opens its lyrics, `.` its "more" menu, `E` its data, `X` adds it to the selection (or drops it), `→` and `←` show or hide its stems and versions. `/` goes to the filter. Space pauses or resumes the bottom player, and Shift+`←`/`→` move it 5 seconds.
+- **In the song's data**: Enter saves, Esc closes without saving, and Ctrl+Enter ("save and next") saves and opens the data of the next song in the list, to correct a whole playlist in one go.
+- **Changing a key**: in the list, click the key and press the new one. "+" adds another key for the same thing and × removes it. If the new key already does something else in the same place, it asks: changing a key swaps the two, and adding it takes it from the other action. Changed ones carry ✍ and "reset all" goes back to the factory keys. They're saved in the browser (like the colors). Buttons show their shortcut on hover, with the keys you have.
+- **Pedals**: a page-turner pedal (the ones for sheet music, Bluetooth or USB) sends keys like any keyboard: assign it whatever you like, play and pause for example, to practice without taking your hands off the instrument.
+- **MIDI**: with "use a MIDI device" (the browser asks for permission once), hitting a pad, playing a key or pressing a pedal on a connected MIDI device also works when assigning a shortcut: it shows as "MIDI note 36" or "MIDI control 64". It works in Chrome and Edge; Firefox asks to install a separate permission, and Safari has no MIDI.
 
-#### La interfaz y la terminal
+#### The interface and the terminal
 
-Todo lo que hace la interfaz se puede hacer también desde la terminal; casi siempre es el mismo comando que la interfaz usa por detrás:
+Everything the interface does can also be done from the terminal; it's almost always the same command the interface uses behind the scenes:
 
-| En la interfaz | En la terminal |
+| In the interface | In the terminal |
 |---|---|
-| Biblioteca | `song-wizard list` (`list TEXTO` filtra, `--files` muestra los stems y versiones de cada tema) |
-| Bajar (y "en Música" para elegir la carpeta) | `song-wizard download URL` (`--wav`, `--to CARPETA`) |
-| "buscar temas nuevos" | `song-wizard archives --update N` (o `all`) |
-| Playlists bajadas: mover, olvidar | `song-wizard archives` (`--move N CARPETA`, `--delete N`) |
-| "abrir" | `song-wizard open` (la carpeta de música, o la que digas) |
-| Tonalidad, Tempo | `song-wizard key`, `song-wizard bpm` |
-| Tocar la tonalidad o el tempo para corregirlos | `song-wizard key --set Am TEMA`, `song-wizard bpm --set 120 TEMA` |
-| Separar instrumentos | `song-wizard separate --stem ...` |
-| Cambiar el tono, Cambiar la velocidad | `song-wizard transpose`, `song-wizard speed` |
-| Convertir para compartir | `song-wizard convert` |
-| Pista de click | `song-wizard click` (`--for TEMA` le pone el nombre del tema) |
-| Ajustar el click (detectar, tempo, primer golpe) | `song-wizard align` (`--bpm`, `--first`, `--meter`) |
-| "más › Datos del tema…", y "datos" en un stem o una versión | `song-wizard tag TEMA` (`--set CAMPO=VALOR`, `--unset CAMPO`, `--only`) |
-| Corregir el artista o el título en "Datos del tema…" | `song-wizard tag`, o `song-wizard rename` para ponerle cualquier nombre |
-| "más › Recortar…" | `song-wizard trim TEMA --start T --end T` (`--pad-start S`, `--pad-end S`) |
-| Borrar archivos seleccionados | `song-wizard delete` |
-| Reportar un problema | `song-wizard report` |
-| "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
-| La versión, arriba, y "actualizar a …" | `song-wizard upgrade` (`--check` solo dice si hay una nueva; `--list` (`--all` incluye las retiradas) y `--to VERSIÓN`, solo en la terminal) |
-| "setlist" de una carpeta, o "setlist con lo elegido" | `song-wizard setlist CARPETA`, o `song-wizard setlist TEMA TEMA...` (`--lyrics`, `--out ARCHIVO.html`) |
-| "más › Letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
-| "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
-| Apartado Reaper: la preferencia de las tomas, restaurarla | `song-wizard reaper --setting show` (`restore`, `apply`) |
-| Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
+| Library | `song-wizard list` (`list TEXT` filters, `--files` shows each song's stems and versions) |
+| Download (and "in Music" to pick the folder) | `song-wizard download URL` (`--wav`, `--to FOLDER`) |
+| "check for new songs" | `song-wizard archives --update N` (or `all`) |
+| Downloaded playlists: move, forget | `song-wizard archives` (`--move N FOLDER`, `--delete N`) |
+| "open" | `song-wizard open` (the music folder, or the one you name) |
+| Key, Tempo | `song-wizard key`, `song-wizard bpm` |
+| Clicking the key or tempo to correct them | `song-wizard key --set Am SONG`, `song-wizard bpm --set 120 SONG` |
+| Separate instruments | `song-wizard separate --stem ...` |
+| Change the key, Change the speed | `song-wizard transpose`, `song-wizard speed` |
+| Convert to share | `song-wizard convert` |
+| Click track | `song-wizard click` (`--for SONG` names it after the song) |
+| Adjust the click (detect, tempo, first beat) | `song-wizard align` (`--bpm`, `--first`, `--meter`) |
+| "more › Song data…", and "data" on a stem or version | `song-wizard tag SONG` (`--set FIELD=VALUE`, `--unset FIELD`, `--only`) |
+| Correcting the artist or title in "Song data…" | `song-wizard tag`, or `song-wizard rename` to give it any name |
+| "more › Trim…" | `song-wizard trim SONG --start T --end T` (`--pad-start S`, `--pad-end S`) |
+| Delete selected files | `song-wizard delete` |
+| Report a problem | `song-wizard report` |
+| "shut down" | `song-wizard ui --stop` (`--restart` closes it and opens it again) |
+| The version, at the top, and "update to …" | `song-wizard upgrade` (`--check` only tells you if there's a new one; `--list` (`--all` includes the retired ones) and `--to VERSION`, only in the terminal) |
+| A folder's "setlist", or "setlist of the picked songs" | `song-wizard setlist FOLDER`, or `song-wizard setlist SONG SONG...` (`--lyrics`, `--out FILE.html`) |
+| "more › Lyrics": find, write or paste, print | `song-wizard lyrics SONG` (`--from FILE`, `--export`); colors and notes are marked in the browser |
+| "more › Create REAPER project", "Open in REAPER", "Redo" | `song-wizard reaper SONG` (`--redo`, `--no-open`) |
+| REAPER box: the takes preference, putting it back | `song-wizard reaper --setting show` (`restore`, `apply`) |
+| Practice | It's a player, so it lives in the browser: `song-wizard ui --practice SONG` opens it straight on that song |
 
-### Bajar temas
+### Downloading songs
 
 ```bash
-song-wizard download "https://.../playlist?list=..."   # una playlist
-song-wizard download "https://.../watch?v=..."         # un tema suelto
+song-wizard download "https://.../playlist?list=..."   # a playlist
+song-wizard download "https://.../watch?v=..."         # a single song
 ```
 
-- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Artista - Título.opus`, numeradas en orden, con el artista y el título que trae el tema. En los videos que no son de un sello o de YouTube Music, el "artista" suele ser quien subió el video y el título trae agregados como "(HQ)": se ve así de entrada para corregirlo en [Datos del tema](#datos-del-tema). Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
-- Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
-- `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
-- Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
-- Para guardar una playlist nueva en otra carpeta (por ejemplo, una que se sincroniza con la nube): `--to "G:\Mi unidad\Ensayos"` (en WSL sirven las rutas de Windows). Adentro se crea la carpeta de la playlist.
-- En WSL, la unidad de Google Drive para Windows (por ejemplo `H:`) aparece después de que arranca WSL y no se conecta sola: si song-wizard dice que no ve la unidad, conectala con `sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h` (cambiando `h` por su letra). Hay que repetirlo cada vez que se reinicia WSL; para que se conecte sola, agregá la línea `H: /mnt/h drvfs defaults,nofail 0 0` a `/etc/fstab` (con `nofail`, si Drive todavía no arrancó, WSL sigue igual).
-- Una playlist que ya bajaste sigue bajándose en su carpeta, esté donde esté, aunque la hayas movido con `archives --move` (ver abajo).
-- Para cambiar la carpeta de música de todo: `music_dir` en `song-wizard config`, o `SONG_WIZARD_DIR=~/Ensayos`.
-- Para volver a bajar temas que ya están en el registro: agregá `--no-download-archive` al final. Si los archivos siguen en la carpeta, sumá también `--force-overwrites`, porque si no se saltean igual.
+- Playlists are saved in `Music/<playlist name>/001 - Artist - Title.opus`, numbered in order, with the artist and title the song comes with. For videos that aren't from a label or YouTube Music, the "artist" is often whoever uploaded the video and the title carries extras like "(HQ)": it shows that way from the start so you can correct it in [Song data](#song-data). Single songs go to `Music/Singles/`. On WSL, "Music" is the Windows Music folder.
+- If you run the same playlist again, it only downloads the new songs, numbered by their place in the playlist (and with `.wav` if you used `--wav` the first time, in the interface). In the interface it's the "check for new songs" button on the playlist's folder. Songs taken off the playlist aren't deleted from your folder.
+- `--wav` also makes a `.wav` of each song (same quality, 10 times the size).
+- For private playlists: add `--cookies-from-browser chrome` (or `firefox`, `safari`) at the end.
+- To save a new playlist in another folder (one synced to the cloud, say): `--to "G:\My Drive\Rehearsals"` (on WSL, Windows paths work). The playlist's folder is created inside.
+- On WSL, the Google Drive for Windows drive (`H:`, say) shows up after WSL starts and doesn't connect on its own: if song-wizard says it doesn't see the drive, connect it with `sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h` (changing `h` for its letter). It has to be repeated every time WSL restarts; to have it connect on its own, add the line `H: /mnt/h drvfs defaults,nofail 0 0` to `/etc/fstab` (with `nofail`, if Drive hasn't started yet, WSL goes on all the same).
+- A playlist you already downloaded keeps downloading into its folder, wherever it is, even if you moved it with `archives --move` (see below).
+- To change the music folder for everything: `music_dir` in `song-wizard config`, or `SONG_WIZARD_DIR=~/Rehearsals`.
+- To download again songs that are already in the record: add `--no-download-archive` at the end. If the files are still in the folder, also add `--force-overwrites`, or they're skipped anyway.
 
-Para ver qué playlists bajaste y cuántos temas de cada una:
+To see which playlists you downloaded and how many songs each has:
 
 ```bash
 song-wizard archives
@@ -262,398 +266,399 @@ song-wizard archives
 
 ```
    #  Playlist                 Songs  Last download
-   1  Ensayo diciembre            11  2026-10-31 18:44
+   1  December rehearsal          11  2026-10-31 18:44
    2  Singles (single links)       1  2026-10-31 18:44
 ```
 
-Para llevar una playlist a otra carpeta sin perder nada (temas, stems, resultados y su registro): `song-wizard archives --move 1 "G:\Mi unidad\Ensayos"`. Queda en `G:\Mi unidad\Ensayos\<nombre de la playlist>`, la interfaz la sigue mostrando y los temas nuevos se bajan ahí. Si ya la moviste a mano, el mismo comando solo anota dónde está ahora.
+To take a playlist to another folder without losing anything (songs, stems, results and its record): `song-wizard archives --move 1 "G:\My Drive\Rehearsals"`. It ends up in `G:\My Drive\Rehearsals\<playlist name>`, the interface keeps showing it and new songs are downloaded there. If you already moved it by hand, the same command just notes where it is now.
 
-Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo: `song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y nunca borra los temas ya bajados.
+To forget a playlist, so it's downloaded whole again next time: `song-wizard archives --delete 1` (or several numbers, or `all` for all of them). It asks for confirmation and never deletes the songs already downloaded.
 
-### Detectar la tonalidad
-
-```bash
-song-wizard key "Música/Show"          # todos los temas de la carpeta
-song-wizard key "tema.opus"
-```
-
-```
-  A    A major   relative F#m   4/4  01 - Tema uno.opus
-  Em   E minor   relative G     2/4  02 - Tema dos.opus  uncertain, also: G
-```
-
-Los resultados también quedan en `key.txt`, en la carpeta de los temas; si después analizás un solo tema, se actualiza solo su línea. En una carpeta se analizan solo los temas originales, no los stems ni las versiones generadas.
-
-`4/4` significa que los cuatro métodos de detección coinciden. Con menos, conviene confirmarlo de oído: lo más común es confundir una tonalidad con su relativa (Em y G usan las mismas notas), por eso siempre se muestra. Detecta la tonalidad predominante; si el tema modula, no lo indica.
-
-### Detectar el tempo
+### Detecting the key
 
 ```bash
-song-wizard bpm "Música/Show"
-song-wizard bpm "tema.opus"
+song-wizard key "Music/Show"          # every song in the folder
+song-wizard key "song.opus"
 ```
 
 ```
-   103.1 BPM  01 - Tema uno.opus  steady
-   123.1 BPM  02 - Tema dos.opus  varies 121-125, probably played without a click
-   178.2 BPM  03 - Tema tres.opus  uncertain, check by ear (could be 89.1)
+  A    A major   relative F#m   4/4  01 - Song one.opus
+  Em   E minor   relative G     2/4  02 - Song two.opus  uncertain, also: G
 ```
 
-Los resultados también quedan en `bpm.txt`, en la carpeta de los temas, igual que con `key`.
+The results are also kept in `key.txt`, in the songs' folder; if you later analyze a single song, only its line is updated. In a folder only the original songs are analyzed, not the stems or the versions made from them.
 
-- `steady`: el tempo se mantiene fijo, como cuando se graba con click.
-- `varies`: el tempo cambia a lo largo del tema (muchos temas de los 80 y 90 se grabaron sin click). Se muestra el rango en el que se mueve; un click fijo se va a ir desfasando.
-- `uncertain`: la detección no es confiable. Lo más común es que el detector marque el doble o la mitad del tempo real, por eso se sugiere la alternativa.
+`4/4` means the four detection methods agree. With fewer, it's worth confirming by ear: the most common mix-up is a key with its relative (Em and G use the same notes), which is why it's always shown. It detects the main key; if the song modulates, it doesn't say.
 
-### Corregir la tonalidad o el tempo a mano
-
-Si la detección se equivocó (o ya sabés cómo es el tema), lo escribís vos y queda en lugar de lo detectado. En la interfaz, tocando la tonalidad o el tempo del tema (si todavía no se analizó, aparecen "tono?" y "BPM?" al pasar el mouse); en la terminal:
+### Detecting the tempo
 
 ```bash
-song-wizard key --set Am "tema.opus"
-song-wizard key --set "Sib mayor" "tema.opus"   # también en español: La menor, Fa#m, Do
-song-wizard bpm --set 98.5 "tema.opus"
+song-wizard bpm "Music/Show"
+song-wizard bpm "song.opus"
 ```
 
-Queda marcado "set by hand" en `key.txt` / `bpm.txt` (✍ en la interfaz), y volver a analizar la carpeta no lo pisa. Para detectarlo de nuevo desde el audio: `--force`, o "detectar" en la interfaz. Si el tema tiene el click de práctica ajustado a otro tempo, avisa para que lo corrijas en [Practicar](#practicar).
+```
+   103.1 BPM  01 - Song one.opus  steady
+   123.1 BPM  02 - Song two.opus  varies 121-125, probably played without a click
+   178.2 BPM  03 - Song three.opus  uncertain, check by ear (could be 89.1)
+```
 
-### Pista de click
+The results are also kept in `bpm.txt`, in the songs' folder, as with `key`.
 
-Genera un click fijo, con el primer tiempo de cada compás acentuado:
+- `steady`: the tempo stays fixed, as when recorded with a click.
+- `varies`: the tempo changes along the song (many songs from the 80s and 90s were recorded without a click). The range it moves in is shown; a steady click will drift away from it.
+- `uncertain`: the detection isn't reliable. Most often the detector gives double or half the real tempo, which is why the alternative is suggested.
+
+### Fixing the key or tempo by hand
+
+If the detection got it wrong (or you already know the song), you type it in and it's used instead of what was detected. In the interface, by clicking the song's key or tempo (if it wasn't analyzed yet, "key?" and "BPM?" show on hover); in the terminal:
 
 ```bash
-song-wizard click 120                            # 120 BPM, 4/4, 1 minuto
-song-wizard click 96 --meter 3/4 --bars 32       # 32 compases de 3/4
-song-wizard click 123 --duration 4:30            # 4 minutos y medio
-song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema, y con su nombre
-song-wizard click 92 --bars 8 --for "tema.opus"  # con el nombre del tema, pero de 8 compases
-song-wizard click 90 --subdivide 2               # con corcheas
+song-wizard key --set Am "song.opus"
+song-wizard key --set "Sib mayor" "song.opus"   # Spanish works too: La menor, Fa#m, Do
+song-wizard bpm --set 98.5 "song.opus"
 ```
 
-- Genera `Click 120 BPM 4-4.wav` en la carpeta donde lo corrés; `-o` elige otro archivo o carpeta.
-- Con `--like` o `--for`, el click lleva el nombre del tema y queda a su lado: `tema (click 105.6 BPM 4-4).wav`. Así la interfaz lo muestra con los archivos del tema, y `rename` lo renombra junto con el resto. En la interfaz pasa lo mismo cuando hay un solo tema (o un archivo de un tema) elegido.
-- Acepta tempos con decimales, así podés usar el número exacto que da `song-wizard bpm`.
-- La duración se redondea hacia arriba a compases completos. Sin `--duration`, `--bars` ni `--like`, dura un minuto.
-- `--subdivide` agrega clicks más suaves entre tiempo y tiempo: `2` = corcheas, `3` = tresillos, `4` = semicorcheas.
-- El compás: el número de arriba es la cantidad de clicks por compás (`4/4` = 4, `3/4` = 3, `6/8` = 6).
-- Es un click de tempo fijo: sirve para ensayar sin la grabación o a otro tempo. Si el tema original se grabó sin click (`bpm` dice `varies`), un click fijo se va a ir desfasando de la grabación.
-- Para mandarlo por WhatsApp: `song-wizard convert "Click 120 BPM 4-4.wav"`.
+It's marked "set by hand" in `key.txt` / `bpm.txt` (✍ in the interface), and analyzing the folder again doesn't overwrite it. To detect it again from the audio: `--force`, or "detect" in the interface. If the song has its practice click set to another tempo, it tells you so you can fix it in [Practice](#practice).
 
-### Tempo y primer golpe para el click
+### Click track
+
+Makes a steady click, with the first beat of each bar accented:
 
 ```bash
-song-wizard align "tema.opus"                        # lo detecta
-song-wizard align --bpm 103.06 --first 1.554 "tema.opus"   # a mano
-song-wizard align "Música/Show"                     # todos los temas de la carpeta
+song-wizard click 120                            # 120 BPM, 4/4, 1 minute
+song-wizard click 96 --meter 3/4 --bars 32       # 32 bars of 3/4
+song-wizard click 123 --duration 4:30            # four and a half minutes
+song-wizard click 105.6 --like "song.opus"       # as long as a song, and named after it
+song-wizard click 92 --bars 8 --for "song.opus"  # named after the song, but 8 bars long
+song-wizard click 90 --subdivide 2               # with eighth notes
 ```
 
-Busca el tempo exacto (con decimales) y dónde cae el primer golpe, y lo guarda en `click.txt`, que el click del reproductor de práctica usa para acompañar al tema. `--meter` cambia el compás (4/4 si no se dice). Como cualquier detector de tempo, puede dar la mitad o el doble del real: se corrige con `--bpm` o con ÷2 y ×2 en la interfaz. Si el tempo del tema varía (grabado sin click), lo avisa: un click fijo se va a ir desfasando.
+- It makes `Click 120 BPM 4-4.wav` in the folder you run it from; `-o` picks another file or folder.
+- With `--like` or `--for`, the click carries the song's name and sits next to it: `song (click 105.6 BPM 4-4).wav`. That way the interface shows it with the song's files, and `rename` renames it along with the rest. The interface does the same when a single song (or a file of one song) is picked.
+- It takes tempos with decimals, so you can use the exact number `song-wizard bpm` gives.
+- The length is rounded up to whole bars. Without `--duration`, `--bars` or `--like`, it lasts a minute.
+- `--subdivide` adds softer clicks between beats: `2` = eighth notes, `3` = triplets, `4` = sixteenth notes.
+- The meter: the top number is how many clicks per bar (`4/4` = 4, `3/4` = 3, `6/8` = 6).
+- It's a steady-tempo click: it's for rehearsing without the recording or at another tempo. If the original song was recorded without a click (`bpm` says `varies`), a steady click will drift away from the recording.
+- To send it over WhatsApp: `song-wizard convert "Click 120 BPM 4-4.wav"`.
 
-### Cambiar el tono
+### Tempo and first beat for the click
 
 ```bash
-song-wizard transpose +2 "tema.opus"      # un tono arriba
-song-wizard transpose -1 "tema.opus"      # medio tono abajo
-song-wizard transpose -1 "Música/Show"    # todos los temas de la carpeta
+song-wizard align "song.opus"                              # detects them
+song-wizard align --bpm 103.06 --first 1.554 "song.opus"   # by hand
+song-wizard align "Music/Show"                             # every song in the folder
 ```
 
-El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `Título (+2).wav` al lado del original sin tocarlo. El tempo y la duración no cambian, así que sigue alineado con el click.
+Finds the exact tempo (with decimals) and where the first beat falls, and saves them in `click.txt`, which the practice player's click uses to follow the song. `--meter` changes the meter (4/4 if not given). Like any tempo detector, it can give half or double the real one: fix it with `--bpm` or with ÷2 and ×2 in the interface. If the song's tempo varies (recorded without a click), it says so: a steady click will drift away.
 
-### Cambiar la velocidad
+### Changing the key
 
 ```bash
-song-wizard speed 80 "tema.opus"                   # al 80 %: más lento, mismo tono
-song-wizard speed 70 "tema (no guitar).wav"        # el tema sin tu instrumento, más lento
-song-wizard speed 90 --semitones -2 "tema.opus"    # más lento y un tono abajo, en un solo paso
+song-wizard transpose +2 "song.opus"      # a whole step up
+song-wizard transpose -1 "song.opus"      # a half step down
+song-wizard transpose -1 "Music/Show"     # every song in the folder
 ```
 
-El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `Título (80%).wav` (o `Título (90%, -2).wav`) al lado del original sin tocarlo.
+The number is in semitones: `+1` = a half step, `+2` = a whole step. It takes decimals (`-0.5`) in case a song is out of tune with A 440. It makes `Title (+2).wav` next to the original without touching it. The tempo and length don't change, so it stays lined up with the click.
 
-Sirve para sacar un tema de a poco: practicarlo al 70 %, después al 85 % y al final a velocidad normal. Para practicar con click, generá el click al tempo nuevo: si el tema va a 120 BPM, al 80 % va a 96. Cuanto más lento, más se nota que el audio está estirado, sobre todo en la batería.
-
-### Separar instrumentos
-
-Cada uno pide su instrumento y recibe dos archivos: **el instrumento solo** y **el resto del tema sin ese instrumento**.
+### Changing the speed
 
 ```bash
-song-wizard separate --stem vocals "tema.opus"    # cantante
-song-wizard separate --stem drums  "tema.opus"    # batería
-song-wizard separate --stem bass   "tema.opus"    # bajo
-song-wizard separate --stem guitar "tema.opus"    # guitarra
-song-wizard separate --stem piano  "tema.opus"    # piano
-song-wizard separate --stem drumkit "tema.opus"   # la batería en partes
+song-wizard speed 80 "song.opus"                   # at 80 %: slower, same pitch
+song-wizard speed 70 "song (no guitar).wav"        # the song without your instrument, slower
+song-wizard speed 90 --semitones -2 "song.opus"    # slower and a whole step down, in one go
 ```
 
-Genera, por ejemplo, `Título (drums).wav` y `Título (no drums).wav` al lado del original. Se pueden pedir varios a la vez y procesar una carpeta entera:
+The number is the percentage of the original speed, from 25 to 200: under 100 is slower, over 100 faster. The pitch doesn't change, unless you add `--semitones` (as in `transpose`). It makes `Title (80%).wav` (or `Title (90%, -2).wav`) next to the original without touching it.
+
+It's for learning a song bit by bit: practice it at 70 %, then at 85 % and finally at full speed. To practice with a click, make the click at the new tempo: if the song is at 120 BPM, at 80 % it's 96. The slower, the more you hear that the audio is stretched, especially the drums.
+
+### Separating instruments
+
+Each person asks for their instrument and gets two files: **the instrument alone** and **the rest of the song without that instrument**.
 
 ```bash
-song-wizard separate --stem drums --stem bass "Música/Show"
+song-wizard separate --stem vocals "song.opus"    # singer
+song-wizard separate --stem drums  "song.opus"    # drums
+song-wizard separate --stem bass   "song.opus"    # bass
+song-wizard separate --stem guitar "song.opus"    # guitar
+song-wizard separate --stem piano  "song.opus"    # piano
+song-wizard separate --stem drumkit "song.opus"   # the drum kit in pieces
 ```
 
-Para tener **todos los stems** (por ejemplo, para mezclar en REAPER):
+It makes, for example, `Title (drums).wav` and `Title (no drums).wav` next to the original. Several can be asked for at once, and a whole folder processed:
 
 ```bash
-song-wizard separate --stem all "tema.opus"
+song-wizard separate --stem drums --stem bass "Music/Show"
 ```
 
-Genera `Título (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` y `(other)`, donde "other" es todo lo demás: teclados, sintes, coros, efectos. Los cinco suman exactamente el tema original: con todos los faders a 0 dB suena igual que la grabación. No genera los "no X", porque se arman silenciando una pista. Como los stems salen de modelos distintos, "other" puede tener algún resto de los otros instrumentos.
+To get **every stem** (to mix in REAPER, say):
 
-- Cada instrumento se separa con el modelo que mejor lo hace: Mel-Band Roformer para la voz, Demucs `htdemucs_ft` para batería y bajo, y BS-Roformer SW (de 6 instrumentos) para la guitarra y el piano, que salen juntos de una sola pasada si se piden los dos.
-- Instrumento + resto suman **exactamente** el tema original, y todo queda alineado.
-- **El piano** es para temas con piano de verdad (acústico o eléctrico): los sintetizadores quedan en el resto, y en algunos temas se lleva otra cosa (por ejemplo, vientos). Por eso no entra en "Todos": se pide aparte (`--stem all --stem piano` da los dos).
-- La primera vez descarga los modelos: unos 2 GB para los cuatro instrumentos (el de voz pesa 870 MB y el de guitarra y piano, 670 MB; el piano no suma nada), y 420 MB más para la batería en partes.
-- La guitarra es la separación menos precisa: puede mezclarse algo de teclados o de otras guitarras. Hasta la 0.11 se separaba con Demucs `htdemucs_6s`, que además tomaba vientos y piano; los temas separados antes conservan esa guitarra hasta que se vuelva a separar.
-- **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `Título (kick).wav`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, más `(drums rest)`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
-- Se probaron también un modelo abierto de vientos (UVR `17_HP-Wind_Inst`) y el piano en temas sin piano: separan, pero no tan bien como el resto, así que por ahora no están.
+```bash
+song-wizard separate --stem all "song.opus"
+```
 
-#### ¿Dónde corre la separación?
+It makes `Title (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` and `(other)`, where "other" is everything else: keyboards, synths, backing vocals, effects. The five add up exactly to the original song: with every fader at 0 dB it sounds the same as the recording. It doesn't make the "no X" files, because they're made by muting a track. Since the stems come from different models, "other" may hold some leftovers of the other instruments.
 
-Separar es lo único pesado. song-wizard elige solo dónde correrlo, y anda en cualquier computadora; lo que cambia es cuánto tarda:
+- Each instrument is separated with the model that does it best: Mel-Band Roformer for vocals, Demucs `htdemucs_ft` for drums and bass, and BS-Roformer SW (6 instruments) for guitar and piano, which come out together from a single pass if both are asked for.
+- Instrument + rest add up **exactly** to the original song, and everything stays lined up.
+- **Piano** is for songs with a real piano (acoustic or electric): synths stay in the rest, and in some songs it takes something else (horns, for example). That's why it isn't in "All": it's asked for separately (`--stem all --stem piano` gives both).
+- The first time it downloads the models: about 2 GB for the four instruments (the vocals one is 870 MB and the guitar and piano one, 670 MB; piano adds nothing), and 420 MB more for the drum kit.
+- Guitar is the least precise separation: some keyboards or other guitars may get mixed in. Up to 0.11 it was separated with Demucs `htdemucs_6s`, which also took horns and piano; songs separated back then keep that guitar until they're separated again.
+- **The drum kit** (`--stem drumkit`, or "Drum kit" in the interface) splits the drums into kick, snare, toms, hi-hat, ride and crash, with MDX23C DrumSep: `Title (kick).wav`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, plus `(drums rest)`, what's left of the drums, so everything adds up to the exact drums. It works on the drums already separated, so if the song doesn't have them, it separates them first. In "practice" it shows as "Drum kit": each piece with its volume, along with the other instruments (or with the song without drums). The model is 438 MB and takes about a minute per song.
+- An open horns model (UVR `17_HP-Wind_Inst`) and piano on songs without piano were tried too: they separate, but not as well as the rest, so they're not in for now.
 
-| Tu computadora | Dónde corre | Un tema de 5 minutos, por instrumento |
+#### Where does separation run?
+
+Separating is the only heavy part. song-wizard picks where to run it on its own, and it works on any computer; what changes is how long it takes:
+
+| Your computer | Where it runs | A 5-minute song, per instrument |
 |---|---|---|
-| NVIDIA serie GTX 16, RTX 20 o más nueva | Placa de video | menos de 1 minuto (medido con una RTX 4060) |
-| Mac con chip M | Placa de video de Apple | rápido; varía según el modelo de Mac |
-| NVIDIA GTX 10 o más vieja, AMD, Intel o sin placa | Procesador | unos 10 minutos (medido con un Ryzen 5 de 6 núcleos) |
+| NVIDIA GTX 16 series, RTX 20 or newer | Graphics card | under 1 minute (measured with an RTX 4060) |
+| Mac with an M chip | Apple's graphics | fast; it depends on the Mac model |
+| NVIDIA GTX 10 or older, AMD, Intel or no card | Processor | about 10 minutes (measured with a 6-core Ryzen 5) |
 
-- Si la placa no tiene memoria suficiente, song-wizard avisa y sigue con el procesador.
-- Si la placa es NVIDIA pero no se usa, suele alcanzar con actualizar el driver de NVIDIA.
-- `--cpu` fuerza el procesador, por si la placa da algún problema.
-- `song-wizard setup` muestra dónde va a correr en tu computadora.
-- Pedir batería y bajo juntos cuesta lo mismo que pedir uno solo: salen del mismo modelo.
+- If the card doesn't have enough memory, song-wizard says so and goes on with the processor.
+- If the card is NVIDIA but isn't used, updating the NVIDIA driver is usually enough.
+- `--cpu` forces the processor, in case the card gives trouble.
+- `song-wizard setup` shows where it will run on your computer.
+- Asking for drums and bass together costs the same as asking for one: they come from the same model.
 
-Los archivos son WAV de 32 bits float a 44.1 kHz: no se recortan los picos y REAPER, Ableton, Logic o cualquier DAW los abre directo.
+The files are 32-bit float WAVs at 44.1 kHz: peaks aren't clipped and REAPER, Ableton, Logic or any DAW opens them directly.
 
-### Convertir para compartir (WhatsApp, mail…)
+### Converting to share (WhatsApp, email…)
 
-Los WAV de 32 bits que genera song-wizard son ideales para trabajar, pero pesan mucho (unos 20 MB por minuto). Para mandarlos por WhatsApp:
-
-```bash
-song-wizard convert "tema (no drums).wav"         # un archivo
-song-wizard convert "Música/Show"                 # todos los WAV de la carpeta
-song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
-```
-
-- Genera `Título.mp3` al lado del original: MP3 a ~190 kbps, que cualquier teléfono reproduce. Un tema de 5 minutos queda en unos 7 MB. M4A ocupa lo mismo y suena apenas mejor; MP3 es el más compatible.
-- Con una carpeta convierte solo los archivos sin pérdida (WAV, FLAC, AIFF), para no recomprimir los `.opus` bajados. Si nombrás un archivo, convierte cualquier formato.
-- Si el archivo tiene picos por encima de 0 dB (pasa con los stems), baja el volumen lo justo para que no se recorten, y avisa cuánto.
-- No pisa archivos que ya existen; `--overwrite` los reemplaza.
-- Para trabajar en un DAW seguí usando los WAV: el MP3 pierde algo de calidad y agrega unos milisegundos de silencio al principio, así que no queda perfectamente alineado con el click ni con los otros stems.
-
-### Datos del tema
+The 32-bit WAVs song-wizard makes are ideal to work with, but they're big (about 20 MB a minute). To send them over WhatsApp:
 
 ```bash
-song-wizard tag "001 - Banda - Tema.opus"                                  # muestra todos sus datos
-song-wizard tag "001 - Banda - Tema.opus" --set "artist=Banda" --set "album=En vivo" --unset genre
-song-wizard tag "001 - Banda - Tema (80%).mp3" --set "comment=la del show" --only
+song-wizard convert "song (no drums).wav"         # one file
+song-wizard convert "Music/Show"                  # every WAV in the folder
+song-wizard convert --format m4a "song.wav"       # M4A (AAC) instead of MP3
 ```
 
-Los datos son los que guarda el archivo y muestran los reproductores (el celular, WhatsApp, Reaper): título, artista, álbum, año, género y cualquier otro, con el nombre que quieras. Se cambian en el tema y en todo lo que se generó a partir de él (el `.wav` o `.mp3`, los stems, las versiones), todos o ninguno; las tomas grabadas en Reaper quedan como están. El audio no se toca. Con `--only`, cambia solo ese archivo: por ejemplo, una nota sobre una versión.
+- It makes `Title.mp3` next to the original: MP3 at ~190 kbps, which any phone plays. A 5-minute song ends up at about 7 MB. M4A takes the same space and sounds slightly better; MP3 is the most compatible.
+- On a folder it only converts lossless files (WAV, FLAC, AIFF), so as not to re-encode the downloaded `.opus` files. If you name a file, it converts any format.
+- If the file has peaks over 0 dB (stems do), it turns the volume down just enough so they don't clip, and tells you how much.
+- It doesn't overwrite existing files; `--overwrite` replaces them.
+- To work in a DAW keep using the WAVs: MP3 loses some quality and adds a few milliseconds of silence at the start, so it doesn't stay perfectly lined up with the click or the other stems.
 
-Si cambia el artista o el título, el tema y todo lo suyo pasan a llamarse `001 - Artista - Título` (como `rename`, con la letra, el proyecto de Reaper y los resultados). Los caracteres que Windows no acepta en un nombre de archivo se reemplazan por otros parecidos (`:` por `：`); en los datos quedan como los escribiste.
-
-En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene el archivo, también lo que trajo la descarga (la descripción del video, la fecha en que se subió), sin filtrar nada. Los cambiados se marcan, × saca un dato y "agregar un dato" suma uno conocido (compositor, comentario, número de pista…) u otro con el nombre que quieras. Abajo avisa si el tema va a cambiar de nombre. "guardar y seguir" (Ctrl+Enter) pasa al tema siguiente. En un stem o una versión, "datos" cambia solo ese archivo.
-
-- Un dato con nombre propio, en un `.opus` (o `.ogg`, `.flac`), no puede llevar tildes ni eñes en el nombre (el valor sí): `Ano` en vez de `Año`.
-- Lo que song-wizard genera después (stems, versiones con otro tono o velocidad, el click del tema, los MP3) sale con los datos del tema, así que un archivo suelto (en un pendrive, en WhatsApp) sigue diciendo de dónde viene.
-- Cada archivo que song-wizard baja, genera, convierte o recorta lleva su marca en `encoded_by` ("Hecho con"): `song-wizard 0.23.0`, la versión que lo hizo. Guardar los datos no la cambia (un archivo que no tenía, la recibe); no se edita.
-- El link de la descarga (`purl`) se muestra pero no se cambia: `delete` lo usa para saber de qué descarga vino el tema.
-- En los `.wav`, los datos van en la lista propia del WAV (título, artista, álbum, año, género, comentario) y todos, también los propios, en una parte ID3 adentro del archivo, que leen ffmpeg y la mayoría de los reproductores. El Explorador de Windows no muestra datos de ningún WAV (los `.opus` sí).
-- El setlist, la búsqueda de la letra y la biblioteca toman el título y el artista de los datos; un tema sin datos, del nombre del archivo.
-
-### Renombrar un tema
+### Song data
 
 ```bash
-song-wizard rename "001 - Tema (Official Video).opus" "Tema"
+song-wizard tag "001 - Band - Song.opus"                                  # shows all its data
+song-wizard tag "001 - Band - Song.opus" --set "artist=Band" --set "album=Live" --unset genre
+song-wizard tag "001 - Band - Song (80%).mp3" --set "comment=the show's one" --only
 ```
 
-Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav` o el `.mp3`, los stems, las versiones transpuestas o con otra velocidad, las tomas grabadas en Reaper, la letra, el proyecto de Reaper (y los nombres de archivo que tiene adentro, para que siga abriendo), y sus líneas en `key.txt` y `bpm.txt`. Queda `001 - Tema.opus`, `001 - Tema (drums).wav`, etc. Se puede pasar cualquier archivo del tema, no solo el original.
+The data is what the file keeps and music players show (your phone, WhatsApp, REAPER): title, artist, album, year, genre and any other, under whatever name you like. It's changed in the song and everything made from it (the `.wav` or `.mp3`, the stems, the versions), all of them or none; takes recorded in REAPER are left as they are. The audio isn't touched. With `--only`, only that file changes: a note on one version, say.
 
-La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
+If the artist or title changes, the song and all of its files become `001 - Artist - Title` (like `rename`, with the lyrics, the REAPER project and the results). Characters Windows doesn't allow in a file name are replaced by look-alikes (`:` by `：`); in the data they stay as you typed them.
 
-Bajar de nuevo la playlist no vuelve a bajar el tema renombrado: el registro de descargas guarda qué link se bajó, no el nombre del archivo.
+In the interface, "more › Song data…" (or `E`) shows everything the file has, including what the download brought (the video's description, the date it was uploaded), without filtering anything. Changed fields are marked, × removes a field and "add a field" adds a known one (composer, comment, track number…) or another with any name you like. At the bottom it tells you if the song is going to be renamed. "save and next" (Ctrl+Enter) goes on to the next song. On a stem or a version, "data" changes only that file.
 
-En la interfaz no hay "renombrar": el nombre sigue al artista y al título, que se corrigen en [Datos del tema](#datos-del-tema). `rename` queda en la terminal para ponerle a un tema cualquier otro nombre.
+- A field with your own name, in an `.opus` (or `.ogg`, `.flac`), can't have accents or other special letters in its name (its value can): `Ano` instead of `Año`.
+- What song-wizard makes later (stems, versions at another key or speed, the song's click, MP3s) comes out with the song's data, so a loose file (on a USB stick, in WhatsApp) still tells where it comes from.
+- Every file song-wizard downloads, makes, converts or trims carries its mark in `encoded_by` ("Made with"): `song-wizard 0.23.0`, the version that made it. Saving the data doesn't change it (a file without one gets it); it isn't edited.
+- The download's link (`purl`) is shown but not changed: `delete` uses it to know which download the song came from.
+- In `.wav` files, the data goes in the WAV's own list (title, artist, album, year, genre, comment) and all of it, your own fields too, in an ID3 part inside the file, which ffmpeg and most players read. Windows' File Explorer shows no data for any WAV (it does for `.opus`).
+- The setlist, the lyrics search and the library take the title and artist from the data; a song without data, from its file name.
 
-### Recortar un tema
+### Renaming a song
 
 ```bash
-song-wizard trim "001 - Tema.opus" --start 0:12.5 --end 3:58   # se queda con 0:12.5 a 3:58
-song-wizard trim "001 - Tema.opus" --start 8                    # corta los primeros 8 segundos
-song-wizard trim "001 - Tema.opus" --pad-start 2 --pad-end 1    # agrega 2 s de silencio adelante y 1 s atrás
+song-wizard rename "001 - Song (Official Video).opus" "Song"
 ```
 
-Corta el principio o el final del tema (la intro o los créditos de un video), o le agrega silencio adelante o atrás. Los tiempos van en segundos (`12.5`) o en minutos y segundos (`0:12.5`); el silencio, en segundos, con decimales.
+Renames the song and everything made from it: the `.wav` or `.mp3`, the stems, the versions transposed or at another speed, the takes recorded in REAPER, the lyrics, the REAPER project (and the file names inside it, so it keeps opening), and its lines in `key.txt` and `bpm.txt`. It ends up `001 - Song.opus`, `001 - Song (drums).wav`, etc. Any file of the song can be given, not only the original.
 
-Se hace sobre el tema y todo lo generado a partir de él a la vez, para que sigan alineados: sus otros formatos, los stems, las versiones transpuestas y los clicks, con el mismo corte; y las versiones a otra velocidad, con el corte en proporción (a 80 %, 10 s del tema son 12.5 s). El primer golpe del click de práctica y los tiempos de la letra se corren lo mismo, así que "practicar" sigue sincronizado. Las tomas grabadas en Reaper quedan como están, porque van alineadas al proyecto de Reaper; ese proyecto queda corrido, así que conviene rehacerlo (`reaper --redo`).
+The numbering (`001 - `) is kept, unless the new name brings its own (`"005 - Song"`). If any of the new names already exists, nothing is renamed. It doesn't take the characters Windows doesn't allow in file names (`\ / : * ? " < > |`) either.
 
-El corte es exacto a la muestra, para que el tema y sus stems sigan alineados; los archivos comprimidos (como el `.opus`) se vuelven a codificar a una calidad alta, porque cortarlos sin hacerlo redondea a unos 20 ms. Primero escribe todos los archivos nuevos y solo si salen todos bien reemplaza los de antes, que van a la papelera. Pregunta antes, salvo con `--yes`.
+Downloading the playlist again doesn't download the renamed song again: the download record keeps which link was downloaded, not the file name.
 
-En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos manijas para arrastrar, y lo que queda marcado. La rueda del mouse acerca y aleja (con Shift se mueve a los costados), y debajo hay una barra con el tema entero, donde lo que queda está marcado y un recuadro muestra el tramo que se ve arriba: se arrastra para moverse, un clic salta a otra parte y la rueda sobre la barra mueve a los costados. "ver el inicio" y "ver el fin" acercan alrededor de cada manija, y "▶ desde acá" y "▶ hasta acá" escuchan 5 segundos desde el inicio elegido o hasta el fin, para ajustar de oído. También se pueden escribir los tiempos exactos y el silencio.
+The interface has no "rename": the name follows the artist and title, which are corrected in [Song data](#song-data). `rename` stays in the terminal to give a song any other name.
 
-### Borrar
+### Trimming a song
 
 ```bash
-song-wizard delete "001 - Tema.opus"              # el tema con todo lo suyo
-song-wizard delete "001 - Tema (drums).wav"       # solo ese stem
-song-wizard delete --file "001 - Tema.mp3"        # solo esa copia
+song-wizard trim "001 - Song.opus" --start 0:12.5 --end 3:58   # keeps 0:12.5 to 3:58
+song-wizard trim "001 - Song.opus" --start 8                    # cuts the first 8 seconds
+song-wizard trim "001 - Song.opus" --pad-start 2 --pad-end 1    # adds 2 s of silence before and 1 s after
 ```
 
-Todo va a la papelera del sistema (en WSL, a la Papelera de reciclaje de Windows si el archivo está en un disco de Windows), así que se puede recuperar. Si algo no se puede mandar a la papelera, se detiene y no borra nada más.
+Cuts the start or end of the song (a video's intro or credits), or adds silence before or after it. Times go in seconds (`12.5`) or in minutes and seconds (`0:12.5`); the silence, in seconds, with decimals.
 
-- Un tema se va con todo lo que se generó a partir de él (sus otros formatos, stems, versiones y clicks) y con sus líneas en `key.txt`, `bpm.txt` y `click.txt`.
-- Si era de una playlist, sale también de su registro: "buscar temas nuevos" (o volver a correr `download`) lo vuelve a bajar.
-- Un stem, una versión o un click se van solos; `--file` borra solo ese archivo aunque sea una copia del tema, como el `.mp3`.
-- Pide confirmación antes de borrar; `--yes` no pregunta.
+It's done on the song and everything made from it at once, so they stay lined up: its other formats, the stems, the transposed versions and the clicks, with the same cut; and the versions at another speed, with the cut in proportion (at 80 %, 10 s of the song are 12.5 s). The practice click's first beat and the lyrics' times move the same, so "practice" stays in sync. Takes recorded in REAPER are left as they are, because they're lined up to the REAPER project; that project is now out of step, so it's best to redo it (`reaper --redo`).
 
-### Letras
+The cut is sample-exact, so the song and its stems stay lined up; compressed files (like the `.opus`) are encoded again at a high quality, because cutting them without doing so rounds to about 20 ms. It first writes all the new files and only if they all come out right does it replace the old ones, which go to the trash. It asks first, unless with `--yes`.
+
+In the interface, "more › Trim…" shows the song's waveform with two handles to drag, and what stays marked. The mouse wheel zooms in and out (with Shift it moves sideways), and below there's a bar with the whole song, where what stays is marked and a box shows the stretch in view above: drag it to move, a click jumps elsewhere and the wheel on the bar moves sideways. "show the start" and "show the end" zoom around each handle, and "▶ from here" and "▶ up to here" play 5 seconds from the chosen start or up to the end, to adjust by ear. The exact times and the silence can also be typed.
+
+### Deleting
 
 ```bash
-song-wizard lyrics "Música/Show"          # busca la letra de cada tema
-song-wizard lyrics --from letra.txt "tema.opus"   # o la toma de un archivo
-song-wizard lyrics --export "tema.opus"   # la guarda lista para imprimir
+song-wizard delete "001 - Song.opus"              # the song with everything that's its
+song-wizard delete "001 - Song (drums).wav"       # only that stem
+song-wizard delete --file "001 - Song.mp3"        # only that copy
 ```
 
-Busca la letra de cada tema en una base de letras abierta, por su artista y título (de [sus datos](#datos-del-tema), o si no tiene, del nombre del archivo "Artista - Tema") y su duración, y la guarda al lado del tema como `Tema.lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `rename` la renombra y `delete` la borra con él.
+Everything goes to the system's trash (on WSL, to the Windows Recycle Bin if the file is on a Windows drive), so it can be recovered. If something can't be sent to the trash, it stops and deletes nothing else.
 
-En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
+- A song goes with everything made from it (its other formats, stems, versions and clicks) and with its lines in `key.txt`, `bpm.txt` and `click.txt`.
+- If it was from a playlist, it also leaves its record: "check for new songs" (or running `download` again) downloads it again.
+- A stem, a version or a click goes alone; `--file` deletes only that file even if it's a copy of the song, like the `.mp3`.
+- It asks for confirmation before deleting; `--yes` doesn't ask.
 
-- **Marcadores**: como un resaltador de PDF. Elegís un color (o las teclas 1 a 5, que se pueden cambiar en [Atajos de teclado](#atajos-de-teclado)) y el cursor pasa a ser un marcador de ese color: arrastrás sobre la letra y queda pintada al soltar, o hacés clic en una palabra. Toma palabras enteras. Al lado de cada color escribís qué significa (por ejemplo, quién canta cada parte, o los coros), y eso aparece como leyenda.
-- **Goma** (G): arrastrando saca el color, y con un clic borra toda la marca que tocás.
-- **Nota** (N): clic en una línea para escribirle un comentario ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
-- Esc suelta la herramienta y Ctrl+Z (o "deshacer") vuelve atrás.
-- **Escribir o pegar**: para corregir la letra o cargarla a mano. Las líneas que no cambies conservan sus colores y notas.
-- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`.
-
-Todo se guarda solo. Buscar la letra de nuevo la reemplaza y se pierden los colores y las notas (la leyenda queda), por eso pregunta antes.
-
-### Reaper
+### Lyrics
 
 ```bash
-song-wizard reaper "001 - Tema.opus"          # lo abre en Reaper, y si no existe lo crea antes
-song-wizard reaper --redo "001 - Tema.opus"   # arma uno nuevo (el anterior va a la papelera)
-song-wizard reaper --setting show             # qué cambió song-wizard en Reaper (restore lo vuelve atrás)
+song-wizard lyrics "Music/Show"                    # finds each song's lyrics
+song-wizard lyrics --from lyrics.txt "song.opus"   # or takes them from a file
+song-wizard lyrics --export "song.opus"            # saves them ready to print
 ```
 
-Abre el proyecto de Reaper del tema, `Tema.rpp`, que queda al lado del tema. Si no existe, primero lo arma con lo que haya en ese momento:
+Looks up each song's lyrics in an open lyrics database, by its artist and title (from [its data](#song-data), or if it has none, from the file name "Artist - Song") and its length, and saves them next to the song as `Song.lyrics.json`. If they're not found, they can be typed or pasted by hand. They go with the song: `rename` renames them and `delete` deletes them with it.
 
-- **Una pista por stem**, con el nombre del instrumento: los mismos con los que arranca el reproductor de práctica (todos los instrumentos, o el instrumento separado y el resto). Los demás stems y el tema original quedan como pistas silenciadas, para cambiar de una a otra. Si el tema no está separado, va el tema solo. Todas a 0 dB.
-- **El tempo y el compás** del click ajustado en "practicar" (o `align`), con decimales, y el audio corrido para que el primer golpe del tema caiga justo en un compás, con un compás de cuenta antes. Si el click no está ajustado, usa el tempo de `bpm.txt` sin alinear (o 120 BPM si no hay), y lo avisa. Si no cae exacto, se corrige en Reaper.
-- **Pista "Click"** con el click de Reaper, que sigue el tempo del proyecto: si corregís el tempo en Reaper, el click lo sigue.
-- **Pista "Grabación"** lista para grabar (con Ctrl+R) desde las entradas 1 y 2, con el monitoreo (escuchar lo que entra) apagado; se prende en la pista si lo querés.
-- Los archivos van con su nombre, sin copiarlos: el proyecto sigue andando si movés la carpeta, también en Drive.
+In the interface, "more › Lyrics" ("Lyrics ✓" if the song already has them) shows them to work on:
 
-Un proyecto que ya existe nunca se pisa, porque puede tener cambios hechos en Reaper. `--redo` (o "más › Rehacer proyecto de Reaper") manda el anterior a la papelera y arma uno nuevo, por ejemplo después de separar más instrumentos. Si Reaper no está instalado, el proyecto se crea igual, pero no se abre ("Abrir en Reaper" queda deshabilitado).
+- **Markers**: like a PDF highlighter. You pick a color (or the keys 1 to 5, which can be changed in [Keyboard shortcuts](#keyboard-shortcuts)) and the cursor becomes a marker of that color: drag over the lyrics and they're painted when you let go, or click a word. It takes whole words. Next to each color you write what it means (who sings each part, or the backing vocals, say), and that shows as a legend.
+- **Eraser** (G): dragging removes the color, and a click removes the whole mark you touch.
+- **Note** (N): click a line to write it a comment ("drums come in", "break", "repeat twice"). Clicking the note changes it, and leaving it empty deletes it.
+- Esc lets go of the tool and Ctrl+Z (or "undo") goes back.
+- **Write or paste**: to correct the lyrics or enter them by hand. The lines you don't change keep their colors and notes.
+- **Print**: opens the lyrics with their colors, notes and legend in another tab, to print them or save them as PDF; if they're long, they go in two columns. `lyrics --export` saves the same page as `Song.lyrics.html`.
 
-**Las tomas.** Para que lo que grabes en Reaper aparezca con su tema en la biblioteca, las tomas tienen que llamarse `Tema (record 2026-11-01 19-05-12).wav`. Eso es una preferencia de Reaper que vale para todos tus proyectos (Options › Preferences › Recording › "Recorded filenames"), así que song-wizard la cambia la primera vez que creás o abrís un proyecto, con Reaper cerrado (Reaper guarda sus preferencias al cerrarse y pisaría el cambio). Te avisa cuando lo hace, con el valor de antes y el nuevo, y guarda una copia de las preferencias de Reaper como `reaper.ini.before-song-wizard`.
+Everything is saved on its own. Looking up the lyrics again replaces them and the colors and notes are lost (the legend stays), which is why it asks first.
 
-En la interfaz, el apartado **Reaper** (debajo de Trabajos) muestra siempre qué cambió, cuándo y cómo era antes, con un botón para restaurarlo. En la terminal: `song-wizard reaper --setting show`, y `--setting restore` para volver atrás. Restaurar vuelve solo esa preferencia a como estaba, sin tocar nada más de Reaper, y song-wizard no la vuelve a cambiar hasta que se lo pidas (`--setting apply`, o "volver a ajustarlo"). A mano: en esa preferencia de Reaper, poné el valor de antes.
+### REAPER
 
-Las tomas siguen al tema: `rename` las renombra y `delete` las borra con él, igual que el proyecto.
+```bash
+song-wizard reaper "001 - Song.opus"          # opens it in REAPER, and creates it first if it doesn't exist
+song-wizard reaper --redo "001 - Song.opus"   # makes a new one (the old one goes to the trash)
+song-wizard reaper --setting show             # what song-wizard changed in REAPER (restore puts it back)
+```
+
+Opens the song's REAPER project, `Song.rpp`, which sits next to the song. If it doesn't exist, it first makes it with whatever is there at that moment:
+
+- **A track per stem**, with the instrument's name: the same ones the practice player starts with (every instrument, or the separated instrument and the rest). The other stems and the original song are there as muted tracks, to switch between them. If the song isn't separated, the song goes alone. All at 0 dB.
+- **The tempo and meter** of the click adjusted in "practice" (or `align`), with decimals, and the audio shifted so the song's first beat falls right on a bar, with one bar of count-in before. If the click isn't adjusted, it uses the tempo from `bpm.txt` without lining it up (or 120 BPM if there's none), and says so. If it doesn't fall exactly, fix it in REAPER.
+- **A "Click" track** with REAPER's click, which follows the project's tempo: if you fix the tempo in REAPER, the click follows it.
+- **A "Recording" track** ready to record (with Ctrl+R) from inputs 1 and 2, with monitoring (hearing what comes in) off; turn it on in the track if you want it.
+- The files go by name, without copying them: the project keeps working if you move the folder, on Drive too.
+
+An existing project is never overwritten, because it may have changes made in REAPER. `--redo` (or "more › Redo REAPER project") sends the old one to the trash and makes a new one, after separating more instruments, say. If REAPER isn't installed, the project is created all the same, but not opened ("Open in REAPER" is disabled).
+
+**Takes.** For what you record in REAPER to show up with its song in the library, the takes have to be named `Song (record 2026-11-01 19-05-12).wav`. That's a REAPER preference that applies to all your projects (Options › Preferences › Recording › "Recorded filenames"), so song-wizard changes it the first time you create or open a project, with REAPER closed (REAPER saves its preferences when closing and would overwrite the change). It tells you when it does, with the old value and the new one, and keeps a copy of REAPER's preferences as `reaper.ini.before-song-wizard`.
+
+In the interface, the **REAPER** box (below Jobs) always shows what changed, when and how it was before, with a button to put it back. In the terminal: `song-wizard reaper --setting show`, and `--setting restore` to go back. Restoring puts only that preference back as it was, without touching anything else in REAPER, and song-wizard doesn't change it again until you ask (`--setting apply`, or "set it again"). By hand: in that REAPER preference, put the old value.
+
+Takes follow the song: `rename` renames them and `delete` deletes them with it, like the project.
 
 ### Setlist
 
 ```bash
-song-wizard setlist "Música/Show"
+song-wizard setlist "Music/Show"
 ```
 
 ```
 Show
 
-  1. Tema uno     Am   106   5:08  (Artista)
-  2. Tema dos     F#m? 178   4:11  (Otro artista)
+  1. Song one     Am   106   5:08  (Artist)
+  2. Song two     F#m? 178   4:11  (Another artist)
   ...
 23 songs, 1:40:00
 ```
 
-La lista de la carpeta en el orden de sus archivos (`001 - …`), con la tonalidad, el tempo y la duración de cada tema, y el total. Guarda `Setlist.txt` y `Setlist.html` en la carpeta; el `.html` se abre en el navegador y se imprime en una hoja A4, con la letra lo más grande que entre.
+The folder's list in the order of its files (`001 - …`), with each song's key, tempo and length, and the total. It saves `Setlist.txt` and `Setlist.html` in the folder; the `.html` opens in the browser and prints on one A4 page, with the text as big as fits.
 
-**Con temas de cualquier carpeta**, en el orden que quieras: nombrá los temas en vez de la carpeta.
+**With songs from any folder**, in the order you want: name the songs instead of the folder.
 
 ```bash
-song-wizard setlist "Música/Show/003 - Tema.opus" "Música/Otra/001 - Otro tema.opus" --title "Show del sábado" --out show.html
+song-wizard setlist "Music/Show/003 - Song.opus" "Music/Other/001 - Another song.opus" --title "Saturday's show" --out show.html
 ```
 
-Muestra la lista en ese orden y no guarda nada en las carpetas (las carpetas siguen atadas a sus playlists); `--out` guarda la hoja donde digas. Un stem o una versión cuenta como su tema.
+Shows the list in that order and saves nothing in the folders (the folders stay tied to their playlists); `--out` saves the page wherever you say. A stem or a version counts as its song.
 
-**En la interfaz**, el botón "setlist" de cada carpeta abre la lista de sus temas; para armar una con temas sueltos, elegilos con sus casillas (en el orden en que los vas eligiendo) y tocá "setlist con lo elegido", abajo. En los dos casos se abre una ventana donde cambiás el título, ordenás los temas arrastrándolos (o con ↑ ↓), sacás los que no van con ×, y "abrir para imprimir" abre la hoja en otra pestaña. Desde la interfaz no se guarda nada: para tenerla en un archivo, imprimila como PDF.
+**In the interface**, each folder's "setlist" button opens the list of its songs; to make one with loose songs, pick them with their checkboxes (in the order you pick them) and click "setlist of the picked songs", below. Either way a window opens where you change the title, put the songs in order by dragging them (or with ↑ ↓), drop the ones that don't go with ×, and "open to print" opens the page in another tab. Nothing is saved from the interface: to have it as a file, print it as PDF.
 
-- `--lyrics` (o "con las letras" en la ventana) suma, después de la lista, la letra de cada tema que la tenga, con sus colores y notas, una por página y con su número del setlist. Los temas sin letra se saltean.
-- La tonalidad y el tempo salen de lo que ya detectaste con `key` y `bpm` (o pusiste a mano); los que falten quedan en blanco. Un `?` marca una tonalidad dudosa.
-- El título y el artista salen de los [datos del tema](#datos-del-tema) (si no tiene, del nombre del archivo, "Artista - Tema"), sin agregados como "(Official Video)" o "[HD]". El artista va más chico al lado. Si algo quedó mal, se corrige en los datos del tema.
-- `--title` cambia el título de arriba (por defecto, el nombre de la playlist o de la carpeta; con temas sueltos, "Setlist").
-- Con una carpeta, `--out` guarda la hoja ahí en vez de en la carpeta.
+- `--lyrics` (or "with lyrics" in the window) adds, after the list, the lyrics of each song that has them, with their colors and notes, one per page and with its setlist number. Songs without lyrics are skipped.
+- The key and tempo come from what you already detected with `key` and `bpm` (or set by hand); missing ones are left blank. A `?` marks a doubtful key.
+- The title and artist come from the [song's data](#song-data) (if it has none, from the file name, "Artist - Song"), without extras like "(Official Video)" or "[HD]". The artist goes smaller next to it. If something came out wrong, fix it in the song's data.
+- `--title` changes the title at the top (by default, the playlist's or folder's name; with loose songs, "Setlist").
+- With a folder, `--out` saves the page there instead of in the folder.
 
-### Si algo falla
+### If something fails
 
 ```bash
 song-wizard report
 ```
 
-Arma un archivo de texto con el estado de tu computadora (lo mismo que muestra `song-wizard setup`) y lo último que hizo song-wizard, incluido el error completo. Te muestra dónde quedó, y si querés abre la carpeta y el formulario para reportar el problema en GitHub, ya completado: ahí contás qué pasó y arrastrás el archivo. ¿Sin cuenta de GitHub? Mandale el archivo por WhatsApp o mail a quien te ayude con song-wizard.
+Puts together a text file with the state of your computer (the same as `song-wizard setup` shows) and the last things song-wizard did, including the full error. It shows you where it is, and if you like it opens the folder and the form to report the problem on GitHub, already filled in: there you tell what happened and drag the file in. No GitHub account? Send the file over WhatsApp or email to whoever helps you with song-wizard.
 
-En la interfaz es el botón "reportar un problema", arriba de los trabajos; los que fallan tienen también su botón "reportar".
+In the interface it's the "report a problem" button, above the jobs; jobs that fail also have their own "report" button.
 
-El reporte no incluye audio. Tu carpeta personal aparece como `~` (por ejemplo `~/Music/...` en vez de `/home/tu-usuario/Music/...`), pero los nombres de temas y carpetas quedan: si no querés que se vean, revisá el archivo antes de mandarlo. Sale de un log que song-wizard guarda siempre (ver [Qué se guarda en tu computadora](#qué-se-guarda-en-tu-computadora)) y que nunca se manda solo a ningún lado.
+The report includes no audio. Your home folder shows as `~` (`~/Music/...` instead of `/home/your-user/Music/...`, say), but song and folder names stay: if you don't want them seen, look over the file before sending it. It comes from a log song-wizard always keeps (see [What's stored on your computer](#whats-stored-on-your-computer)) and that's never sent anywhere on its own.
 
-## Aviso legal
+## Legal notice
 
-song-wizard es un proyecto personal, hecho por hobby para preparar ensayos, **sin fines comerciales**: no se vende, no se cobra y no se monetiza de ninguna forma. Esto no es asesoramiento legal.
+song-wizard is a personal project, made as a hobby to prepare rehearsals, **not for profit**: it isn't sold, charged for or monetized in any way. This isn't legal advice.
 
-- **Sos responsable de lo que bajás y procesás.** Usalo solo con audio sobre el que tengas derechos o permiso de uso, y respetá los derechos de autor y los términos de servicio de cada sitio, que en general no permiten descargar contenido salvo con sus propias funciones. No compartas ni publiques los temas, stems o pistas que generes a partir de material ajeno.
-- **No apto para uso comercial.** Aunque el código de song-wizard es libre (ver [Licencia](#licencia)), algunas piezas que usa no lo permiten o no tienen una licencia clara: [diffq](https://github.com/facebookresearch/diffq) (una dependencia de audio-separator) tiene licencia CC BY-NC 4.0, que prohíbe el uso comercial; y los modelos de separación (Demucs, el Mel-Band Roformer de voz, el BS-Roformer SW de guitarra y piano, y el MDX23C DrumSep de la batería en partes) no indican la licencia de sus pesos entrenados; en el caso del BS-Roformer SW, su propia página la marca como desconocida. song-wizard no incluye ningún modelo: los baja la primera vez que se usan, de los repositorios públicos donde los publicaron sus autores o el proyecto UVR. Cualquier uso comercial requiere revisar esas licencias por separado.
-- **Sin afiliación.** song-wizard no está afiliado ni respaldado por ninguna plataforma de audio o video ni por los proyectos que usa. Todas las marcas pertenecen a sus dueños.
-- **Sin garantías.** Se ofrece tal cual, sin garantía de ningún tipo, como establece su licencia.
+- **You're responsible for what you download and process.** Use it only with audio you have rights to or permission to use, and respect copyright and each site's terms of service, which generally don't allow downloading content except through their own features. Don't share or publish the songs, stems or tracks you make from someone else's material.
+- **Not for commercial use.** Although song-wizard's code is free (see [License](#license)), some pieces it uses don't allow it or have no clear license: [diffq](https://github.com/facebookresearch/diffq) (a dependency of audio-separator) is licensed CC BY-NC 4.0, which forbids commercial use; and the separation models (Demucs, the vocals Mel-Band Roformer, the guitar and piano BS-Roformer SW, and the drum kit's MDX23C DrumSep) don't state the license of their trained weights; for BS-Roformer SW, its own page marks it as unknown. song-wizard includes no model: it downloads them the first time they're used, from the public repositories where their authors or the UVR project published them. Any commercial use requires checking those licenses separately.
+- **No affiliation.** song-wizard isn't affiliated with or endorsed by any audio or video platform or by the projects it uses. All trademarks belong to their owners.
+- **No warranty.** It's offered as is, without warranty of any kind, as its license states.
 
-## Licencia
+## License
 
-El código de song-wizard se distribuye bajo la [GNU Affero General Public License v3.0 o posterior](LICENSE) (AGPL-3.0-or-later): podés usarlo, estudiarlo, modificarlo y compartirlo, siempre que lo que compartas mantenga la misma licencia y su código fuente. Es la licencia que corresponde porque song-wizard usa [Essentia](https://essentia.upf.edu), que se distribuye bajo AGPL-3.0.
+song-wizard's code is distributed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later): you can use, study, modify and share it, as long as what you share keeps the same license and its source code. It's the right license because song-wizard uses [Essentia](https://essentia.upf.edu), which is distributed under AGPL-3.0.
 
-## Créditos
+## Credits
 
-song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
+song-wizard is a thin layer over the work of other free projects:
 
-- [Ultimate Vocal Remover (UVR)](https://github.com/Anjok07/ultimatevocalremovergui), de Anjok07 y aufr33, y su colección de modelos de separación.
-- [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), que permite usar los modelos de UVR desde Python.
-- [Demucs](https://github.com/facebookresearch/demucs), de Meta: el modelo `htdemucs_ft`, para batería y bajo.
-- [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), de KimberleyJensen, para la voz, entrenado con el código de [ZFTurbo](https://github.com/ZFTurbo/Music-Source-Separation-Training).
-- BS-Roformer SW, de jarredou: el modelo de 6 instrumentos que da la guitarra y el piano.
-- MDX23C DrumSep, de aufr33 y jarredou (con la arquitectura MDX23C, de ZFTurbo): la batería en partes.
-- [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
-- [LRCLIB](https://lrclib.net): base de letras abierta y comunitaria.
-- [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
-- [ffmpeg](https://ffmpeg.org): lectura y conversión de audio.
-- [PyTorch](https://pytorch.org) y [uv](https://docs.astral.sh/uv/).
+- [Ultimate Vocal Remover (UVR)](https://github.com/Anjok07/ultimatevocalremovergui), by Anjok07 and aufr33, and its collection of separation models.
+- [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), which lets UVR's models be used from Python.
+- [Demucs](https://github.com/facebookresearch/demucs), by Meta: the `htdemucs_ft` model, for drums and bass.
+- [Mel-Band Roformer Vocal Model](https://github.com/KimberleyJensen/Mel-Band-Roformer-Vocal-Model), by KimberleyJensen, for vocals, trained with [ZFTurbo](https://github.com/ZFTurbo/Music-Source-Separation-Training)'s code.
+- BS-Roformer SW, by jarredou: the 6-instrument model that gives guitar and piano.
+- MDX23C DrumSep, by aufr33 and jarredou (with the MDX23C architecture, by ZFTurbo): the drum kit.
+- [Essentia](https://essentia.upf.edu), by the Music Technology Group of Universitat Pompeu Fabra: key, tempo and beats.
+- [LRCLIB](https://lrclib.net): an open, community lyrics database.
+- [Rubber Band](https://breakfastquay.com/rubberband/), by Breakfast Quay: pitch and speed changes.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp): downloads.
+- [ffmpeg](https://ffmpeg.org): reading and converting audio.
+- [mutagen](https://github.com/quodlibet/mutagen): writing a song's data in its files.
+- [PyTorch](https://pytorch.org) and [uv](https://docs.astral.sh/uv/).
 
-## Anexo: pruebas
+## Appendix: tests
 
-### Pruebas automáticas
+### Automated tests
 
-En cada cambio que se sube a GitHub corren las pruebas automáticas, en Linux (Ubuntu) y en una Mac con chip M (macOS 15): el resultado se ve en el ícono de arriba de todo. Además de las pruebas, instalan song-wizard igual que en [Instalación](#instalación), para verificar que se instala bien en los dos sistemas.
+Every change pushed to GitHub runs the automated tests, on Linux (Ubuntu) and on a Mac with an M chip (macOS 15): the result shows in the badge at the very top. Besides the tests, they install song-wizard the same way as in [Installation](#installation), to check it installs well on both systems.
 
-Usan audio sintético generado en la misma prueba (tonos, acordes y una batería simple), nunca temas reales, y no se conectan a internet. Cubren:
+They use synthetic audio made in the test itself (tones, chords and a simple drum beat), never real songs, and they don't go online. They cover:
 
-- Que cada comando de la terminal llegue a lo que tiene que hacer.
-- `key`: una progresión de acordes en Sol mayor, La menor, Mi bemol mayor y Fa sostenido menor da la tonalidad correcta con 4/4.
-- `bpm`: una batería a 90, 120 y 137 BPM da el tempo exacto (±0.5) y "estable".
-- `click`: cada golpe a menos de 0.1 ms de su posición teórica durante 10 minutos, también con tempos con decimales; acentos y subdivisiones en su lugar; la duración redondea a compases enteros.
-- `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
-- `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
-- `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
-- `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
-- `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
-- `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
-- `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.
-- `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
-- `tag`: los datos leídos y escritos en `.opus`, `.wav` y `.mp3` (también con saltos de línea y nombres propios), en el tema y sus stems y versiones pero no en las tomas, el audio intacto, el renombrado al cambiar artista o título (con los caracteres que Windows no acepta), `--only`, el link de la descarga que no se borra, el nombre de lo que se baja, el filtro por palabras sin tildes, el archivo de configuración creado por cualquier comando, y la ventana de la interfaz.
-- `setlist`: orden, nombres limpios, tonalidad dudosa marcada, total, nombres con HTML mostrados como texto, y la hoja desde la interfaz (solo desde su propia página). Con temas sueltos: de varias carpetas en el orden pedido, un stem cuenta como su tema, no se guarda nada en las carpetas, un tema que no está da error, y rutas fuera de la carpeta de música rechazadas; las letras con sus marcas después de la lista, solo de los temas que la tienen.
-- El tono en vivo del reproductor (corriendo el procesador con Node): afinación exacta, nada agregado y el mismo retardo para cada tono.
-- Actualizar: las versiones retiradas (no se ofrecen ni se listan, `--to` pide `--force`, quien tiene una retirada es avisado y pasado a la más nueva que no lo esté, y si la lista no se puede leer no frena nada), comparar versiones, leer las versiones publicadas de los tags (y no fallar sin internet), `upgrade --list` y `--to`, que `upgrade` instale el tag más nuevo (o solo actualice lo que usa si ya está en el último, o reinstale desde la carpeta si se instaló así), `upgrade --check`, la consulta desde la interfaz (que se recuerda unas horas, salvo que se pida de nuevo), y que el reinicio pedido desde la página levante una interfaz nueva en el mismo puerto, sin abrir el navegador.
-- `ui`: la seguridad (solo atiende a su propia página: otra página, aunque sea de otro servidor en esta computadora, no puede actuar ni leer nada; el dominio; rutas fuera de la carpeta de música; acciones inválidas), que corra de fondo (arranca una vez, se reusa, se apaga con `--stop`, con su clave interna, o desde la página), la biblioteca agrupada por tema, la reproducción por partes y un trabajo de click de punta a punta.
+- That every terminal command reaches what it has to do.
+- `key`: a chord progression in G major, A minor, E-flat major and F-sharp minor gives the right key with 4/4.
+- `bpm`: a drum beat at 90, 120 and 137 BPM gives the exact tempo (±0.5) and "steady".
+- `click`: every hit within 0.1 ms of its theoretical position over 10 minutes, also with tempos with decimals; accents and subdivisions in place; the length rounds to whole bars.
+- `transpose`: the pitch changes by what was asked (an A 440 goes up to 880 with +12), the length doesn't change and peaks over 0 dB are kept intact; with 0 semitones it gives back the original.
+- `speed`: from 25 % to 200 %, the length changes exactly as asked, the pitch stays the same (and changes as asked with `--semitones`) and peaks over 0 dB are kept intact; a click's hits fall in place at the new tempo.
+- `convert`: turns down only what goes over 0 dB; in a folder it skips compressed files; it doesn't overwrite files without `--overwrite`.
+- `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records.
+- `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
+- `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).
+- `trim`: the same cut in the song and its stems, sample-exact (a pulse at 3 s stays where it should), the `.opus` encoded again lined up with the stems (under half a millisecond), versions at another speed in proportion, the silence added, REAPER takes untouched, 32-bit float WAVs that stay float, the download's link kept, the click and lyrics moving along, and that if one file fails nothing changes.
+- `reaper`: which tracks go in (every stem, an instrument with the rest or the song alone, and the rest muted), the first beat on a bar line with tempos with decimals, names with quotes, that an existing project isn't overwritten (and `--redo`), the takes preference (with REAPER open it isn't touched; restoring puts back only that line, without touching what changed afterwards, and song-wizard doesn't change it again), Windows line endings intact, and that the project, the file names inside it and the takes follow the song when renaming and deleting it. REAPER isn't opened or touched in the tests.
+- `tag`: data read and written in `.opus`, `.wav` and `.mp3` (also with line breaks and your own field names), in the song and its stems and versions but not in the takes, the audio intact, a WAV that stays a WAV (and one damaged by 0.22.0–0.22.3 mended), renaming when the artist or title changes (with the characters Windows doesn't allow), `--only`, the download's link that isn't removed, what's made later carrying the song's data and song-wizard's mark, the name of what's downloaded, the filter by words without accents, the settings file created by any command, and the interface's window.
+- `setlist`: order, clean names, doubtful key marked, total, names with HTML shown as text, and the page from the interface (only from its own page). With loose songs: from several folders in the order asked, a stem counts as its song, nothing is saved in the folders, a song that isn't there gives an error, and paths outside the music folder refused; the lyrics with their marks after the list, only of the songs that have them.
+- The player's live pitch (running the processor with Node): exact tuning, nothing added and the same delay for every pitch.
+- Upgrading: retired versions (not offered or listed, `--to` asks for `--force`, whoever has a retired one is told and moved to the newest that isn't, and if the list can't be read nothing stops), comparing versions, reading the published versions from the tags (and not failing without internet), `upgrade --list` and `--to`, that `upgrade` installs the newest tag (or only updates what it uses if it's already on the latest, or reinstalls from the folder if it was installed that way), `upgrade --check`, the check from the interface (remembered for a few hours, unless asked again), and that a restart asked from the page brings up a new interface on the same port, without opening the browser.
+- `ui`: security (it only serves its own page: another page, even from another server on this computer, can't act or read anything; the domain; paths outside the music folder; invalid actions), that it runs in the background (it starts once, is reused, shuts down with `--stop`, with its internal key, or from the page), the library grouped by song, playing by parts and a click job end to end.
 
-`separate` no corre en las pruebas automáticas porque necesita bajar los modelos (1.3 GB); se puede probar a mano con `uv run pytest -m slow`, que verifica que instrumento + resto sumen el original. Para correr las pruebas en tu computadora, desde la carpeta del proyecto: `uv run pytest`.
+`separate` doesn't run in the automated tests because it needs to download the models (1.3 GB); it can be tested by hand with `uv run pytest -m slow`, which checks that instrument + rest add up to the original. To run the tests on your computer, from the project's folder: `uv run pytest`.
 
-### Pruebas a mano
+### Manual tests
 
-El registro de lo que se probó a mano y cómo (con temas, programas y navegadores reales, o simulando casos como una placa de video vieja), para repetirlo cuando se toca esa parte, está en [CHECKLIST.md](CHECKLIST.md).
+The record of what was tested by hand and how (with real songs, programs and browsers, or simulating cases like an old graphics card), to repeat it when that part is touched, is in [CHECKLIST.md](CHECKLIST.md).
