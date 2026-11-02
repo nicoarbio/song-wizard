@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>song-wizard</title>
+<script>
+  // Before the page is drawn, so a theme picked by hand doesn't flash the other one first.
+  try { const t = localStorage.getItem("song-wizard:theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/static/logo.png" type="image/png">
 <style>
@@ -13,13 +17,23 @@
     --radius: 10px; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
     color-scheme: light;
   }
+  /* Dark: the system's choice unless one was picked by hand (data-theme, remembered in the browser). */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme=light]) {
       --bg: #151615; --panel: #1e201f; --ink: #ecebe7; --muted: #9c9a94; --line: #2f3230;
       --accent: #5fb39a; --accent-ink: #0f1a16; --soft: #1f2c27; --warn: #d9a25b; --bad: #e07a6c;
       --shadow: none; color-scheme: dark;
     }
   }
+  :root[data-theme=dark] {
+    --bg: #151615; --panel: #1e201f; --ink: #ecebe7; --muted: #9c9a94; --line: #2f3230;
+    --accent: #5fb39a; --accent-ink: #0f1a16; --soft: #1f2c27; --warn: #d9a25b; --bad: #e07a6c;
+    --shadow: none; color-scheme: dark;
+  }
+  .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+  .theme button { border: 0; border-radius: 0; background: none; padding: 3px 9px; font-size: 12px; color: var(--muted); }
+  .theme button + button { border-left: 1px solid var(--line); }
+  .theme button[aria-pressed=true] { background: var(--soft); color: var(--ink); font-weight: 600; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
   header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; }
@@ -245,6 +259,11 @@
     <button class="primary" type="submit">Bajar</button>
     <span class="dest muted">en <button type="button" class="small" id="dest" title="Dónde va la carpeta de una playlist nueva">Música</button></span>
   </form>
+  <div class="theme" role="group" aria-label="Colores de la página" id="theme">
+    <button type="button" data-theme="auto" title="Claro u oscuro según el sistema">automático</button>
+    <button type="button" data-theme="light" title="Siempre claro">claro</button>
+    <button type="button" data-theme="dark" title="Siempre oscuro">oscuro</button>
+  </div>
 </header>
 
 <main>
@@ -1216,7 +1235,9 @@ function loadPeaks(path, range) {
 const mod = (k, n) => ((k % n) + n) % n;
 
 class Wave {
+  static all = [];
   constructor(canvas, { onSeek, onGridDrag, interactive = true } = {}) {
+    Wave.all.push(this);
     this.canvas = canvas;
     this.peaks = [];
     this.from = 0;
@@ -1375,6 +1396,21 @@ const trimWave = new Wave($("trim-wave"), { interactive: false });
 // The whole song under it, with a box on the stretch in view: drag the box to move along, or
 // click elsewhere to jump there.
 const trimNav = new Wave($("trim-nav"), { interactive: false });
+
+// Colors: automatic (the system's), light or dark, remembered in this browser. The waves are
+// drawn with the page's colors, so they're drawn again when those change.
+const THEME_KEY = "song-wizard:theme";
+function setTheme(theme) {
+  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+  try { theme === "light" || theme === "dark" ? localStorage.setItem(THEME_KEY, theme) : localStorage.removeItem(THEME_KEY); } catch {}
+  const current = document.documentElement.dataset.theme || "auto";
+  for (const b of $("theme").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.theme === current));
+  for (const w of Wave.all) w.draw();
+}
+for (const b of $("theme").querySelectorAll("button")) b.onclick = () => setTheme(b.dataset.theme);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { for (const w of Wave.all) w.draw(); });
+setTheme(document.documentElement.dataset.theme || "auto");
 const trim = { song: null, duration: 0, start: 0, end: 0, view: [0, 0], overview: null, audio: null, stopAt: 0, raf: 0, timer: 0 };
 const trimRound = (t) => Math.round(t * 100) / 100;
 
