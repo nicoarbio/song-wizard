@@ -164,6 +164,8 @@
      a shared timeline, and the lyrics in a column on the right that can be folded away. */
   dialog#practice { max-width: none; max-height: none; width: 100vw; height: 100vh; height: 100dvh; margin: 0; border: 0; border-radius: 0; padding: 0; }
   dialog#practice[open] { display: flex; flex-direction: column; }
+  /* The library behind would keep its scrollbar, which moves it but not the player. */
+  :root:has(dialog#practice[open]) { overflow: hidden; }
   .pr-top { padding: 10px 16px 6px; border-bottom: 1px solid var(--line); }
   .pr-head { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
   .pr-head h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
@@ -179,7 +181,14 @@
   #pl-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #pl-slot #lyr-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #pl-slot .lyr-body { flex: 1; min-height: 120px; max-height: none; position: relative; }
-  .lanes { user-select: none; flex: 1 0 auto; display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); grid-auto-rows: minmax(30px, 1fr); gap: 4px 12px; min-height: 160px; margin-bottom: 8px; }
+  .pr-nav, .lanes { display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); gap: 4px 12px; }
+  .pr-nav { align-items: center; margin-bottom: 6px; user-select: none; }
+  .pr-nav .zoom-ctl { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .pr-nav .zoom-ctl .muted { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .pr-nav canvas { height: 28px; background: var(--bg); border-radius: 6px; }
+  .pr-nav canvas.grab { cursor: grab; }
+  .pr-nav canvas.grabbing { cursor: grabbing; }
+  .lanes { user-select: none; flex: 1 0 auto; grid-auto-rows: minmax(30px, 1fr); min-height: 160px; margin-bottom: 8px; }
   .lanes .lane-ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 6px; align-items: center; align-self: center; }
   .lanes .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .lanes .ms { display: flex; gap: 4px; }
@@ -195,7 +204,8 @@
     .pr-main { display: block; overflow: auto; }
     .pr-left { overflow: visible; }
     .pr-lyrics { border-left: 0; border-top: 1px solid var(--line); height: 70vh; }
-    .lanes { grid-template-columns: minmax(110px, 150px) minmax(0, 1fr); grid-auto-rows: 44px; }
+    .pr-nav, .lanes { grid-template-columns: minmax(110px, 150px) minmax(0, 1fr); }
+    .lanes { grid-auto-rows: 44px; }
   }
   input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
   .transport { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 0 4px; }
@@ -238,7 +248,7 @@
   .lyr-body.tool-note .lyr-line { cursor: copy; }
   .lyr-body.tool-note .lyr-line:hover { background: var(--soft); }
   .lyr-body { max-height: 58vh; overflow: auto; font-size: 16px; line-height: 1.6; padding: 6px 2px; border-top: 1px solid var(--line); }
-  .lyr-line { min-height: 1.6em; border-radius: 4px; transition: background .2s; }
+  .lyr-line { min-height: 1.6em; border-radius: 4px; transition: background .2s; padding: 0 6px 0 10px; }
   .lyr-line.now { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); }
   .lyr-time { user-select: none; display: inline-flex; gap: 2px; width: 6.2em; margin-right: 8px; vertical-align: baseline; }
   .lyr-time button { font-size: 11px; padding: 0 5px; height: 20px; font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -453,6 +463,16 @@
   </div>
   <div class="pr-main">
     <div class="pr-left">
+      <div class="pr-nav">
+        <div class="zoom-ctl">
+          <button class="small" id="practice-zoom-out" title="Alejar">−</button>
+          <button class="small" id="practice-zoom-in" title="Acercar">+</button>
+          <button class="small" id="practice-zoom-all" title="Ver el tema entero">todo</button>
+          <button class="small" id="practice-zoom-loop" title="Acercar al tramo A–B">tramo</button>
+          <span class="muted" id="practice-view"></span>
+        </div>
+        <canvas class="wave" id="practice-nav" aria-label="El tema entero: el recuadro es lo que se ve en las pistas; arrastralo para moverte"></canvas>
+      </div>
       <div class="lanes" id="practice-tracks"></div>
       <details id="pc-panel">
     <summary>Ajustar el click: <span id="pc-summary" class="muted"></span></summary>
@@ -1256,6 +1276,8 @@ const peaksCache = new Map();
 function loadPeaks(path, range) {
   const key = range ? `${path}|${range[0]}|${range[1]}` : path;
   if (!peaksCache.has(key)) {
+    // Zoomed pictures pile up (a dozen lanes, each move): keep the latest ones.
+    if (peaksCache.size > 300) for (const k of [...peaksCache.keys()].filter((k) => k.includes("|")).slice(0, 100)) peaksCache.delete(k);
     const extra = range ? `&from=${range[0]}&to=${range[1]}&n=1600` : "&n=1500";
     peaksCache.set(key, api(`/api/peaks?path=${encodeURIComponent(path)}${extra}`).catch((e) => { peaksCache.delete(key); throw e; }));
   }
@@ -1327,17 +1349,19 @@ class Wave {
     for (let i = 0; i < this.peaks.length; i++) {
       const t = this.from + i * step;
       if (t + step < a || t > b) continue;
-      const height = Math.max(1, this.peaks[i] / this.max * (h - 6));
+      const height = Math.max(1, Math.min(1, this.peaks[i] / this.max) * (h - 6));
       g.fillRect(x(t), (h - height) / 2, width > 2 ? width - 0.5 : width, height);
     }
     return c;
   }
 
-  set(data) {
+  // `max`: the loudness drawn full height. A zoomed stretch keeps the whole song's, so a quiet
+  // passage still looks quiet up close.
+  set(data, max) {
     this.peaks = data.peaks;
     this.from = data.from;
     this.seconds = data.seconds;
-    this.max = Math.max(0.05, ...this.peaks);
+    this.max = max || Math.max(0.05, ...this.peaks);
     this.version++;
     this.draw();
   }
@@ -1423,6 +1447,55 @@ class Wave {
       g.fillRect(Math.round(x(position)) - 1, 0, 2, h);
     }
   }
+}
+
+// The wheel on a waveform zooms around the mouse; with Shift (or sideways on a touchpad) it
+// moves along. view() is what's in view, setView(a, b) changes it (and keeps it in the song).
+function wheelZoom(canvas, { ready, view, setView }) {
+  canvas.addEventListener("wheel", (e) => {
+    if (!ready()) return;
+    e.preventDefault();
+    const [a, b] = view(), span = b - a;
+    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      const move = (e.deltaX || e.deltaY) > 0 ? span * 0.15 : -span * 0.15;
+      return setView(a + move, b + move);
+    }
+    const r = canvas.getBoundingClientRect(), t = a + span * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const k = e.deltaY > 0 ? 1.3 : 1 / 1.3;
+    setView(t - (t - a) * k, t + (b - t) * k);
+  }, { passive: false });
+}
+
+// A bar with the whole song and a box on the stretch in view: drag the box to move along, click
+// elsewhere to jump there (and keep dragging); the wheel on it moves along.
+function navigator(canvas, { duration, view, setView }) {
+  const timeAt = (e) => { const r = canvas.getBoundingClientRect(); return duration() * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+  const inBox = (t) => t >= view()[0] && t <= view()[1];
+  let grab = null;
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!duration()) return;
+    const t = timeAt(e), [a, b] = view();
+    if (!inBox(t)) setView(t - (b - a) / 2, t + (b - a) / 2);
+    grab = { offset: t - view()[0] };
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add("grabbing");
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!duration()) return;
+    const t = timeAt(e);
+    if (!grab) { canvas.classList.toggle("grab", inBox(t)); return; }
+    const span = view()[1] - view()[0];
+    setView(t - grab.offset, t - grab.offset + span);
+  });
+  const release = () => { grab = null; canvas.classList.remove("grabbing"); };
+  canvas.addEventListener("pointerup", release);
+  canvas.addEventListener("pointercancel", release);
+  canvas.addEventListener("wheel", (e) => {
+    if (!duration()) return;
+    e.preventDefault();
+    const [a, b] = view(), move = ((e.deltaY || e.deltaX) > 0 ? 0.15 : -0.15) * (b - a);
+    setView(a + move, b + move);
+  }, { passive: false });
 }
 
 // ---------- Bottom player ----------
@@ -1575,49 +1648,9 @@ function trimNearEdge(e) {
   });
   canvas.addEventListener("pointerup", () => { drag = null; });
   canvas.addEventListener("pointercancel", () => { drag = null; });
-  canvas.addEventListener("wheel", (e) => {
-    if (!trim.duration) return;
-    e.preventDefault();
-    const [a, b] = trim.view, span = b - a;
-    if (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-      const move = (e.deltaX || e.deltaY) > 0 ? span * 0.15 : -span * 0.15;
-      return setTrimView(a + move, b + move);
-    }
-    const t = trimTimeAt(e), k = e.deltaY > 0 ? 1.3 : 1 / 1.3;
-    setTrimView(t - (t - a) * k, t + (b - t) * k);
-  }, { passive: false });
+  wheelZoom(canvas, { ready: () => trim.duration, view: () => trim.view, setView: setTrimView });
 }
-{
-  const nav = $("trim-nav");
-  const timeAt = (e) => { const r = nav.getBoundingClientRect(); return trim.duration * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
-  const inBox = (t) => t >= trim.view[0] && t <= trim.view[1];
-  let grab = null;
-  nav.addEventListener("pointerdown", (e) => {
-    if (!trim.duration) return;
-    const t = timeAt(e), [a, b] = trim.view;
-    if (!inBox(t)) setTrimView(t - (b - a) / 2, t + (b - a) / 2);  // jump there, then keep dragging
-    grab = { offset: t - trim.view[0] };
-    nav.setPointerCapture(e.pointerId);
-    nav.classList.add("grabbing");
-  });
-  nav.addEventListener("pointermove", (e) => {
-    if (!trim.duration) return;
-    const t = timeAt(e);
-    if (!grab) { nav.classList.toggle("grab", inBox(t)); return; }
-    const span = trim.view[1] - trim.view[0];
-    setTrimView(t - grab.offset, t - grab.offset + span);
-  });
-  const release = () => { grab = null; nav.classList.remove("grabbing"); };
-  nav.addEventListener("pointerup", release);
-  nav.addEventListener("pointercancel", release);
-  // The wheel on the bar moves along (on the waveform it zooms).
-  nav.addEventListener("wheel", (e) => {
-    if (!trim.duration) return;
-    e.preventDefault();
-    const [a, b] = trim.view, move = ((e.deltaY || e.deltaX) > 0 ? 0.15 : -0.15) * (b - a);
-    setTrimView(a + move, b + move);
-  }, { passive: false });
-}
+navigator($("trim-nav"), { duration: () => trim.duration, view: () => trim.view, setView: setTrimView });
 const zoomTrim = (k, at) => { const [a, b] = trim.view, c = at ?? (a + b) / 2; setTrimView(c - (c - a) * k, c + (b - c) * k); };
 $("trim-zoom-in").onclick = () => zoomTrim(1 / 2);
 $("trim-zoom-out").onclick = () => zoomTrim(2);
@@ -1733,6 +1766,11 @@ function trackSets(song) {
 
 // The song's own waveform, on top of the lanes (it stays from one set of tracks to the next).
 const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": "Posición: tocá para moverte" }), { onSeek: (t) => moveTo(t) });
+// The whole song over the lanes, with a box on what they show.
+const practiceNav = new Wave($("practice-nav"), { interactive: false });
+const practiceZoom = { ready: () => practice.duration, view: () => practice.view || [0, practice.duration], setView: (a, b) => setPracticeView(a, b) };
+wheelZoom(practiceWave.canvas, practiceZoom);
+navigator(practiceNav.canvas, { duration: () => practice.duration, ...practiceZoom });
 const clickWave = new Wave($("pc-wave"), { onGridDrag: (dt) => setClick({ first: practice.click.first + dt }) });
 
 function openPractice(song) {
@@ -1751,9 +1789,15 @@ function openPractice(song) {
   applyPitch();
   practice.click = clickSettings(song);
   practiceWave.clear();
-  practiceWave.view = null;
+  practiceNav.clear();
+  practice.overview = null;
   // By path: a refresh of the library replaces practice.song with an equal object.
-  loadPeaks(song.path).then((d) => { if (practice.song && practice.song.path === song.path) practiceWave.set(d); }).catch(() => {});
+  loadPeaks(song.path).then((d) => {
+    if (!practice.song || practice.song.path !== song.path) return;
+    practice.overview = d;
+    practiceNav.set(d);
+    showPracticeView();
+  }).catch(() => {});
   loadSet(0);
   renderClickPanel(true);
   loadPracticeLyrics(song);
@@ -1788,7 +1832,8 @@ function loadSet(index) {
   Promise.all(ready).then(() => {
     practice.duration = Math.max(...practice.tracks.map((t) => t.audio.duration || 0));
     // One timeline for every lane (stems can differ by a few samples; the click has no audio).
-    for (const w of [practiceWave, ...practice.lanes.map((l) => l.wave)]) { w.view = [0, practice.duration]; w.version++; w.draw(); }
+    practice.view = null;
+    showPracticeView();
     $("practice-play").disabled = false;
     $("practice-status").textContent = "";
     applySpeed();
@@ -1827,7 +1872,7 @@ function buildTracks() {
   practice.lanes = [];
   box.replaceChildren(
     el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, "Tema"),
-      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, "tocá una onda para ir ahí")),
+      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, "tocá una onda para ir ahí; la rueda acerca y aleja")),
     el("div", { class: "lane main-lane" }, practiceWave.canvas));
   practice.mixer.forEach((t, i) => {
     const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
@@ -1842,8 +1887,9 @@ function buildTracks() {
     const lane = el("div", { class: "lane" }, canvas);
     box.append(ctl, lane);
     const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
-    if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) wave.set(d); }).catch(() => {});
-    const ui = { track: t, wave, ctl, lane, mute, solo };
+    wheelZoom(canvas, practiceZoom);
+    const ui = { track: t, wave, ctl, lane, mute, solo, path: t.click ? null : t.file.path, overview: null };
+    if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) { ui.overview = d; showPracticeView(); } }).catch(() => {});
     practice.lanes.push(ui);
   });
   renderTracks();
@@ -1908,12 +1954,81 @@ function renderPractice() {
   $("practice-loop").classList.toggle("on", practice.loop);
   $("practice-loop").disabled = practice.a === null || practice.b === null;
   followLyrics(t);
+  followPlayhead(t);
+  practiceNav.update({ position: t, a: practice.a, b: practice.b });
+  $("practice-zoom-loop").disabled = practice.a === null || practice.b === null;
   practiceWave.update({ position: t, a: practice.a, b: practice.b, grid: clickAudible() ? { ...grid(), barsOnly: true } : null });
   for (const { track, wave } of practice.lanes || []) {
     wave.update({ position: t, a: practice.a, b: practice.b, grid: track.click ? { ...grid(), auto: true } : null });
   }
   if ($("pc-panel").open) clickWave.update({ position: t });
 }
+
+// ---------- Practice zoom ----------
+// Every lane shows the same stretch (practice.view, null for the whole song). Up close each one
+// gets a finer picture of just that stretch, asked for once the view stops changing.
+function setPracticeView(a, b, touched = true) {
+  const d = practice.duration;
+  if (!d) return;
+  const span = Math.min(d, Math.max(1, b - a));
+  a = Math.max(0, Math.min(a, d - span));
+  practice.view = span >= d - 0.01 ? null : [a, a + span];
+  if (touched) practice.viewTouched = Date.now();
+  showPracticeView();
+}
+
+function showPracticeView() {
+  const d = practice.duration;
+  if (!d) return;
+  const view = practice.view || [0, d], [a, b] = view, span = b - a;
+  const shown = [{ wave: practiceWave, path: practice.song.path, overview: practice.overview }, ...(practice.lanes || [])];
+  for (const item of shown) {
+    item.wave.view = view;
+    if (item.overview) item.wave.set(item.overview, Math.max(0.05, ...item.overview.peaks));
+    else { item.wave.version++; item.wave.draw(); }
+  }
+  practiceNav.view = [0, d];
+  practiceNav.update({ box: practice.view });
+  $("practice-view").textContent = practice.view ? `${clockTime(a).replace(/\.\d$/, "")}–${clockTime(b).replace(/\.\d$/, "")}` : "";
+  clearTimeout(practice.zoomTimer);
+  if (span > d * 0.6) return;
+  practice.zoomTimer = setTimeout(() => {
+    const margin = span * 0.1, range = [Math.max(0, a - margin).toFixed(2), Math.min(d, b + margin).toFixed(2)];
+    for (const item of shown) {
+      if (!item.path || !item.overview) continue;
+      const max = Math.max(0.05, ...item.overview.peaks);
+      loadPeaks(item.path, range).then((data) => {
+        const current = practice.view && practice.view[0] === a && practice.view[1] === b;
+        if (current && (item.wave === practiceWave || practice.lanes.includes(item))) item.wave.set(data, max);
+      }).catch(() => {});
+    }
+  }, 150);
+}
+
+// Zoomed in and playing, the view turns the page when the playhead reaches its edge (unless the
+// view was just moved by hand). After a jump it goes to where the playhead is.
+function followPlayhead(t) {
+  const v = practice.view;
+  if (!v) return;
+  const span = v[1] - v[0], out = t < v[0] || t > v[1], edge = out || t > v[1] - span * 0.02;
+  if (practice.reveal && out || practice.playing && edge && Date.now() - (practice.viewTouched || 0) > 2500) {
+    setPracticeView(t - span * 0.05, t + span * 0.95, false);
+  }
+  practice.reveal = false;
+}
+
+const zoomPractice = (k) => {
+  const [a, b] = practiceZoom.view(), t = now(), c = t >= a && t <= b ? t : (a + b) / 2;
+  setPracticeView(c - (c - a) * k, c + (b - c) * k);
+};
+$("practice-zoom-in").onclick = () => zoomPractice(1 / 2);
+$("practice-zoom-out").onclick = () => zoomPractice(2);
+$("practice-zoom-all").onclick = () => setPracticeView(0, practice.duration);
+$("practice-zoom-loop").onclick = () => {
+  if (practice.a === null || practice.b === null) return;
+  const pad = (practice.b - practice.a) * 0.08;
+  setPracticeView(practice.a - pad, practice.b + pad);
+};
 
 // Pause everything, put every track at `time`, wait until all are there, and start them
 // together if they were playing.
@@ -1934,6 +2049,7 @@ async function moveTo(time) {
   applySpeed();
   if (resume) { await Promise.all(practice.tracks.map((t) => t.audio.play())); openGate(); }
   practice.busy = false;
+  practice.reveal = true;
   renderPractice();
 }
 
