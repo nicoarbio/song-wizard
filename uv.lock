@@ -929,7 +929,7 @@ wheels = [
 
 [[package]]
 name = "song-wizard"
-version = "0.24.1"
+version = "0.24.2"
 source = { editable = "." }
 dependencies = [
     { name = "audio-separator", extra = ["cpu"] },
