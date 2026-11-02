@@ -456,7 +456,7 @@ En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene e
 
 - Un dato con nombre propio, en un `.opus` (o `.ogg`, `.flac`), no puede llevar tildes ni eñes en el nombre (el valor sí): `Ano` en vez de `Año`.
 - El link de la descarga (`purl`) se muestra pero no se cambia: `delete` lo usa para saber de qué descarga vino el tema.
-- En los `.wav`, los datos se guardan como en los MP3 (ID3), porque los propios del WAV son pocos: los leen ffmpeg, Reaper y la mayoría de los reproductores; alguno viejo puede mostrar solo los básicos.
+- En los `.wav`, los datos van en la lista propia del WAV (título, artista, álbum, año, género, comentario) y todos, también los propios, en una parte ID3 adentro del archivo, que leen ffmpeg y la mayoría de los reproductores. El Explorador de Windows no muestra datos de ningún WAV (los `.opus` sí).
 - El setlist, la búsqueda de la letra y la biblioteca toman el título y el artista de los datos; un tema sin datos, del nombre del archivo.
 
 ### Renombrar un tema

@@ -33,6 +33,18 @@ def song(tmp_path):
     return main
 
 
+def raw(path):
+    """What ffprobe and mutagen see, to tell a writing problem from a reading one when it fails."""
+    import mutagen
+    probe = subprocess.run(["ffprobe", "-v", "error", "-of", "json", "-show_entries", "format_tags:stream_tags", str(path)],
+                           capture_output=True, text=True)
+    version = subprocess.run(["ffprobe", "-version"], capture_output=True, text=True).stdout.splitlines()[0]
+    found = mutagen.File(str(path))
+    return {"ffprobe": version, "probe": probe.stdout, "probe_err": probe.stderr,
+            "mutagen": dict(found.tags) if found is not None and found.tags is not None else None,
+            "head": path.read_bytes()[:16]}
+
+
 def names(folder):
     return sorted(p.name for p in folder.iterdir())
 
@@ -49,7 +61,8 @@ def test_set_everywhere_but_takes(song):
     tags.run(song, ["album=Live", "Mi campo=hola", "genre=Rock"], ["synopsis"])
     for name in ["001 - Someone - Song (HQ).opus", "001 - Someone - Song (HQ) (drums).wav", "001 - Someone - Song (HQ) (80%).mp3"]:
         data = tags.read(song.parent / name)
-        assert (data["album"], data["Mi campo"], data["genre"], data["artist"]) == ("Live", "hola", "Rock", "Uploader"), name
+        got = tuple(data.get(k) for k in ("album", "Mi campo", "genre", "artist"))
+        assert got == ("Live", "hola", "Rock", "Uploader"), (name, data, raw(song.parent / name))
         assert "synopsis" not in data and data["purl"] == "https://example.com/watch?v=1", name
     assert "album" not in tags.read(song.parent / "001 - Someone - Song (HQ) (record 2026-01-03 20-15-00).wav")
     # The audio is the same: only the data changed.
@@ -84,7 +97,7 @@ def test_field_names_ogg_takes(song, capsys):
     assert "Año" not in tags.read(song)
     wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
     tags.run(wav, ["Año=1993"], only=True)  # a WAV (ID3) takes it
-    assert tags.read(wav)["Año"] == "1993"
+    assert tags.read(wav).get("Año") == "1993", raw(wav)
 
 
 def test_reads_again_after_writing(song, monkeypatch):
@@ -94,6 +107,23 @@ def test_reads_again_after_writing(song, monkeypatch):
     tags.write([str(song)], {**old, "album": "Live"})
     os.utime(song, ns=(st.st_atime_ns, st.st_mtime_ns))  # same time (as the Mac CI showed)
     assert tags.read(song)["album"] == "Live"
+
+
+def test_wav_stays_a_wav(song):
+    import soundfile
+    wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    tags.run(song, ["album=Live"])
+    assert wav.read_bytes()[:4] == b"RIFF"  # the data inside, not in front of the file
+    assert soundfile.info(str(wav)).frames == int(0.3 * 44100)  # another reader than ffmpeg opens it
+    # A WAV left with its data in front of it (0.22.0 to 0.22.3) is mended by writing it again.
+    from mutagen.id3 import ID3, TIT2
+    broken = ID3()
+    broken.add(TIT2(encoding=3, text="x"))
+    broken.save(str(wav))
+    assert wav.read_bytes()[:3] == b"ID3"
+    tags.run(wav, ["genre=Rock"], only=True)
+    assert wav.read_bytes()[:4] == b"RIFF" and soundfile.info(str(wav)).frames == int(0.3 * 44100)
+    assert tags.read(wav)["genre"] == "Rock"
 
 
 def test_purl_stays(song):

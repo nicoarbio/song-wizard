@@ -152,7 +152,12 @@ def _write_copy(path, tags, temp):
     command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0", "-c", "copy",
                "-map_metadata", "-1", "-map_metadata:s:a", "-1"]
     if ext == ".wav":
-        command += ["-fflags", "+bitexact"]  # the WAV's own list stays empty: the data goes in ID3
+        # The WAV's own list takes a few fields (some programs read only those); all of them go in
+        # its ID3 chunk below. Bitexact: without ffmpeg's name in the list.
+        command += ["-fflags", "+bitexact"]
+        for k in ("title", "artist", "album", "date", "genre", "comment", "copyright"):
+            if tags.get(k):
+                command += ["-metadata", f"{k}={tags[k]}"]
     else:
         for k, v in tags.items():
             command += ["-metadata", f"{k}={v}", "-metadata:s:a:0", f"{k}={v}"]
@@ -161,9 +166,16 @@ def _write_copy(path, tags, temp):
     command.append(temp)  # the format goes by the extension, the same as the file's
     subprocess.run(command, check=True, capture_output=True)
     if ext == ".wav" and tags:
+        # Inside the WAV, as its "id3 " chunk. (Setting wave.tags to a plain ID3 would put it in
+        # front of the file, as in an MP3: ffmpeg reads that, Windows and others don't take it
+        # for a WAV anymore. 0.22.0 to 0.22.3 did so; writing the data again mends it.)
         from mutagen.wave import WAVE
         wave = WAVE(temp)
-        wave.tags = _id3(tags)
+        if wave.tags is None:
+            wave.add_tags()
+        wave.tags.clear()
+        for frame in _id3(tags).values():
+            wave.tags.add(frame)
         wave.save()
 
 
