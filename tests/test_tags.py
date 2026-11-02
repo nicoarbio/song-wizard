@@ -121,9 +121,10 @@ def test_wav_stays_a_wav(song):
     broken.add(TIT2(encoding=3, text="x"))
     broken.save(str(wav))
     assert wav.read_bytes()[:3] == b"ID3"
+    assert tags.read(wav)["title"] == "x"  # read with mutagen: ffmpeg 8 doesn't open it
     tags.run(wav, ["genre=Rock"], only=True)
     assert wav.read_bytes()[:4] == b"RIFF" and soundfile.info(str(wav)).frames == int(0.3 * 44100)
-    assert tags.read(wav)["genre"] == "Rock"
+    assert tags.read(wav)["genre"] == "Rock" and tags.read(wav)["title"] == "x"
 
 
 def test_purl_stays(song):

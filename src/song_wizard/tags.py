@@ -31,6 +31,26 @@ LOOKALIKE = str.maketrans({"\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?":
 _cache = {}
 
 
+def _id3_in_front(path):
+    """How many bytes of ID3 a WAV has in front of it (0.22.0 to 0.22.3 left it so), or 0."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(10)
+    except OSError:
+        return 0
+    if len(head) < 10 or head[:3] != b"ID3" or not os.fspath(path).lower().endswith(".wav"):
+        return 0
+    size = (head[6] & 0x7F) << 21 | (head[7] & 0x7F) << 14 | (head[8] & 0x7F) << 7 | (head[9] & 0x7F)
+    return 10 + size + (10 if head[5] & 0x10 else 0)
+
+
+def _without_front(path, skip, to):
+    """The WAV at path, without the ID3 in front of it, written to `to`."""
+    with open(path, "rb") as src, open(to, "wb") as dst:
+        src.seek(skip)
+        shutil.copyfileobj(src, dst, 1 << 20)
+
+
 def read(path):
     """{field: value} of the file; {} if it has none or can't be read."""
     path = os.fspath(path)
@@ -41,6 +61,17 @@ def read(path):
     # A file replaced has another inode: its time and size alone can match the old one's (on the
     # Mac, data rewritten in the room kept for it leaves the size as it was).
     key = (path, st.st_ino, st.st_mtime_ns, st.st_ctime_ns, st.st_size)
+    if key not in _cache and _id3_in_front(path):
+        # ffmpeg 8 doesn't open such a WAV at all: its data is that ID3 (mutagen reads it).
+        try:
+            from mutagen.id3 import ID3
+            frames = ID3(path)
+            _cache[key] = {**{k: str(frames[f]) for k, f in FRAMES.items() if f in frames},
+                           **{t.desc: str(t) for t in frames.getall("TXXX")},
+                           **({"date": str(frames["TDRC"])} if "TDRC" in frames else {}),
+                           **({"comment": str(frames.getall("COMM")[0])} if frames.getall("COMM") else {})}
+        except Exception:
+            _cache[key] = {}
     if key not in _cache:
         try:
             out = subprocess.run(["ffprobe", "-v", "error", "-of", "json", "-show_entries",
@@ -149,11 +180,36 @@ def _write_copy(path, tags, temp):
                 audio.tags[k] = v
         audio.save()
         return
-    command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0", "-c", "copy",
+    source, front = path, _id3_in_front(path)
+    if front:  # a WAV with its data in front of it: from the WAV alone (ffmpeg 8 won't open it)
+        source = temp + ".src.wav"
+        _without_front(path, front, source)
+    try:
+        _ffmpeg_copy(source, ext, tags, temp)
+    finally:
+        if source != path and os.path.exists(source):
+            os.remove(source)
+    if ext == ".wav" and tags:
+        # Inside the WAV, as its "id3 " chunk. (Setting wave.tags to a plain ID3 would put it in
+        # front of the file, as in an MP3: ffmpeg 6 reads that, ffmpeg 8 and Windows don't take
+        # it for a WAV anymore. 0.22.0 to 0.22.3 did so; writing the data again mends it.)
+        from mutagen.wave import WAVE
+        wave = WAVE(temp)
+        if wave.tags is None:
+            wave.add_tags()
+        wave.tags.clear()
+        for frame in _id3(tags).values():
+            wave.tags.add(frame)
+        wave.save()
+
+
+def _ffmpeg_copy(source, ext, tags, temp):
+    """The audio copied as it is to temp, with these fields (in a WAV, only its own list's)."""
+    command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", source, "-map", "0", "-c", "copy",
                "-map_metadata", "-1", "-map_metadata:s:a", "-1"]
     if ext == ".wav":
         # The WAV's own list takes a few fields (some programs read only those); all of them go in
-        # its ID3 chunk below. Bitexact: without ffmpeg's name in the list.
+        # its ID3 chunk. Bitexact: without ffmpeg's name in the list.
         command += ["-fflags", "+bitexact"]
         for k in ("title", "artist", "album", "date", "genre", "comment", "copyright"):
             if tags.get(k):
@@ -165,18 +221,6 @@ def _write_copy(path, tags, temp):
             command += ["-movflags", "use_metadata_tags"]  # else only the fields MP4 knows
     command.append(temp)  # the format goes by the extension, the same as the file's
     subprocess.run(command, check=True, capture_output=True)
-    if ext == ".wav" and tags:
-        # Inside the WAV, as its "id3 " chunk. (Setting wave.tags to a plain ID3 would put it in
-        # front of the file, as in an MP3: ffmpeg reads that, Windows and others don't take it
-        # for a WAV anymore. 0.22.0 to 0.22.3 did so; writing the data again mends it.)
-        from mutagen.wave import WAVE
-        wave = WAVE(temp)
-        if wave.tags is None:
-            wave.add_tags()
-        wave.tags.clear()
-        for frame in _id3(tags).values():
-            wave.tags.add(frame)
-        wave.save()
 
 
 def write(paths, tags):

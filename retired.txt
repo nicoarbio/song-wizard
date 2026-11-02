@@ -2,3 +2,8 @@
 # whoever has one to the newest that isn't here; upgrade --to installs one only with --force.
 # One per line: the version, then why. The tag stays on GitHub.
 0.13.0  la práctica se trababa al saltar o pausar con muchas pistas (la batería en partes); arreglado en la 0.13.1
+0.22.0  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
+0.22.1  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
+0.22.2  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
+0.22.3  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
+0.22.4  en Mac no podía reparar los WAV que dañaron la 0.22.0 a la 0.22.3; arreglado en la 0.22.5
