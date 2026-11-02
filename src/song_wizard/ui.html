@@ -151,7 +151,6 @@
   #trim .trim-sum { font-weight: 600; margin: 10px 0 4px; }
   #trim ul { max-height: 22vh; overflow: auto; font-size: 13px; padding-left: 20px; margin: 6px 0; overflow-wrap: anywhere; }
   #trim .warnline { color: var(--warn); }
-  .wave.big { height: 64px; margin: 4px 0 8px; }
   .wave.zoom { height: 96px; margin: 8px 0 4px; cursor: ew-resize; background: var(--bg); border-radius: 6px; }
   #pc-panel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
   #pc-panel summary { cursor: pointer; font-weight: 600; }
@@ -161,18 +160,49 @@
   .offline { position: sticky; top: 0; z-index: 5; background: var(--warn); color: #fff; padding: 8px 20px; font-size: 14px; }
   .offline code { background: rgb(0 0 0 / .2); padding: 1px 5px; border-radius: 4px; }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); max-width: min(720px, calc(100vw - 32px)); width: 100%; padding: 18px 20px; }
-  dialog#practice { max-width: min(860px, calc(100vw - 24px)); }
+  /* The practice player fills the window: controls on top, a row per track with its waveform on
+     a shared timeline, and the lyrics in a column on the right that can be folded away. */
+  dialog#practice { max-width: none; max-height: none; width: 100vw; height: 100vh; height: 100dvh; margin: 0; border: 0; border-radius: 0; padding: 0; }
+  dialog#practice[open] { display: flex; flex-direction: column; }
+  .pr-top { padding: 10px 16px 6px; border-bottom: 1px solid var(--line); }
+  .pr-head { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+  .pr-head h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .pr-spacer { flex: 1; }
+  .transport .ctl { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; padding-left: 12px; border-left: 1px solid var(--line); }
+  .transport .ctl input[type=range] { width: 110px; }
+  .pr-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 480px); }
+  #practice.no-lyrics .pr-main { grid-template-columns: minmax(0, 1fr); }
+  #practice.no-lyrics .pr-lyrics { display: none; }
+  .pr-left { min-width: 0; min-height: 0; overflow: auto; padding: 10px 16px; display: flex; flex-direction: column; }
+  .pr-lyrics { min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); padding: 10px 14px; }
+  .pr-lyrics-head { margin-bottom: 4px; }
+  #pl-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #pl-slot #lyr-view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #pl-slot .lyr-body { flex: 1; min-height: 120px; max-height: none; position: relative; }
+  .lanes { user-select: none; flex: 1 0 auto; display: grid; grid-template-columns: minmax(150px, 230px) minmax(0, 1fr); grid-auto-rows: minmax(30px, 1fr); gap: 4px 12px; min-height: 160px; margin-bottom: 8px; }
+  .lanes .lane-ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 6px; align-items: center; align-self: center; }
+  .lanes .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lanes .ms { display: flex; gap: 4px; }
+  .lanes .vol { width: 100%; margin: 0; }
+  .lanes .pct { color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+  .lanes button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  /* The canvas fills its cell without giving it a size (else the row grows with every redraw). */
+  .lanes .lane { position: relative; min-height: 30px; }
+  .lanes canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); border-radius: 6px; cursor: pointer; }
+  .lanes .main-lane { grid-row: span 2; }
+  .lanes .silent canvas, .lanes .silent.lane-ctl .name { opacity: .35; }
+  @media (max-width: 900px) {
+    .pr-main { display: block; overflow: auto; }
+    .pr-left { overflow: visible; }
+    .pr-lyrics { border-left: 0; border-top: 1px solid var(--line); height: 70vh; }
+    .lanes { grid-template-columns: minmax(110px, 150px) minmax(0, 1fr); grid-auto-rows: 44px; }
+  }
   input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
   .transport { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 0 4px; }
   .transport .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; min-width: 92px; }
   .seek { position: relative; flex: 1 1 260px; display: flex; align-items: center; }
   .seek input { width: 100%; }
   .seek .loop-range { position: absolute; top: 50%; height: 6px; margin-top: -3px; background: var(--accent); opacity: .25; border-radius: 3px; pointer-events: none; }
-  .tracks { user-select: none; display: grid; grid-template-columns: minmax(90px, 140px) auto 1fr 44px; gap: 6px 10px; align-items: center; margin: 12px 0; }
-  .tracks .name { font-weight: 600; overflow-wrap: anywhere; }
-  .tracks .vol { width: 100%; }
-  .tracks .pct { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
-  .tracks button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .song .head button.on { color: var(--accent); font-weight: 600; }
   /* "más": the song's other actions (lyrics, rename, REAPER), in a menu under the button. */
   .more { position: relative; }
@@ -210,13 +240,11 @@
   .lyr-body { max-height: 58vh; overflow: auto; font-size: 16px; line-height: 1.6; padding: 6px 2px; border-top: 1px solid var(--line); }
   .lyr-line { min-height: 1.6em; border-radius: 4px; transition: background .2s; }
   .lyr-line.now { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); }
-  #pl-slot .lyr-body { max-height: 38vh; position: relative; }
   .lyr-time { user-select: none; display: inline-flex; gap: 2px; width: 6.2em; margin-right: 8px; vertical-align: baseline; }
   .lyr-time button { font-size: 11px; padding: 0 5px; height: 20px; font-variant-numeric: tabular-nums; color: var(--muted); }
   .lyr-time.unset button { opacity: .55; }
   .lyr-time .x { width: 18px; padding: 0; opacity: 0; }
   .lyr-line:hover .lyr-time .x { opacity: 1; }
-  #pl-panel { margin-top: 8px; }
   .lyr-line mark { color: #111; border-radius: 2px; padding: 0 1px; }
   .lyr-note { margin-left: 10px; font-size: 13px; font-style: italic; color: var(--warn); cursor: pointer; }
   .lyr-note::before { content: "← "; }
@@ -398,35 +426,35 @@
 <div class="toast" id="toast"></div>
 
 <dialog id="practice" aria-label="Practicar">
-  <div class="section-head"><h3 id="practice-title">Practicar</h3><button class="small" id="practice-close">cerrar</button></div>
-  <div class="row" id="practice-set-row" hidden>
-    <label>Pistas <select id="practice-set"></select></label>
+  <div class="pr-top">
+    <div class="pr-head">
+      <h3 id="practice-title">Practicar</h3>
+      <label id="practice-set-row" hidden>Pistas <select id="practice-set"></select></label>
+      <span class="pr-spacer"></span>
+      <button class="small" id="practice-lyrics-toggle" title="Mostrar u ocultar la letra (Y)">letra ▸</button>
+      <button class="small" id="practice-full" title="Pantalla completa, sin las barras del navegador (F)">⛶ pantalla completa</button>
+      <button class="small" id="practice-close">cerrar</button>
+    </div>
+    <div class="transport">
+      <button class="primary" id="practice-play" disabled>▶</button>
+      <span class="time" id="practice-time">0:00 / 0:00</span>
+      <b id="practice-count"></b>
+      <span class="ctl" title="La velocidad cambia sin cambiar el tono">Velocidad <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" aria-label="Velocidad"> <b id="practice-speed-value">100 %</b>
+        <button class="small" id="practice-speed-reset">100 %</button></span>
+      <span class="ctl">Tono <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" aria-label="Tono en semitonos"> <b id="practice-pitch-value">0</b>
+        <button class="small" id="practice-pitch-reset">0</button> <span class="muted" id="practice-pitch-hint">semitonos</span></span>
+      <span class="ctl">Tramo
+        <button class="small" id="practice-a">A <span id="practice-a-time">–</span></button>
+        <button class="small" id="practice-b">B <span id="practice-b-time">–</span></button>
+        <button class="small" id="practice-loop">repetir</button>
+        <button class="small" id="practice-clear">borrar</button></span>
+      <span class="ctl" title="El volumen de todo junto">Maestro <input type="range" id="practice-master" min="0" max="100" step="1" aria-label="Volumen maestro"> <span class="pct" id="practice-master-value"></span></span>
+    </div>
   </div>
-  <div class="transport">
-    <button class="primary" id="practice-play" disabled>▶</button>
-    <span class="time" id="practice-time">0:00 / 0:00</span>
-    <b id="practice-count"></b>
-  </div>
-  <canvas class="wave big" id="practice-wave" aria-label="Posición: tocá para moverte"></canvas>
-  <div class="row">
-    <label>Velocidad <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" aria-label="Velocidad"> <b id="practice-speed-value">100 %</b></label>
-    <button class="small" id="practice-speed-reset">100 %</button>
-    <span class="muted">el tono no cambia</span>
-  </div>
-  <div class="row">
-    <label>Tono <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" aria-label="Tono en semitonos"> <b id="practice-pitch-value">0</b></label>
-    <button class="small" id="practice-pitch-reset">0</button>
-    <span class="muted" id="practice-pitch-hint">semitonos; la velocidad no cambia</span>
-  </div>
-  <div class="row" style="margin-top:8px">
-    <span>Repetir un tramo:</span>
-    <button class="small" id="practice-a">A <span id="practice-a-time">–</span></button>
-    <button class="small" id="practice-b">B <span id="practice-b-time">–</span></button>
-    <button class="small" id="practice-loop">repetir</button>
-    <button class="small" id="practice-clear">borrar</button>
-  </div>
-  <div class="tracks" id="practice-tracks"></div>
-  <details id="pc-panel">
+  <div class="pr-main">
+    <div class="pr-left">
+      <div class="lanes" id="practice-tracks"></div>
+      <details id="pc-panel">
     <summary>Ajustar el click: <span id="pc-summary" class="muted"></span></summary>
     <div class="row" style="margin-top:8px">
       <label>BPM <input type="number" id="pc-bpm" step="0.01" min="20" max="400"></label>
@@ -450,16 +478,18 @@
       <label><input type="checkbox" id="pc-resume"> también al seguir desde una pausa</label>
     </div>
   </details>
-  <details id="pl-panel">
-    <summary>Letra <span id="pl-summary" class="muted"></span></summary>
-    <div id="pl-slot"></div>
-  </details>
-  <p class="practice-keys">
-    <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
-    <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>9</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>D</kbd> sincronía
-  </p>
-  <p id="practice-status" class="hint"></p>
-  <p id="practice-sync" hidden></p>
+      <p class="practice-keys">
+        <kbd>espacio</kbd> reproducir/pausar · <kbd>[</kbd> <kbd>]</kbd> marcar A y B · <kbd>L</kbd> repetir · <kbd>←</kbd> <kbd>→</kbd> 5 s ·
+        <kbd>-</kbd> <kbd>+</kbd> velocidad · <kbd>1</kbd>…<kbd>9</kbd> silenciar una pista · <kbd>C</kbd> click · <kbd>F</kbd> pantalla completa · <kbd>Y</kbd> letra · <kbd>D</kbd> sincronía
+      </p>
+      <p id="practice-status" class="hint"></p>
+      <p id="practice-sync" hidden></p>
+    </div>
+    <aside class="pr-lyrics" id="pl-panel">
+      <div class="pr-lyrics-head"><b>Letra</b> <span id="pl-summary" class="muted"></span></div>
+      <div id="pl-slot"></div>
+    </aside>
+  </div>
 </dialog>
 
 <dialog id="folder">
@@ -1251,7 +1281,9 @@ class Wave {
       const r = canvas.getBoundingClientRect(), [a, b] = this.range();
       return a + (b - a) * Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
     };
-    new ResizeObserver(() => this.draw()).observe(canvas);
+    this.version = 0;
+    this.observer = new ResizeObserver(() => this.draw());
+    this.observer.observe(canvas);
     if (!interactive) return;  // whoever uses it handles the pointer (the trim handles)
     canvas.addEventListener("pointerdown", (e) => {
       if (!this.seconds) return;
@@ -1276,15 +1308,41 @@ class Wave {
 
   range() { return this.view || [this.from, this.from + this.seconds]; }
 
+  // For waves made and dropped with the tracks of a song (the practice lanes).
+  dispose() {
+    this.observer.disconnect();
+    Wave.all = Wave.all.filter((w) => w !== this);
+  }
+
+  // The bars drawn once in one color, kept as a picture: each frame only copies them (a player
+  // with a dozen lanes redraws them all 60 times a second).
+  layer(w, h, dpr, a, b, fill, alpha) {
+    const c = document.createElement("canvas");
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    const g = c.getContext("2d"), x = (t) => (t - a) / (b - a || 1) * w;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = fill;
+    g.globalAlpha = alpha;
+    const step = this.seconds / this.peaks.length, width = Math.max(1, w * step / (b - a || 1));
+    for (let i = 0; i < this.peaks.length; i++) {
+      const t = this.from + i * step;
+      if (t + step < a || t > b) continue;
+      const height = Math.max(1, this.peaks[i] / this.max * (h - 6));
+      g.fillRect(x(t), (h - height) / 2, width > 2 ? width - 0.5 : width, height);
+    }
+    return c;
+  }
+
   set(data) {
     this.peaks = data.peaks;
     this.from = data.from;
     this.seconds = data.seconds;
     this.max = Math.max(0.05, ...this.peaks);
+    this.version++;
     this.draw();
   }
 
-  clear() { this.peaks = []; this.seconds = 0; this.draw(); }
+  clear() { this.peaks = []; this.seconds = 0; this.version++; this.draw(); }
 
   update(state) { Object.assign(this.state, state); this.draw(); }
 
@@ -1299,16 +1357,17 @@ class Wave {
     const [a, b] = this.range(), x = (t) => (t - a) / (b - a || 1) * w, s = this.state;
     const position = s.preview ?? s.position ?? -1;
     if (this.peaks.length) {
-      const step = this.seconds / this.peaks.length, width = Math.max(1, w * step / (b - a || 1));
-      for (let i = 0; i < this.peaks.length; i++) {
-        const t = this.from + i * step;
-        if (t + step < a || t > b) continue;
-        const height = Math.max(1, this.peaks[i] / this.max * (h - 6));
-        g.fillStyle = t < position ? color("--accent") : color("--muted");
-        g.globalAlpha = t < position ? 0.9 : 0.45;
-        g.fillRect(x(t), (h - height) / 2, width > 2 ? width - 0.5 : width, height);
+      const accent = color("--accent"), muted = color("--muted"), key = [w, h, dpr, a, b, this.version, accent, muted].join("|");
+      if (!this.layers || this.layers.key !== key) {
+        this.layers = { key, played: this.layer(w, h, dpr, a, b, accent, 0.9), rest: this.layer(w, h, dpr, a, b, muted, 0.45) };
       }
-      g.globalAlpha = 1;
+      // Played part in the accent color, the rest muted: the two pictures cut at the playhead.
+      const cut = Math.max(0, Math.min(w, x(position))), { played, rest } = this.layers;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      const px = Math.round(cut * dpr);
+      if (px > 0) g.drawImage(played, 0, 0, px, played.height, 0, 0, px, played.height);
+      if (px < rest.width) g.drawImage(rest, px, 0, rest.width - px, rest.height, px, 0, rest.width - px, rest.height);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     if (s.a !== null && s.a !== undefined && s.b !== null && s.b !== undefined) {
       g.fillStyle = color("--accent");
@@ -1333,9 +1392,11 @@ class Wave {
     }
     // Beat lines, only where they don't crowd out the picture (a whole song shows bar lines
     // only when bars are a few pixels apart).
-    const spacing = s.grid ? s.grid.period * (s.grid.barsOnly ? s.grid.perBar : 1) / (b - a || 1) * w : 0;
-    if (s.grid && spacing >= 6) {
-      const { first, period, perBar, barsOnly } = s.grid;
+    // "auto": every beat when there's room, else only the bars.
+    const gr = s.grid && s.grid.auto ? { ...s.grid, barsOnly: s.grid.period / (b - a || 1) * w < 6 } : s.grid;
+    const spacing = gr ? gr.period * (gr.barsOnly ? gr.perBar : 1) / (b - a || 1) * w : 0;
+    if (gr && spacing >= 6) {
+      const { first, period, perBar, barsOnly } = gr;
       for (let k = Math.ceil((a - first) / period); first + k * period <= b; k++) {
         const bar = mod(k, perBar) === 0;
         if (barsOnly && !bar) continue;
@@ -1670,7 +1731,8 @@ function trackSets(song) {
   return sets;
 }
 
-const practiceWave = new Wave($("practice-wave"), { onSeek: (t) => moveTo(t) });
+// The song's own waveform, on top of the lanes (it stays from one set of tracks to the next).
+const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": "Posición: tocá para moverte" }), { onSeek: (t) => moveTo(t) });
 const clickWave = new Wave($("pc-wave"), { onGridDrag: (dt) => setClick({ first: practice.click.first + dt }) });
 
 function openPractice(song) {
@@ -1689,7 +1751,9 @@ function openPractice(song) {
   applyPitch();
   practice.click = clickSettings(song);
   practiceWave.clear();
-  loadPeaks(song.path).then((d) => { if (practice.song === song) practiceWave.set(d); }).catch(() => {});
+  practiceWave.view = null;
+  // By path: a refresh of the library replaces practice.song with an equal object.
+  loadPeaks(song.path).then((d) => { if (practice.song && practice.song.path === song.path) practiceWave.set(d); }).catch(() => {});
   loadSet(0);
   renderClickPanel(true);
   loadPracticeLyrics(song);
@@ -1723,13 +1787,15 @@ function loadSet(index) {
   }));
   Promise.all(ready).then(() => {
     practice.duration = Math.max(...practice.tracks.map((t) => t.audio.duration || 0));
+    // One timeline for every lane (stems can differ by a few samples; the click has no audio).
+    for (const w of [practiceWave, ...practice.lanes.map((l) => l.wave)]) { w.view = [0, practice.duration]; w.version++; w.draw(); }
     $("practice-play").disabled = false;
     $("practice-status").textContent = "";
     applySpeed();
     renderPractice();
   }).catch((e) => { $("practice-status").textContent = `El navegador no pudo abrir ${e.message}.`; });
   applyVolumes();
-  renderTracks();
+  buildTracks();
   renderPractice();
 }
 
@@ -1752,28 +1818,48 @@ const now = () => practice.preroll ? practice.preroll.entry : practice.tracks.le
 const speed = () => parseInt($("practice-speed").value, 10) / 100;
 const median = (values) => { const s = [...values].sort((x, y) => x - y); return s[s.length >> 1]; };
 
-function renderTracks() {
+// One row per track: its name, mute, solo and volume, and its waveform on the same timeline as
+// the song's (a click anywhere moves there). Made once per set of tracks; renderTracks() then only
+// updates them, so a slider being dragged is never replaced under the mouse.
+function buildTracks() {
   const box = $("practice-tracks");
-  box.replaceChildren();
-  const all = Math.round(masterVolume() * 100);
-  box.append(
-    el("span", { class: "name", title: "El volumen de todo junto" }, "Maestro"),
-    el("span"),
-    el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: all, "aria-label": "Volumen maestro",
-      oninput: (e) => { setMasterVolume(e.target.value / 100); e.target.nextSibling.textContent = `${e.target.value} %`; } }),
-    el("span", { class: "pct" }, `${all} %`));
+  for (const t of practice.lanes || []) t.wave.dispose();
+  practice.lanes = [];
+  box.replaceChildren(
+    el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, "Tema"),
+      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, "tocá una onda para ir ahí")),
+    el("div", { class: "lane main-lane" }, practiceWave.canvas));
   practice.mixer.forEach((t, i) => {
+    const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": `Volumen de ${t.name}`,
-      // Only the number changes: redrawing the mixer would take the slider out from under the mouse.
-      oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); e.target.nextSibling.textContent = `${e.target.value} %`; } });
-    box.append(
-      el("span", { class: "name", title: t.click ? "El click, al tempo y compás de abajo" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
-      el("span", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
-        el("button", { class: "small" + (t.mute ? " on" : ""), title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M"),
-        el("button", { class: "small" + (t.solo ? " on" : ""), title: "Solo esta pista (se pueden sumar otras)", onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S")),
-      vol,
-      el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`));
+      oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); pct.textContent = `${e.target.value} %`; } });
+    const mute = el("button", { class: "small", title: "Silenciar", onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
+    const solo = el("button", { class: "small", title: "Solo esta pista (se pueden sumar otras)", onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
+    const ctl = el("div", { class: "lane-ctl" },
+      el("span", { class: "name", title: t.click ? "El click, al tempo y compás de \"Ajustar el click\"" : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
+      el("span", { class: "ms" }, mute, solo), vol, pct);
+    const canvas = el("canvas", { "aria-label": `${t.name}: tocá para moverte` });
+    const lane = el("div", { class: "lane" }, canvas);
+    box.append(ctl, lane);
+    const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
+    if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) wave.set(d); }).catch(() => {});
+    const ui = { track: t, wave, ctl, lane, mute, solo };
+    practice.lanes.push(ui);
   });
+  renderTracks();
+}
+
+function renderTracks() {
+  const all = Math.round(masterVolume() * 100);
+  if (document.activeElement !== $("practice-master")) $("practice-master").value = all;
+  $("practice-master-value").textContent = `${all} %`;
+  for (const { track: t, ctl, lane, mute, solo } of practice.lanes || []) {
+    mute.classList.toggle("on", t.mute);
+    solo.classList.toggle("on", t.solo);
+    const silent = level(t) === 0;
+    ctl.classList.toggle("silent", silent);
+    lane.classList.toggle("silent", silent);
+  }
 }
 
 function level(t) {
@@ -1823,6 +1909,9 @@ function renderPractice() {
   $("practice-loop").disabled = practice.a === null || practice.b === null;
   followLyrics(t);
   practiceWave.update({ position: t, a: practice.a, b: practice.b, grid: clickAudible() ? { ...grid(), barsOnly: true } : null });
+  for (const { track, wave } of practice.lanes || []) {
+    wave.update({ position: t, a: practice.a, b: practice.b, grid: track.click ? { ...grid(), auto: true } : null });
+  }
   if ($("pc-panel").open) clickWave.update({ position: t });
 }
 
@@ -1936,7 +2025,7 @@ async function applyPitch() {
   let st = semitones();
   $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st);
   const key = practice.song && practice.song.key, from = key && key.split(/\s+/)[0], to = shiftedKey(key, st);
-  $("practice-pitch-hint").textContent = st && to ? `semitonos: ${from} → ${to}; la velocidad no cambia` : "semitonos; la velocidad no cambia";
+  $("practice-pitch-hint").textContent = st && to ? `semitonos: ${from} → ${to}` : "semitonos";
   if (st && !pitchNode) {
     try {
       pitchLoading = pitchLoading || ctx.audioWorklet.addModule("/static/pitch.js");
@@ -2171,7 +2260,38 @@ function syncPracticeClick() {
 $("practice-play").onclick = togglePlay;
 $("practice-close").onclick = () => $("practice").close();
 // "close" arrives a moment later: if another song was opened meanwhile, keep its tracks.
-$("practice").addEventListener("close", () => { if (!$("practice").open) stopPractice(); });
+$("practice").addEventListener("close", () => {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  if (!$("practice").open) stopPractice();
+});
+$("practice-master").addEventListener("input", (e) => { setMasterVolume(e.target.value / 100); $("practice-master-value").textContent = `${e.target.value} %`; });
+
+// The lyrics column folds away (the waves get its room); the browser remembers it.
+const PRACTICE_LYRICS_KEY = "song-wizard:practice-lyrics";
+const lyricsShown = () => !$("practice").classList.contains("no-lyrics");
+function showPracticeLyrics(on, starting = false) {
+  $("practice").classList.toggle("no-lyrics", !on);
+  $("practice-lyrics-toggle").textContent = on ? "letra ▸" : "◂ letra";
+  $("practice-lyrics-toggle").setAttribute("aria-pressed", String(on));
+  try { on ? localStorage.removeItem(PRACTICE_LYRICS_KEY) : localStorage.setItem(PRACTICE_LYRICS_KEY, "hidden"); } catch {}
+  if (on && !starting) { lyr.nowLine = undefined; followLyrics(now()); }
+}
+$("practice-lyrics-toggle").onclick = () => showPracticeLyrics(!lyricsShown());
+showPracticeLyrics((() => { try { return localStorage.getItem(PRACTICE_LYRICS_KEY) !== "hidden"; } catch { return true; } })(), true);
+
+// Real full screen (no browser bars) needs a click or a key: the browser won't do it on its own.
+// Esc leaves it and the player stays open.
+function togglePracticeFull() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen().catch(() => toast("El navegador no dejó pasar a pantalla completa."));
+}
+$("practice-full").onclick = togglePracticeFull;
+document.addEventListener("fullscreenchange", () => {
+  $("practice-full").textContent = document.fullscreenElement ? "salir de pantalla completa" : "⛶ pantalla completa";
+});
+// Esc in full screen only leaves full screen: the browser takes that one, but some also send
+// it on to the dialog, which would close the player.
+$("practice").addEventListener("cancel", (e) => { if (document.fullscreenElement) e.preventDefault(); });
 $("practice-set").onchange = (e) => loadSet(parseInt(e.target.value, 10));
 $("practice-speed").addEventListener("input", () => { $("practice-speed-value").textContent = `${$("practice-speed").value} %`; });
 $("practice-speed").addEventListener("change", () => moveTo(now()));
@@ -2197,6 +2317,8 @@ $("practice").addEventListener("keydown", (e) => {
     "-": () => setSpeed(speed() * 100 - 5), "+": () => setSpeed(speed() * 100 + 5), "=": () => setSpeed(speed() * 100 + 5),
     "d": () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
     "t": tapNextLine,
+    "f": togglePracticeFull,
+    "y": () => showPracticeLyrics(!lyricsShown()),
   };
   const track = /^[1-9]$/.test(key) ? practice.tracks[parseInt(key, 10) - 1] : null;
   if (track) { e.preventDefault(); track.mute = !track.mute; applyVolumes(); renderTracks(); return; }
@@ -2682,7 +2804,7 @@ function tapNextLine() {
 }
 
 function followLyrics(t) {
-  if (lyr.where !== "practice" || !lyr.timeline || !$("pl-panel").open) return;
+  if (lyr.where !== "practice" || !lyr.timeline || !lyricsShown()) return;
   let line = null;
   for (const [at, k] of lyr.timeline) { if (at <= t + 0.15) line = k; else break; }
   if (line === lyr.nowLine) return;
