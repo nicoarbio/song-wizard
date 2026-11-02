@@ -124,12 +124,15 @@ def _id3(tags):
 def _write_copy(path, tags, temp):
     """The file with exactly these fields, at temp (the audio copied as it is)."""
     ext = os.path.splitext(path)[1].lower()
-    command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0", "-c", "copy", "-map_metadata", "-1"]
+    # Cleared and written both for the file and for its audio: an Ogg file (.opus) keeps them in
+    # its audio stream, and ffmpeg 7+ copies the stream's own unless told not to.
+    command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0", "-c", "copy",
+               "-map_metadata", "-1", "-map_metadata:s:a", "-1"]
     if ext == ".wav":
         command += ["-fflags", "+bitexact"]  # the WAV's own list stays empty: the data goes in ID3
     else:
         for k, v in tags.items():
-            command += ["-metadata", f"{k}={v}"]
+            command += ["-metadata", f"{k}={v}", "-metadata:s:a:0", f"{k}={v}"]
         if ext in (".m4a", ".mp4", ".m4b"):
             command += ["-movflags", "use_metadata_tags"]  # else only the fields MP4 knows
     command.append(temp)  # the format goes by the extension, the same as the file's
