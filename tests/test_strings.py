@@ -1,57 +1,34 @@
-"""The interface's translations (static/strings.js): every text the page shows has its English
-and Portuguese, and they don't ask for anything the page doesn't give."""
+"""The interface's texts (static/i18n/<lang>.json): the three languages have the same keys, every
+key the page or the server uses is there, none is left over, and no text asks for a value its
+key's Spanish doesn't have."""
 
 import ast
 import json
 import re
-from html.parser import HTMLParser
+import threading
 from importlib import resources
 
-# Names that read the same in every language.
-SAME = {"song-wizard", "song-wizard ui", "Español", "English", "Português", "es", "en", "pt", "Piano", "MP3", "BPM",
-        "min", "Reaper", "−10 ms", "+10 ms"}
+LANGS = ("es", "en", "pt")
 
 
-def page():
-    return resources.files("song_wizard").joinpath("ui.html").read_text(encoding="utf-8")
+def texts(lang):
+    return json.loads(resources.files("song_wizard").joinpath("static", "i18n", f"{lang}.json").read_text(encoding="utf-8"))
 
 
-def strings():
-    text = resources.files("song_wizard").joinpath("static", "strings.js").read_text(encoding="utf-8")
-    start = text.index("window.STRINGS = ") + len("window.STRINGS = ")
-    return json.loads(text[start:text.rindex("}") + 1])
-
-
-def texts(html):
-    """translate("...") in the code, and the markup's fixed texts and titles, placeholders, labels."""
+def page_keys():
+    """say("key") in the page's code, and data-text / data-text-<attribute> in its markup."""
+    html = resources.files("song_wizard").joinpath("ui.html").read_text(encoding="utf-8")
     code = html[html.rindex("<script>"):]
-    found = [json.loads('"' + m.group(1) + '"') for m in re.finditer(r'translate\("((?:[^"\\]|\\.)*)"', code)]
-    body = html[html.index("<body>"):html.rindex("<script>")]
-
-    class Markup(HTMLParser):
-        skip = 0
-
-        def handle_starttag(self, tag, attrs):
-            self.skip += tag in ("script", "style")
-            found.extend(re.sub(r"\s+", " ", v).strip() for k, v in attrs
-                         if k in ("title", "placeholder", "aria-label") and v and re.search(r"[^\W\d_]{2}", v))
-
-        def handle_endtag(self, tag):
-            self.skip -= tag in ("script", "style")
-
-        def handle_data(self, data):
-            t = re.sub(r"\s+", " ", data).strip()
-            if not self.skip and t and re.search(r"[^\W\d_]{2}", t):
-                found.append(t)
-
-    Markup().feed(body)
-    return set(found)
+    keys = set(re.findall(r'\bsay\("([\w.]+)"', code))
+    keys |= set(re.findall(r'\bdata-text(?:-[\w-]+)?="([\w.]+)"', html))
+    return keys
 
 
-def server_texts():
-    """What the server says to the page and prints: say(...), self.say(...), self.error(status, ...),
-    Said(...) and NeedsCommand(command, ...), read with Python's own parser."""
-    found = set()
+def server_keys():
+    """say(lang, key), self.say(key), self.error(status, key), Said(key), NeedsCommand(command, key),
+    read with Python's own parser; and the lyrics markers' color names."""
+    from song_wizard import lyrics
+    keys = set(lyrics.NAMES.values())
     for name in ("ui.py", "setlist.py", "lyrics.py"):
         tree = ast.parse(resources.files("song_wizard").joinpath(name).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -60,48 +37,52 @@ def server_texts():
             func = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
             at = {"say": 1 if isinstance(node.func, ast.Name) else 0, "error": 1, "Said": 0, "NeedsCommand": 1}.get(func)
             if at is not None and len(node.args) > at and isinstance(node.args[at], ast.Constant) and isinstance(node.args[at].value, str):
-                found.add(node.args[at].value)
-    found.discard("not found")  # an address nobody asks for, in English
-    from song_wizard import lyrics
-    return found | set(lyrics.NAMES.values())  # the markers' colors, said by name
+                keys.add(node.args[at].value)
+    return keys
 
 
-def test_every_text_has_its_translations():
-    table = strings()
-    missing = sorted(t for t in texts(page()) | server_texts() if t not in table and t not in SAME)
-    assert not missing, f"{len(missing)} texts without translation: {missing[:20]}"
+def test_the_languages_have_the_same_keys():
+    es = set(texts("es"))
+    for lang in ("en", "pt"):
+        assert set(texts(lang)) == es, (lang, sorted(set(texts(lang)) ^ es)[:10])
 
 
-def test_translations_are_whole():
-    for spanish, (english, portuguese) in strings().items():
-        wanted = set(re.findall(r"\{(\w+)\}", spanish))
-        for t in (english, portuguese):
-            assert t.strip() or not spanish.strip(), spanish
-            # A translation may leave out a piece (the plural "s" in English) but never ask for one
-            # the page doesn't give.
-            assert set(re.findall(r"\{(\w+)\}", t)) <= wanted, (spanish, t)
+def test_every_key_used_is_there():
+    known = set(texts("es"))
+    missing = sorted((page_keys() | server_keys()) - known)
+    assert not missing, missing
 
 
 def test_no_leftovers():
-    """Every translation is still used (else the text changed in the page and this one is stale)."""
-    used = texts(page()) | server_texts()
-    stale = sorted(k for k in strings() if k not in used)
+    stale = sorted(set(texts("es")) - page_keys() - server_keys())
     assert not stale, stale
 
 
-def test_the_server_answers_in_the_pages_language(tmp_path):
+def test_texts_are_whole():
+    es = texts("es")
+    for lang in LANGS:
+        for key, text in texts(lang).items():
+            assert text.strip() or not es[key].strip(), (lang, key)
+            # A language may leave out a piece (the plural "s" in English) but never ask for a value
+            # the Spanish, which the code is written against, doesn't have.
+            assert set(re.findall(r"\{(\w+)\}", text)) <= set(re.findall(r"\{(\w+)\}", es[key])), (lang, key, text)
+
+
+def test_say():
     from song_wizard import i18n, setlist
     from song_wizard.i18n import say
-    assert say("en", "fuera de la carpeta de música") == "outside the music folder"
-    assert say("pt", "Tonalidad: {label}", label="a.opus") == "Tom: a.opus"
-    assert say("es", "Tonalidad: {label}", label="a.opus") == "Tonalidad: a.opus"
-    assert say("en", "un texto que no está") == "un texto que no está"  # untranslated: as it is
-    assert "<th>Song</th>" in setlist.page("Show", [], lang="en") and "Imprimir" in setlist.page("Show", [])
-    assert isinstance(i18n.Said("no hay cambios"), ValueError)
+    assert say("en", "server.outside_music_folder") == "outside the music folder"
+    assert say("pt", "server.key", label="a.opus") == "Tom: a.opus"
+    assert say("es", "server.key", label="a.opus") == "Tonalidad: a.opus"
+    assert say("xx", "server.key", label="a") == "Tonalidad: a"  # an unknown language: Spanish
+    assert say("en", "no.such.key") == "no.such.key"
+    assert "<th>Song</th>" in setlist.page("Show", [], lang="en") and "class=k>Key</th>" in setlist.page("Show", [], lang="en")
+    assert "Imprimir" in setlist.page("Show", [])
+    assert str(i18n.Said("server.there_are_no_changes")) == "no hay cambios"
+    assert i18n.script().startswith("window.TEXTS = {")
 
 
 def test_interface_in_english(tmp_path):
-    import threading
     from test_ui import TOKEN, request
     from song_wizard import ui
     root = tmp_path / "music"
@@ -122,6 +103,8 @@ def test_interface_in_english(tmp_path):
         assert json.loads(content)["error"] == "unknown action: nope"
         response, content = request(port, "GET", "/setlist?folder=Show&lang=en")
         assert b"<th>Song</th>" in content and b'lang="en"' in content
+        response, content = request(port, "GET", "/static/texts.js", token=None)
+        assert response.status == 200 and content.startswith(b"window.TEXTS = ")
     finally:
         httpd.shutdown()
         httpd.server_close()

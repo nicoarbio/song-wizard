@@ -8,12 +8,12 @@
   // Before the page is drawn, so a theme picked by hand doesn't flash the other one first.
   try { const t = localStorage.getItem("song-wizard:theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
 </script>
-<script src="/static/strings.js"></script>
+<script src="/static/texts.js"></script>
 <script>
-  // The page's language: the one picked (remembered in this browser), else the browser's. Texts
-  // are written in Spanish in the code; translate() gives them in the page's language (static/strings.js
-  // holds [English, Portuguese] for each), with {name} filled in from vars. A text without its
-  // translation shows in Spanish rather than not at all.
+  // The page's language: the one picked (remembered in this browser), else the browser's. The
+  // code carries no texts, only their keys: say("library.refresh") is that text in the page's
+  // language (static/i18n/<lang>.json, all three served as /static/texts.js), with {name}
+  // filled in from values. A key missing in a language falls back to Spanish, then to the key.
   const LANG_KEY = "song-wizard:lang";
   const LANG = (() => {
     try { const v = localStorage.getItem(LANG_KEY); if (["es", "en", "pt"].includes(v)) return v; } catch {}
@@ -21,13 +21,10 @@
     return n === "es" || n === "pt" ? n : "en";
   })();
   document.documentElement.lang = LANG;
-  function translate(text, vars) {
-    let out = text;
-    if (LANG !== "es") {
-      const found = (window.STRINGS || {})[text];
-      if (found && found[LANG === "en" ? 0 : 1]) out = found[LANG === "en" ? 0 : 1];
-    }
-    return vars ? out.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : out;
+  function say(key, values) {
+    const texts = window.TEXTS || {};
+    const text = (texts[LANG] || {})[key] ?? (texts.es || {})[key] ?? key;
+    return values ? text.replace(/\{(\w+)\}/g, (m, k) => (k in values ? String(values[k]) : m)) : text;
   }
 </script>
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -327,33 +324,33 @@
 </style>
 </head>
 <body>
-<div class="offline" id="offline" hidden>La interfaz está apagada. Para usarla de nuevo, en la terminal: <code>song-wizard ui</code> (o recargá esta página si ya está andando).</div>
-<div class="offline" id="restarting" hidden>Reiniciando song-wizard… esta página se recarga sola cuando esté lista.</div>
+<div class="offline" id="offline" hidden><span data-text="header.interface_off_use_again_terminal"></span> <code>song-wizard ui</code> <span data-text="header.reload_page_if_already_running"></span></div>
+<div class="offline" id="restarting" hidden data-text="header.restarting_song_wizard_page_reloads"></div>
 <header>
   <div class="brand">
     <img src="/static/logo.png" alt="" width="40" height="40">
     <div>
-    <h1>song-wizard <button class="small version" id="version" title="Buscar si hay una versión nueva"></button> <button class="small primary" id="upgrade" hidden></button></h1>
-    <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden>abrir</button></div>
+    <h1>song-wizard <button class="small version" id="version" data-text-title="header.check_new_version"></button> <button class="small primary" id="upgrade" hidden></button></h1>
+    <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden data-text="library.open"></button></div>
     </div>
   </div>
   <form class="download" id="download">
-    <input type="url" id="url" placeholder="Pegá el link de un tema o de una playlist" required>
-    <label class="muted"><input type="checkbox" id="wav"> también .wav</label>
-    <button class="primary" type="submit">Bajar</button>
-    <span class="dest muted">en <button type="button" class="small" id="dest" title="Dónde va la carpeta de una playlist nueva">Música</button></span>
+    <input type="url" id="url" data-text-placeholder="header.paste_link_song_playlist" required>
+    <label class="muted"><input type="checkbox" id="wav"> <span data-text="header.also_wav"></span></label>
+    <button class="primary" type="submit" data-text="header.download"></button>
+    <span class="dest muted"><span data-text="header.in"></span> <button type="button" class="small" id="dest" data-text-title="header.where_new_playlists_folder_goes" data-text="playlists.music"></button></span>
   </form>
   <div class="prefs">
-  <button type="button" class="small keys-open" title="Ver y cambiar los atajos de teclado (?)">⌨ atajos</button>
-  <div class="theme" role="group" aria-label="Idioma" id="lang" translate="no">
+  <button type="button" class="small keys-open" data-text-title="header.see_change_keyboard_shortcuts" data-text="header.shortcuts"></button>
+  <div class="theme" role="group" data-text-aria-label="data.language" id="lang" translate="no">
     <button type="button" data-lang="es" title="Español">es</button>
-    <button type="button" data-lang="en" title="English">en</button>
+    <button type="button" data-lang="en" title="English" data-text="header.in"></button>
     <button type="button" data-lang="pt" title="Português">pt</button>
   </div>
-  <div class="theme" role="group" aria-label="Colores de la página" id="theme">
-    <button type="button" data-theme="auto" title="Claro u oscuro según el sistema">automático</button>
-    <button type="button" data-theme="light" title="Siempre claro">claro</button>
-    <button type="button" data-theme="dark" title="Siempre oscuro">oscuro</button>
+  <div class="theme" role="group" data-text-aria-label="header.page_colors" id="theme">
+    <button type="button" data-theme="auto" data-text-title="header.light_dark_system_says" data-text="header.auto"></button>
+    <button type="button" data-theme="light" data-text-title="header.always_light" data-text="header.light"></button>
+    <button type="button" data-theme="dark" data-text-title="header.always_dark" data-text="header.dark"></button>
   </div>
   </div>
 </header>
@@ -362,113 +359,113 @@
   <div>
     <section>
       <div class="section-head">
-        <h2>Biblioteca</h2>
+        <h2 data-text="keys.library"></h2>
         <span class="row" style="gap:6px">
-          <button class="small" id="expand-all" title="Mostrar los stems y versiones de todos los temas">desplegar todo</button>
-          <button class="small" id="collapse-all" title="Ocultar los stems y versiones de todos los temas">plegar todo</button>
-          <button class="small" id="reload" title="Volver a leer la carpeta de música (también se hace solo al volver a esta pestaña)">↻ actualizar</button>
+          <button class="small" id="expand-all" data-text-title="library.show_every_songs_stems_versions" data-text="library.expand_all"></button>
+          <button class="small" id="collapse-all" data-text-title="library.hide_every_songs_stems_versions" data-text="library.collapse_all"></button>
+          <button class="small" id="reload" data-text-title="library.read_music_folder_again_also" data-text="library.refresh"></button>
         </span>
       </div>
-      <input type="text" class="filter" id="filter" placeholder="Filtrar: palabras del nombre, la carpeta, el artista, el álbum…">
-      <div id="library"><p class="empty">Cargando…</p></div>
+      <input type="text" class="filter" id="filter" data-text-placeholder="library.filter_words_from_name_folder">
+      <div id="library"><p class="empty" data-text="lyrics.loading"></p></div>
     </section>
     <section>
-      <h2>Playlists bajadas</h2>
-      <div id="archives"><p class="empty">Cargando…</p></div>
+      <h2 data-text="library.downloaded_playlists"></h2>
+      <div id="archives"><p class="empty" data-text="lyrics.loading"></p></div>
     </section>
   </div>
 
   <div>
     <section>
-      <h2>Acciones</h2>
+      <h2 data-text="playlists.actions"></h2>
       <div class="selection" id="selection"></div>
 
       <div class="action">
-        <h3>Analizar</h3>
+        <h3 data-text="actions.analyze"></h3>
         <div class="row">
-          <button data-needs="songs" id="do-key">Tonalidad</button>
-          <button data-needs="songs" id="do-bpm">Tempo</button>
+          <button data-needs="songs" id="do-key" data-text="library.key_2"></button>
+          <button data-needs="songs" id="do-bpm" data-text="actions.tempo"></button>
         </div>
-        <p class="hint">Los resultados quedan en key.txt y bpm.txt, en la carpeta de cada tema.</p>
+        <p class="hint" data-text="actions.results_are_kept_key_txt"></p>
       </div>
 
       <div class="action">
-        <h3>Separar instrumentos</h3>
+        <h3 data-text="actions.separate_instruments"></h3>
         <div class="row" id="stems">
-          <label><input type="checkbox" value="vocals"> Voz</label>
-          <label><input type="checkbox" value="drums"> Batería</label>
-          <label><input type="checkbox" value="bass"> Bajo</label>
-          <label><input type="checkbox" value="guitar"> Guitarra</label>
-          <label title="Separa la batería en bombo, redoblante, toms, hi-hat, ride y crash (más el resto de la batería). Si el tema todavía no tiene la batería separada, la separa primero"><input type="checkbox" value="drumkit"> Batería en partes</label>
-          <label title="Piano acústico o eléctrico. Los sintetizadores y los vientos pueden caer acá o quedarse en el resto. No entra en Todos: elegilo en los temas que tienen piano"><input type="checkbox" value="piano"> Piano</label>
-          <label><input type="checkbox" value="all"> Todos</label>
+          <label><input type="checkbox" value="vocals"> <span data-text="actions.vocals"></span></label>
+          <label><input type="checkbox" value="drums"> <span data-text="practice.drums"></span></label>
+          <label><input type="checkbox" value="bass"> <span data-text="practice.bass"></span></label>
+          <label><input type="checkbox" value="guitar"> <span data-text="practice.guitar"></span></label>
+          <label data-text-title="actions.splits_drums_into_kick_snare"><input type="checkbox" value="drumkit"> <span data-text="practice.drum_kit"></span></label>
+          <label data-text-title="actions.acoustic_electric_piano_synths_horns"><input type="checkbox" value="piano"> Piano</label>
+          <label><input type="checkbox" value="all"> <span data-text="actions.all"></span></label>
         </div>
         <div class="row" style="margin-top:8px">
-          <label class="muted"><input type="checkbox" id="cpu"> usar el procesador</label>
-          <button data-needs="songs" data-only="songs" class="primary" id="do-separate">Separar</button>
+          <label class="muted"><input type="checkbox" id="cpu"> <span data-text="actions.use_cpu"></span></label>
+          <button data-needs="songs" data-only="songs" class="primary" id="do-separate" data-text="actions.separate"></button>
         </div>
         <p class="hint why" data-why="do-separate"></p>
-        <p class="hint">Cada instrumento da dos archivos: el instrumento solo y el resto del tema. "Todos" da voz, batería, bajo y guitarra más "other", sin los "no X". Piano no entra en "Todos": elegilo en los temas que tienen piano (los sintetizadores quedan en el resto).</p>
+        <p class="hint" data-text="actions.each_instrument_gives_two_files"></p>
       </div>
 
       <div class="action">
-        <h3>Cambiar el tono</h3>
+        <h3 data-text="actions.change_key"></h3>
         <div class="row">
-          <label>Semitonos <input type="number" id="semitones" value="-1" step="0.5" min="-24" max="24"></label>
-          <button data-needs="songs" data-only="no-versions" id="do-transpose">Transponer</button>
+          <label><span data-text="actions.semitones"></span> <input type="number" id="semitones" value="-1" step="0.5" min="-24" max="24"></label>
+          <button data-needs="songs" data-only="no-versions" id="do-transpose" data-text="actions.transpose"></button>
         </div>
         <p class="hint why" data-why="do-transpose"></p>
-        <p class="hint">+1 = medio tono arriba, +2 = un tono. El tempo no cambia.</p>
+        <p class="hint" data-text="actions.1_half_step_up_2"></p>
       </div>
 
       <div class="action">
-        <h3>Cambiar la velocidad</h3>
+        <h3 data-text="actions.change_speed"></h3>
         <div class="row">
-          <label>Velocidad <input type="number" id="speed-percent" value="80" step="5" min="25" max="200"> %</label>
-          <label>y semitonos <input type="number" id="speed-semitones" value="0" step="0.5" min="-24" max="24"></label>
-          <button data-needs="songs" data-only="no-versions" id="do-speed">Cambiar</button>
+          <label><span data-text="practice.speed"></span> <input type="number" id="speed-percent" value="80" step="5" min="25" max="200"> %</label>
+          <label><span data-text="actions.semitones_2"></span> <input type="number" id="speed-semitones" value="0" step="0.5" min="-24" max="24"></label>
+          <button data-needs="songs" data-only="no-versions" id="do-speed" data-text="version.change"></button>
         </div>
         <p class="hint why" data-why="do-speed"></p>
-        <p class="hint">80 % = más lento, 120 % = más rápido. El tono no cambia, salvo que pongas semitonos.</p>
+        <p class="hint" data-text="actions.80_slower_120_faster_pitch"></p>
       </div>
 
       <div class="action">
-        <h3>Convertir para compartir</h3>
+        <h3 data-text="actions.convert_share"></h3>
         <div class="row">
           <select id="format"><option value="mp3">MP3</option><option value="m4a">M4A</option></select>
-          <button data-needs="songs" id="do-convert">Convertir los elegidos</button>
+          <button data-needs="songs" id="do-convert" data-text="actions.convert_picked_ones"></button>
         </div>
-        <p class="hint">Para pasar un stem o una versión, elegilo con su casilla.</p>
+        <p class="hint" data-text="actions.send_stem_version_pick_checkbox"></p>
       </div>
 
       <div class="action">
-        <h3>Pista de click</h3>
+        <h3 data-text="actions.click_track"></h3>
         <div class="row">
           <label>BPM <input type="number" id="click-bpm" value="120" step="0.1" min="20" max="400"></label>
-          <label>Compás <input type="text" id="click-meter" value="4/4" size="4"></label>
-          <label>Subdividir <select id="click-sub"><option value="1">no</option><option value="2">corcheas</option><option value="3">tresillos</option><option value="4">semicorcheas</option></select></label>
+          <label><span data-text="actions.meter"></span> <input type="text" id="click-meter" value="4/4" size="4"></label>
+          <label><span data-text="actions.subdivide"></span> <select id="click-sub"><option value="1" data-text="actions.none"></option><option value="2" data-text="actions.eighth_notes"></option><option value="3" data-text="actions.triplets"></option><option value="4" data-text="actions.sixteenth_notes"></option></select></label>
         </div>
         <div class="row" style="margin-top:8px">
-          <label><input type="radio" name="click-len" value="like" checked> tan largo como el tema elegido</label>
+          <label><input type="radio" name="click-len" value="like" checked> <span data-text="actions.long_picked_song"></span></label>
           <label><input type="radio" name="click-len" value="duration"> <input type="text" id="click-duration" value="4:00" size="5"> min</label>
-          <label><input type="radio" name="click-len" value="bars"> <input type="number" id="click-bars" value="32" min="1"> compases</label>
+          <label><input type="radio" name="click-len" value="bars"> <input type="number" id="click-bars" value="32" min="1"> <span data-text="actions.bars"></span></label>
         </div>
         <div class="row" style="margin-top:8px">
-          <button id="do-click">Generar click</button>
+          <button id="do-click" data-text="actions.make_click"></button>
         </div>
-        <p class="hint">Con un tema elegido se completan su BPM (si ya se detectó; en una versión con otra velocidad, ajustado), su duración y los compases que la cubren: para un compás más, sumale 1. Con un solo tema elegido, el click lleva su nombre y queda con sus archivos.</p>
+        <p class="hint" data-text="actions.song_picked_bpm_if_already"></p>
       </div>
     </section>
 
     <section>
       <div class="section-head">
-        <h2>Trabajos</h2>
+        <h2 data-text="actions.jobs"></h2>
         <span>
-        <button class="small" id="report-open" title="Arma un archivo con el estado de esta computadora y lo último que pasó, para pedir ayuda">reportar un problema</button>
-        <button class="small" id="shutdown" title="Cierra la interfaz, que sigue corriendo de fondo aunque cierres la página (como song-wizard ui --stop)">apagar</button>
+        <button class="small" id="report-open" data-text-title="jobs.puts_together_file_computers_state" data-text="jobs.report_problem"></button>
+        <button class="small" id="shutdown" data-text-title="jobs.closes_interface_which_keeps_running" data-text="version.shut_down"></button>
         </span>
       </div>
-      <div id="jobs"><p class="empty">Todavía no corriste nada.</p></div>
+      <div id="jobs"><p class="empty" data-text="jobs.you_havent_run_anything_yet"></p></div>
     </section>
 
     <section id="reaper-box" hidden>
@@ -479,77 +476,77 @@
 </main>
 
 <div class="player">
-  <button class="primary" id="player-play" disabled title="Reproducir o pausar">▶</button>
+  <button class="primary" id="player-play" disabled data-text-title="player.play_pause">▶</button>
   <div class="player-main">
-    <span class="now" id="now">Elegí un archivo con ▶ para escucharlo</span>
-    <canvas class="wave" id="player-wave" aria-label="Posición: tocá para moverte"></canvas>
+    <span class="now" id="now" data-text="player.pick_file_play"></span>
+    <canvas class="wave" id="player-wave" data-text-aria-label="practice.position_click_move"></canvas>
   </div>
   <span class="time" id="player-time">0:00 / 0:00</span>
   <audio id="audio" preload="none"></audio>
 </div>
 <div class="toast" id="toast"></div>
 
-<dialog id="practice" aria-label="Practicar" tabindex="-1">
+<dialog id="practice" data-text-aria-label="keys.practice" tabindex="-1">
   <div class="pr-top">
     <div class="pr-head">
-      <h3 id="practice-title">Practicar</h3>
-      <label id="practice-set-row" hidden>Pistas <select id="practice-set"></select></label>
+      <h3 id="practice-title" data-text="keys.practice"></h3>
+      <label id="practice-set-row" hidden><span data-text="practice.tracks"></span> <select id="practice-set"></select></label>
       <span class="pr-spacer"></span>
-      <button class="small" id="practice-lyrics-toggle" title="Mostrar u ocultar la letra">letra ▸</button>
-      <button class="small" id="practice-full" title="Pantalla completa, sin las barras del navegador">⛶ pantalla completa</button>
-      <button class="small" id="practice-close">cerrar</button>
+      <button class="small" id="practice-lyrics-toggle" data-text-title="keys.show_hide_lyrics" data-text="practice.lyrics"></button>
+      <button class="small" id="practice-full" data-text-title="practice.full_screen_without_browsers_bars" data-text="practice.full_screen"></button>
+      <button class="small" id="practice-close" data-text="practice.close"></button>
     </div>
     <div class="transport">
       <button class="primary" id="practice-play" disabled>▶</button>
       <span class="time" id="practice-time">0:00 / 0:00</span>
       <b id="practice-count"></b>
-      <span class="ctl" title="La velocidad cambia sin cambiar el tono">Velocidad <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" aria-label="Velocidad"> <b id="practice-speed-value">100 %</b>
+      <span class="ctl" data-text-title="practice.speed_changes_without_changing_pitch"><span data-text="practice.speed"></span> <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" data-text-aria-label="practice.speed"> <b id="practice-speed-value">100 %</b>
         <button class="small" id="practice-speed-reset">100 %</button></span>
-      <span class="ctl">Tono <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" aria-label="Tono en semitonos"> <b id="practice-pitch-value">0</b>
-        <button class="small" id="practice-pitch-reset">0</button> <span class="muted" id="practice-pitch-hint">semitonos</span></span>
-      <span class="ctl">Tramo
+      <span class="ctl"><span data-text="practice.pitch"></span> <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" data-text-aria-label="practice.pitch_semitones"> <b id="practice-pitch-value">0</b>
+        <button class="small" id="practice-pitch-reset">0</button> <span class="muted" id="practice-pitch-hint" data-text="practice.semitones_2"></span></span>
+      <span class="ctl"><span data-text="practice.section"></span>
         <button class="small" id="practice-a">A <span id="practice-a-time">–</span></button>
         <button class="small" id="practice-b">B <span id="practice-b-time">–</span></button>
-        <button class="small" id="practice-loop">repetir</button>
-        <button class="small" id="practice-clear">borrar</button></span>
-      <span class="ctl" title="El volumen de todo junto">Maestro <input type="range" id="practice-master" min="0" max="100" step="1" aria-label="Volumen maestro"> <span class="pct" id="practice-master-value"></span></span>
+        <button class="small" id="practice-loop" data-text="keys.loop"></button>
+        <button class="small" id="practice-clear" data-text="practice.clear"></button></span>
+      <span class="ctl" data-text-title="practice.volume_everything_together"><span data-text="practice.master"></span> <input type="range" id="practice-master" min="0" max="100" step="1" data-text-aria-label="practice.master_volume"> <span class="pct" id="practice-master-value"></span></span>
     </div>
   </div>
   <div class="pr-main">
     <div class="pr-left">
       <div class="pr-nav">
         <div class="zoom-ctl">
-          <button class="small" id="practice-zoom-out" title="Alejar">−</button>
-          <button class="small" id="practice-zoom-in" title="Acercar">+</button>
-          <button class="small" id="practice-zoom-all" title="Ver el tema entero">todo</button>
-          <button class="small" id="practice-zoom-loop" title="Acercar al tramo A–B">tramo</button>
+          <button class="small" id="practice-zoom-out" data-text-title="practice.zoom_out">−</button>
+          <button class="small" id="practice-zoom-in" data-text-title="practice.zoom">+</button>
+          <button class="small" id="practice-zoom-all" data-text-title="keys.show_whole_song" data-text="practice.all"></button>
+          <button class="small" id="practice-zoom-loop" data-text-title="practice.zoom_into_b_section" data-text="practice.section_2"></button>
           <span class="muted" id="practice-view"></span>
         </div>
-        <canvas class="wave" id="practice-nav" aria-label="El tema entero: el recuadro es lo que se ve en las pistas; arrastralo para moverte"></canvas>
+        <canvas class="wave" id="practice-nav" data-text-aria-label="practice.whole_song_box_what_tracks"></canvas>
       </div>
       <div class="lanes" id="practice-tracks"></div>
       <details id="pc-panel">
-    <summary>Ajustar el click: <span id="pc-summary" class="muted"></span></summary>
+    <summary><span data-text="practice.adjust_click"></span> <span id="pc-summary" class="muted"></span></summary>
     <div class="row" style="margin-top:8px">
       <label>BPM <input type="number" id="pc-bpm" step="0.01" min="20" max="400"></label>
-      <button class="small" id="pc-half" title="La mitad: si el detectado quedó al doble">÷2</button>
-      <button class="small" id="pc-double" title="El doble: si el detectado quedó a la mitad">×2</button>
-      <label>Compás <input type="text" id="pc-meter" size="4"></label>
-      <button class="small" id="pc-detect" title="Busca el tempo exacto y el primer golpe en el tema">detectar</button>
+      <button class="small" id="pc-half" data-text-title="practice.half_if_detected_one_came">÷2</button>
+      <button class="small" id="pc-double" data-text-title="practice.double_if_detected_one_came">×2</button>
+      <label><span data-text="actions.meter"></span> <input type="text" id="pc-meter" size="4"></label>
+      <button class="small" id="pc-detect" data-text-title="practice.finds_exact_tempo_first_beat" data-text="library.detect"></button>
     </div>
     <div class="row" style="margin-top:8px">
-      <label>Primer golpe <input type="number" id="pc-first" step="0.001"> s</label>
-      <button class="small" id="pc-beat-back" title="Un tiempo antes">−1 tiempo</button>
+      <label><span data-text="practice.first_beat"></span> <input type="number" id="pc-first" step="0.001"> s</label>
+      <button class="small" id="pc-beat-back" data-text-title="practice.one_beat_earlier" data-text="practice.1_beat"></button>
       <button class="small" id="pc-ms-back">−10 ms</button>
       <button class="small" id="pc-ms-fwd">+10 ms</button>
-      <button class="small" id="pc-beat-fwd" title="Un tiempo después">+1 tiempo</button>
-      <button class="small" id="pc-listen" title="Desde el principio, con el click y la cuenta">escuchar el principio</button>
+      <button class="small" id="pc-beat-fwd" data-text-title="practice.one_beat_later" data-text="practice.1_beat_2"></button>
+      <button class="small" id="pc-listen" data-text-title="practice.from_start_click_count" data-text="practice.listen_start"></button>
     </div>
-    <canvas class="wave zoom" id="pc-wave" aria-label="Principio del tema: arrastrá para mover el click"></canvas>
-    <p class="hint">Arrastrá sobre el dibujo para que las líneas caigan en los golpes del tema; la marcada es el primer tiempo de cada compás.</p>
+    <canvas class="wave zoom" id="pc-wave" data-text-aria-label="practice.start_song_drag_move_click"></canvas>
+    <p class="hint" data-text="practice.drag_over_picture_so_lines"></p>
     <div class="row">
-      <label>Cuenta antes de empezar <select id="pc-countin"><option value="0">no</option><option value="1" selected>1 compás</option><option value="2">2 compases</option></select></label>
-      <label><input type="checkbox" id="pc-resume"> también al seguir desde una pausa</label>
+      <label><span data-text="practice.count_2"></span> <select id="pc-countin"><option value="0" data-text="actions.none"></option><option value="1" selected data-text="practice.1_bar"></option><option value="2" data-text="practice.2_bars"></option></select></label>
+      <label><input type="checkbox" id="pc-resume"> <span data-text="practice.also_when_resuming"></span></label>
     </div>
   </details>
       <p class="practice-keys" id="practice-keys"></p>
@@ -557,184 +554,172 @@
       <p id="practice-sync" hidden></p>
     </div>
     <aside class="pr-lyrics" id="pl-panel">
-      <div class="pr-lyrics-head"><b>Letra</b> <span id="pl-summary" class="muted"></span></div>
+      <div class="pr-lyrics-head"><b data-text="library.lyrics"></b> <span id="pl-summary" class="muted"></span></div>
       <div id="pl-slot"></div>
     </aside>
   </div>
 </dialog>
 
-<dialog id="data" aria-label="Datos del tema">
+<dialog id="data" data-text-aria-label="keys.song_data">
   <form id="data-form">
-  <div class="row" style="justify-content:space-between"><h3 id="data-title">Datos</h3><button type="button" class="small" id="data-close">cerrar</button></div>
+  <div class="row" style="justify-content:space-between"><h3 id="data-title" data-text="data.data_3"></h3><button type="button" class="small" id="data-close" data-text="practice.close"></button></div>
   <p class="hint" id="data-scope"></p>
   <div id="data-list"></div>
   <div class="row">
-    <label>Agregar un dato <input type="text" id="data-add-name" list="data-known" placeholder="compositor, comentario u otro nombre" size="28"></label>
-    <button type="button" class="small" id="data-add">agregar</button>
+    <label><span data-text="data.add_field"></span> <input type="text" id="data-add-name" list="data-known" data-text-placeholder="data.composer_comment_another_name" size="28"></label>
+    <button type="button" class="small" id="data-add" data-text="data.add"></button>
     <datalist id="data-known"></datalist>
   </div>
   <p class="hint" id="data-name"></p>
   <div class="row" style="justify-content:flex-end">
-    <button type="button" id="data-cancel">cancelar</button>
-    <button type="button" id="data-next" title="Guarda y abre los datos del tema siguiente">guardar y seguir</button>
-    <button type="submit" class="primary" id="data-save">guardar</button>
+    <button type="button" id="data-cancel" data-text="library.cancel"></button>
+    <button type="button" id="data-next" data-text-title="data.saves_opens_next_songs_data" data-text="data.save_next"></button>
+    <button type="submit" class="primary" id="data-save" data-text="library.save"></button>
   </div>
   </form>
 </dialog>
 
-<dialog id="keys" aria-label="Atajos de teclado">
-  <div class="row" style="justify-content:space-between"><h3>Atajos de teclado</h3><button class="small" id="keys-close">cerrar</button></div>
-  <p class="hint">Para cambiar una tecla, tocala y apretá la nueva; "+" agrega otra para lo mismo y × la saca. También vale un pedal que mande teclas, o un pad o pedal MIDI. Se guardan en este navegador. Mientras escribís en un campo de texto no hacen nada.</p>
+<dialog id="keys" data-text-aria-label="keys.keyboard_shortcuts">
+  <div class="row" style="justify-content:space-between"><h3 data-text="keys.keyboard_shortcuts"></h3><button class="small" id="keys-close" data-text="practice.close"></button></div>
+  <p class="hint" data-text="keys.change_key_click_press_new"></p>
   <div class="row">
-    <button class="small" id="keys-midi" title="Para asignar pads, pedales o teclas de un aparato MIDI conectado (el navegador pide permiso)">usar un aparato MIDI</button>
+    <button class="small" id="keys-midi" data-text-title="keys.assign_pads_pedals_keys_connected" data-text="keys.use_midi_device"></button>
     <span class="muted" id="keys-midi-state"></span>
     <span class="pr-spacer"></span>
-    <button class="small" id="keys-reset">restablecer todo</button>
+    <button class="small" id="keys-reset" data-text="keys.reset_all"></button>
   </div>
   <div id="keys-list"></div>
 </dialog>
 
 <dialog id="folder">
-  <h3 id="folder-title">Elegir carpeta</h3>
+  <h3 id="folder-title" data-text="playlists.choose_folder"></h3>
   <p class="hint" id="folder-note"></p>
   <div class="row">
-    <input type="text" id="folder-path" placeholder="Por ejemplo G:\Mi unidad\Ensayos" style="flex:1 1 260px">
-    <button id="folder-pick" title="Abre el selector de carpetas del sistema (puede aparecer detrás del navegador)">elegir…</button>
+    <input type="text" id="folder-path" data-text-placeholder="playlists.example_g_my_drive_rehearsals" style="flex:1 1 260px">
+    <button id="folder-pick" data-text-title="playlists.opens_systems_folder_picker_may" data-text="playlists.choose"></button>
   </div>
-  <p class="hint">Sirve una ruta de Windows (G:\Mi unidad\...) o de Linux/Mac. La carpeta tiene que existir.</p>
-  <div class="row" style="justify-content:flex-end"><button id="folder-default" hidden>usar Música</button><button id="folder-cancel">cancelar</button><button class="primary" id="folder-ok">aceptar</button></div>
+  <p class="hint" data-text="playlists.windows_path_g_my_drive"></p>
+  <div class="row" style="justify-content:flex-end"><button id="folder-default" hidden data-text="playlists.use_music"></button><button id="folder-cancel" data-text="library.cancel"></button><button class="primary" id="folder-ok" data-text="playlists.ok"></button></div>
 </dialog>
 
 <dialog id="command">
-  <h3>Falta un paso</h3>
+  <h3 data-text="jobs.one_step_missing"></h3>
   <p id="command-text"></p>
   <pre class="log" id="command-code"></pre>
-  <div class="row" style="justify-content:flex-end"><button id="command-close">cerrar</button><button class="primary" id="command-copy">copiar comando</button></div>
+  <div class="row" style="justify-content:flex-end"><button id="command-close" data-text="practice.close"></button><button class="primary" id="command-copy" data-text="jobs.copy_command"></button></div>
 </dialog>
 
-<dialog id="trim" aria-label="Recortar">
-  <div class="row" style="justify-content:space-between"><h3 id="trim-title">Recortar</h3><button class="small" id="trim-close">cerrar</button></div>
-  <p class="hint">Arrastrá las dos manijas, o escribí los tiempos. La rueda del mouse acerca y aleja (con Shift, se mueve a los costados); un clic en la onda escucha desde ahí. Abajo, el tema entero: arrastrá el recuadro para moverte.</p>
-  <canvas class="wave trim-wave" id="trim-wave" aria-label="El tema: lo que queda está marcado"></canvas>
-  <canvas class="wave trim-nav" id="trim-nav" aria-label="El tema entero: lo marcado es lo que queda, y el recuadro, lo que se ve arriba; arrastralo para moverte"></canvas>
+<dialog id="trim" data-text-aria-label="trim.trim_2">
+  <div class="row" style="justify-content:space-between"><h3 id="trim-title" data-text="trim.trim_2"></h3><button class="small" id="trim-close" data-text="practice.close"></button></div>
+  <p class="hint" data-text="trim.drag_two_handles_type_times"></p>
+  <canvas class="wave trim-wave" id="trim-wave" data-text-aria-label="trim.song_what_stays_marked"></canvas>
+  <canvas class="wave trim-nav" id="trim-nav" data-text-aria-label="trim.whole_song_whats_marked_what"></canvas>
   <div class="row">
-    <button class="small" id="trim-zoom-out" title="Alejar">−</button>
-    <button class="small" id="trim-zoom-in" title="Acercar">+</button>
-    <button class="small" id="trim-all">ver todo</button>
-    <button class="small" id="trim-near-start" title="Acercar alrededor del inicio">ver el inicio</button>
-    <button class="small" id="trim-near-end" title="Acercar alrededor del fin">ver el fin</button>
+    <button class="small" id="trim-zoom-out" data-text-title="practice.zoom_out">−</button>
+    <button class="small" id="trim-zoom-in" data-text-title="practice.zoom">+</button>
+    <button class="small" id="trim-all" data-text="trim.show_all"></button>
+    <button class="small" id="trim-near-start" data-text-title="trim.zoom_around_start" data-text="trim.show_start"></button>
+    <button class="small" id="trim-near-end" data-text-title="trim.zoom_around_end" data-text="trim.show_end"></button>
     <span class="muted" id="trim-view"></span>
   </div>
   <div class="row">
-    <label>Desde <input type="number" id="trim-start" step="0.01" min="0"> s</label>
-    <button class="small" id="trim-play-start" title="Escucha 5 segundos desde el inicio elegido">▶ desde acá</button>
-    <label>Hasta <input type="number" id="trim-end" step="0.01" min="0"> s</label>
-    <button class="small" id="trim-play-end" title="Escucha los últimos 5 segundos antes del fin elegido">▶ hasta acá</button>
-    <button class="small" id="trim-stop" title="Parar">■</button>
+    <label><span data-text="trim.from"></span> <input type="number" id="trim-start" step="0.01" min="0"> s</label>
+    <button class="small" id="trim-play-start" data-text-title="trim.plays_5_seconds_from_chosen" data-text="trim.from_here"></button>
+    <label><span data-text="trim.to"></span> <input type="number" id="trim-end" step="0.01" min="0"> s</label>
+    <button class="small" id="trim-play-end" data-text-title="trim.plays_last_5_seconds_before" data-text="trim.up_here"></button>
+    <button class="small" id="trim-stop" data-text-title="trim.stop">■</button>
   </div>
   <div class="row">
-    <label>Silencio antes <input type="number" id="trim-pad-start" step="0.1" min="0" max="60" value="0"> s</label>
-    <label>Silencio después <input type="number" id="trim-pad-end" step="0.1" min="0" max="60" value="0"> s</label>
+    <label><span data-text="trim.silence_before_2"></span> <input type="number" id="trim-pad-start" step="0.1" min="0" max="60" value="0"> s</label>
+    <label><span data-text="trim.silence_after"></span> <input type="number" id="trim-pad-end" step="0.1" min="0" max="60" value="0"> s</label>
   </div>
   <p class="trim-sum" id="trim-sum"></p>
   <details><summary id="trim-files-title"></summary><ul id="trim-files"></ul></details>
-  <p class="hint warnline" id="trim-reaper" hidden>Este tema tiene proyecto de Reaper: va a quedar corrido. Rehacelo después con "más › Rehacer proyecto de Reaper".</p>
-  <p class="hint">Se recortan juntos el tema, sus stems y versiones (las de otra velocidad, en proporción), y se corren el click de práctica y los tiempos de la letra. Los archivos de antes van a la papelera.</p>
-  <div class="row" style="justify-content:flex-end"><button id="trim-cancel">cancelar</button><button class="danger" id="trim-apply">recortar</button></div>
+  <p class="hint warnline" id="trim-reaper" hidden data-text="trim.song_has_reaper_project_going"></p>
+  <p class="hint" data-text="trim.song_stems_versions_are_trimmed"></p>
+  <div class="row" style="justify-content:flex-end"><button id="trim-cancel" data-text="library.cancel"></button><button class="danger" id="trim-apply" data-text="trim.trim_3"></button></div>
 </dialog>
 
 <dialog id="confirm" class="confirm">
   <h3 id="confirm-title"></h3>
   <div id="confirm-text"></div>
-  <div class="row" style="justify-content:flex-end"><button id="confirm-cancel">cancelar</button><button id="confirm-ok"></button></div>
+  <div class="row" style="justify-content:flex-end"><button id="confirm-cancel" data-text="library.cancel"></button><button id="confirm-ok"></button></div>
 </dialog>
 
 <dialog id="delete">
-  <h3 id="delete-title">¿Borrar?</h3>
+  <h3 id="delete-title" data-text="delete.delete"></h3>
   <ul id="delete-list"></ul>
   <p class="hint" id="delete-note"></p>
-  <div class="row" style="justify-content:flex-end"><button id="delete-cancel">cancelar</button><button class="danger" id="delete-confirm">mandar a la papelera</button></div>
+  <div class="row" style="justify-content:flex-end"><button id="delete-cancel" data-text="library.cancel"></button><button class="danger" id="delete-confirm" data-text="delete.send_trash"></button></div>
 </dialog>
 
-<dialog id="setlist" aria-label="Setlist">
-  <h3>Setlist</h3>
-  <label>Título <input id="setlist-title" maxlength="120"></label>
-  <p class="hint">Arrastrá los temas para cambiar el orden (o usá ↑ ↓). Es solo para imprimir: no se guarda nada ni se toca ninguna carpeta.</p>
+<dialog id="setlist" data-text-aria-label="setlist.setlist">
+  <h3 data-text="setlist.setlist"></h3>
+  <label><span data-text="data.title"></span> <input id="setlist-title" maxlength="120"></label>
+  <p class="hint" data-text="setlist.drag_songs_change_order_use"></p>
   <ol id="setlist-list"></ol>
-  <label><input type="checkbox" id="setlist-lyrics"> <span id="setlist-lyrics-text">con las letras</span></label>
-  <div class="row" style="justify-content:flex-end"><button id="setlist-cancel">cancelar</button><button class="open" id="setlist-open">abrir para imprimir</button></div>
+  <label><input type="checkbox" id="setlist-lyrics"> <span id="setlist-lyrics-text" data-text="setlist.lyrics"></span></label>
+  <div class="row" style="justify-content:flex-end"><button id="setlist-cancel" data-text="library.cancel"></button><button class="open" id="setlist-open" data-text="setlist.open_print"></button></div>
 </dialog>
 
 <dialog id="lyrics">
   <div class="row lyr-head">
     <h3 id="lyr-title"></h3>
     <span class="lyr-actions">
-      <button class="small" id="lyr-fetch" title="La busca en una base de letras abierta, por el nombre del tema y su duración">buscar la letra</button>
-      <button class="small" id="lyr-edit" title="Escribir la letra o pegarla de otro lado">escribir o pegar</button>
-      <button class="small" id="lyr-print" title="Abre la letra con sus colores y notas en otra pestaña, para imprimirla o guardarla como PDF">imprimir</button>
-      <button class="small" id="lyr-close">cerrar</button>
+      <button class="small" id="lyr-fetch" data-text-title="lyrics.looks_them_up_open_lyrics" data-text="lyrics.find_lyrics"></button>
+      <button class="small" id="lyr-edit" data-text-title="lyrics.type_lyrics_paste_them_from" data-text="lyrics.write_paste"></button>
+      <button class="small" id="lyr-print" data-text-title="lyrics.opens_lyrics_their_colors_notes" data-text="lyrics.print"></button>
+      <button class="small" id="lyr-close" data-text="practice.close"></button>
     </span>
   </div>
   <div id="lyr-view">
     <div class="lyr-tools" id="lyr-tools"></div>
-    <p class="hint" id="lyr-hint">Marcá un pedazo con el mouse y tocá un color (o "sin color" para sacarlo). "nota" agrega un comentario a la línea marcada. Al lado de cada color podés escribir qué significa (quién canta, coro, corte…). Se guarda solo.</p>
+    <p class="hint" id="lyr-hint" data-text="lyrics.mark_piece_mouse_click_color"></p>
     <div class="lyr-body" id="lyr-body"></div>
   </div>
   <div id="lyr-editor" hidden>
-    <textarea id="lyr-text" rows="18" aria-label="Letra"></textarea>
-    <p class="hint">Las líneas que no cambies conservan sus colores y notas.</p>
-    <div class="row"><button class="primary small" id="lyr-save">guardar</button><button class="small" id="lyr-cancel">cancelar</button></div>
+    <textarea id="lyr-text" rows="18" data-text-aria-label="library.lyrics"></textarea>
+    <p class="hint" data-text="lyrics.lines_you_dont_change_keep"></p>
+    <div class="row"><button class="primary small" id="lyr-save" data-text="library.save"></button><button class="small" id="lyr-cancel" data-text="library.cancel"></button></div>
   </div>
   <p class="muted lyr-source" id="lyr-source"></p>
 </dialog>
 
-<dialog id="reaper-changed" aria-label="Cambié una preferencia de Reaper">
-  <h3>Cambié una preferencia de Reaper</h3>
+<dialog id="reaper-changed" data-text-aria-label="reaper.i_changed_reaper_preference">
+  <h3 data-text="reaper.i_changed_reaper_preference"></h3>
   <div id="reaper-changed-body"></div>
-  <p class="hint">Esto queda en el apartado <b>Reaper</b>, debajo de Trabajos: ahí lo podés volver a ver y restaurar cuando quieras.</p>
+  <p class="hint"><span data-text="reaper.stays"></span> <b>Reaper</b><span data-text="reaper.box_below_jobs_there_you"></span></p>
   <div class="row" style="justify-content:flex-end">
-    <button id="reaper-changed-restore">restaurar como estaba</button>
-    <button class="primary" id="reaper-changed-ok" autofocus>entendido</button>
+    <button id="reaper-changed-restore" data-text="reaper.put_back_was"></button>
+    <button class="primary" id="reaper-changed-ok" autofocus data-text="reaper.got"></button>
   </div>
 </dialog>
 
 <dialog id="report">
-  <h3>Reportar un problema</h3>
-  <p id="report-status">Armando el reporte (revisa la instalación, tarda unos segundos)…</p>
+  <h3 data-text="report.report_problem"></h3>
+  <p id="report-status" data-text="report.putting_report_together_checks_installation"></p>
   <div id="report-ready" hidden>
-    <p>Se guardó <b id="report-name"></b> con el estado de esta computadora y lo último que hizo song-wizard. Tu carpeta personal aparece como ~, pero los nombres de temas y carpetas quedan: revisalo antes de mandarlo.</p>
+    <p><span data-text="report.was_saved"></span> <b id="report-name"></b> <span data-text="report.computers_state_last_things_song"></span></p>
     <pre class="log" id="report-text"></pre>
     <ol>
-      <li><button class="small" id="report-folder">mostrar el archivo</button></li>
-      <li><a id="report-link" target="_blank" rel="noopener">Abrir el formulario en GitHub</a>, contar qué pasó y arrastrar el archivo.</li>
+      <li><button class="small" id="report-folder" data-text="report.show_file"></button></li>
+      <li><a id="report-link" target="_blank" rel="noopener" data-text="report.open_form_github"></a><span data-text="report.tell_what_happened_drag_file"></span></li>
     </ol>
-    <p class="hint">¿Sin cuenta de GitHub? Mandá el archivo por WhatsApp o mail a quien te ayuda con song-wizard.</p>
+    <p class="hint" data-text="report.no_github_account_send_file"></p>
   </div>
-  <div class="row" style="justify-content:flex-end"><button id="report-close">cerrar</button></div>
+  <div class="row" style="justify-content:flex-end"><button id="report-close" data-text="practice.close"></button></div>
 </dialog>
 
 <script>
-// The page's fixed texts, written in Spanish in the markup, in the page's language: text by text
-// (spaces aside), and the titles, placeholders and labels. Done once, before anything reads them.
-function translateStatic(root) {
-  if (LANG === "es" || !window.STRINGS) return;
-  const known = (text) => STRINGS[text.replace(/\s+/g, " ").trim()];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const key = n.nodeValue.replace(/\s+/g, " ").trim();
-    if (key && known(key) && !n.parentElement.closest("script, style, [translate=no]")) {
-      const lead = n.nodeValue.match(/^\s*/)[0], tail = n.nodeValue.match(/\s*$/)[0];
-      n.nodeValue = lead + translate(key) + tail;
-    }
-  }
-  for (const node of root.querySelectorAll("[title], [placeholder], [aria-label]")) {
-    for (const a of ["title", "placeholder", "aria-label"]) {
-      const v = node.getAttribute(a);
-      if (v && known(v)) node.setAttribute(a, translate(v.replace(/\s+/g, " ").trim()));
-    }
+// The markup carries keys, not texts: a data-text attribute names the element's text, and
+// data-text-title / -placeholder / -aria-label its attributes. Put in once, before anything reads them.
+function applyTexts(root) {
+  for (const node of root.querySelectorAll("[data-text]")) node.textContent = say(node.dataset.text);
+  for (const a of ["title", "placeholder", "aria-label"]) {
+    for (const node of root.querySelectorAll(`[data-text-${a}]`)) node.setAttribute(a, say(node.getAttribute(`data-text-${a}`)));
   }
 }
-translateStatic(document.body);
+applyTexts(document.body);
 for (const b of document.querySelectorAll("#lang button")) {
   b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
   b.onclick = () => {
@@ -850,9 +835,9 @@ function kindOf(found) {
 // still accepts any file named on purpose; this keeps the interface from doing odd things.
 const ONLY = {
   "songs": { ok: (k) => k === "song",
-             why: translate("Separar funciona sobre el tema original, no sobre stems, versiones ni otras copias.") },
+             why: say("library.separating_works_original_song_not") },
   "no-versions": { ok: (k) => k !== "version",
-                   why: translate("Sobre una versión ya transpuesta o con otra velocidad no: hacelo desde el original (con velocidad y semitonos juntos si hace falta), que suena mejor.") },
+                   why: say("library.not_version_already_transposed_at") },
 };
 
 // Shift+click picks (or unpicks) everything shown between the last checkbox clicked and this one,
@@ -881,8 +866,8 @@ function badgesFor(item, ghosts = false) {
     const hand = !!text && text.endsWith(HAND);
     const doubt = !!text && !hand && (what === "key" ? text.includes("uncertain") : /uncertain|varies/.test(text));
     const label = !text ? (what === "key" ? "tono?" : "BPM?") : what === "key" ? text.split(/\s+/)[0] : `${bpmNumber(text)} BPM`;
-    const name = what === "key" ? translate("la tonalidad") : translate("el tempo");
-    const title = !text ? translate("Escribir {name} a mano", { name }) : hand ? translate("Puesto a mano. Clic para cambiarlo") : translate("{text}\nClic para corregir {name} a mano", { text, name });
+    const name = what === "key" ? say("library.key") : say("library.tempo");
+    const title = !text ? say("library.type_hand", { name }) : hand ? say("library.set_hand_click_change") : say("library.click_correct_hand", { text, name });
     badges.push(el("button", { class: "badge" + (doubt ? " warn" : "") + (hand ? " hand" : "") + (text ? "" : " ghost"), title,
       onclick: () => { state.setting = { path: item.path, what }; state.settingDraft = undefined; renderLibrary(); } }, label));
   }
@@ -893,7 +878,7 @@ function setBox(item, what) {
   const text = item[what];
   const first = state.settingDraft === undefined;
   if (first) state.settingDraft = !text ? "" : what === "key" ? text.split(/\s+/)[0] : String(bpmNumber(text));
-  const input = el("input", { type: "text", value: state.settingDraft, "aria-label": what === "key" ? translate("Tonalidad") : "Tempo",
+  const input = el("input", { type: "text", value: state.settingDraft, "aria-label": what === "key" ? say("library.key_2") : say("actions.tempo"),
     placeholder: what === "key" ? "Am, C#, La menor" : "BPM, ej. 120",
     oninput: (e) => { state.settingDraft = e.target.value; } });
   const close = () => { state.setting = null; state.settingDraft = undefined; renderLibrary(); };
@@ -911,10 +896,10 @@ function setBox(item, what) {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); if (e.key === "Escape") close(); });
   requestAnimationFrame(() => { input.focus(); if (first) input.select(); });
   return el("span", { class: "set-box" }, input,
-    el("button", { class: "small primary", onclick: save }, translate("guardar")),
-    el("button", { class: "small", title: translate("Volver a detectarlo desde el audio (reemplaza lo puesto a mano)"),
-      onclick: () => { close(); start({ action: what, paths: [item.path], force: true }); } }, translate("detectar")),
-    el("button", { class: "small", onclick: close }, translate("cancelar")));
+    el("button", { class: "small primary", onclick: save }, say("library.save")),
+    el("button", { class: "small", title: say("library.detect_again_from_audio_replaces"),
+      onclick: () => { close(); start({ action: what, paths: [item.path], force: true }); } }, say("library.detect")),
+    el("button", { class: "small", onclick: close }, say("library.cancel")));
 }
 
 const plainText = (t) => t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
@@ -936,7 +921,7 @@ function renderLibrary() {
   state.shownSongs = [];  // the songs in open folders, in order (for the keyboard)
   const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing);
   if (!visible.length) {
-    box.append(el("p", { class: "empty" }, translate("No hay temas todavía. Pegá una URL arriba para bajar, o copiá archivos de audio a tu carpeta de música.")));
+    box.append(el("p", { class: "empty" }, say("library.no_songs_yet_paste_url")));
     return;
   }
   for (const folder of visible) {
@@ -945,7 +930,7 @@ function renderLibrary() {
     const songs = folder.songs.filter((s) => !filter || matchesWords(filter, s.name, folder.name, ...Object.values(s.tags || {})));
     if (filter && !songs.length) continue;
     const allChecked = songs.length && songs.every((s) => state.selected.has(s.path));
-    const toggleAll = el("input", { type: "checkbox", title: translate("Elegir todos"), onclick: (e) => {
+    const toggleAll = el("input", { type: "checkbox", title: say("library.pick_all"), onclick: (e) => {
       e.stopPropagation();
       for (const s of songs) e.target.checked ? state.selected.add(s.path) : state.selected.delete(s.path);
       renderLibrary(); renderSelection();
@@ -953,15 +938,15 @@ function renderLibrary() {
     toggleAll.checked = !!allChecked;
     const n = folder.songs.length;
     const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
-      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, translate("{n} tema{v}", { n, v: n === 1 ? "" : "s" })),
-        folder.playlist ? el("button", { class: "small open", title: translate("Vuelve a mirar la playlist \"{title}\" y baja solo los temas que se agregaron", { title: folder.playlist.title }),
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, translate("buscar temas nuevos")) : null,
-        el("button", { class: folder.playlist ? "small" : "small open", title: translate("Lista para imprimir: cada tema con su tonalidad, tempo y duración, y el total"),
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, translate("setlist")),
-        el("button", { class: "small", title: translate("Abrir esta carpeta en el {fileManager}", { fileManager: state.fileManager }),
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, translate("abrir"))));
+      el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, say("library.song", { n, v: n === 1 ? "" : "s" })),
+        folder.playlist ? el("button", { class: "small open", title: say("library.looks_at_playlist_again_downloads", { title: folder.playlist.title }),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, say("library.check_new_songs")) : null,
+        el("button", { class: folder.playlist ? "small" : "small open", title: say("library.list_print_each_song_key"),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, say("library.setlist")),
+        el("button", { class: "small", title: say("library.open_folder", { fileManager: state.fileManager }),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, say("library.open"))));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
-    if (folder.location) details.append(el("div", { class: "location", title: translate("Esta playlist está fuera de tu carpeta de música") }, `en ${folder.location}`));
+    if (folder.location) details.append(el("div", { class: "location", title: say("library.playlist_outside_your_music_folder") }, `en ${folder.location}`));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
     if (details.open) state.shownSongs.push(...songs);
@@ -977,18 +962,18 @@ function renderLibrary() {
 function renderMissing(folder) {
   const drive = folder.missing.drive;
   return el("details", { class: "folder missing", open: true },
-    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, translate("no disponible"))),
+    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, say("library.not_available"))),
     el("div", { class: "location" }, `en ${folder.location}`),
     drive
-      ? el("p", { class: "hint" }, translate("WSL no ve la unidad {drive}: (pasa con la de Google Drive después de reiniciar WSL), así que sus temas no aparecen. ", { drive }),
+      ? el("p", { class: "hint" }, say("library.wsl_doesnt_see_drive_happens", { drive }),
           el("button", { class: "small", onclick: () => showCommand(
-            translate("Corré este comando en la terminal de WSL (pide tu contraseña) y tocá \"↻ actualizar\". Para que se conecte sola cada vez, agregá la línea \"{drive}: /mnt/{v} drvfs defaults,nofail 0 0\" a /etc/fstab.", { drive, v: drive.toLowerCase() }),
-            folder.missing.command) }, translate("cómo conectarla")))
-      : el("p", { class: "hint" }, translate("No encuentro esta carpeta: si la moviste o la renombraste, sus temas no aparecen hasta que esté de nuevo ahí (para una playlist, \"song-wizard archives --move\" anota dónde está ahora).")));
+            say("library.run_command_wsl_terminal_asks", { drive, v: drive.toLowerCase() }),
+            folder.missing.command) }, say("library.how_connect")))
+      : el("p", { class: "hint" }, say("library.i_cant_find_folder_if")));
 }
 
 function renderSong(song) {
-  const check = el("input", { type: "checkbox", title: translate("Elegir el tema (con Shift, todos desde el último elegido)"), onclick: toggle(song.path) });
+  const check = el("input", { type: "checkbox", title: say("library.pick_song_shift_everything_since"), onclick: toggle(song.path) });
   state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song, true);
@@ -998,16 +983,16 @@ function renderSong(song) {
   const li = el("li", { class: "song" + (state.cursor === song.path ? " cursor" : ""), "data-path": song.path,
     onpointerdown: () => setCursor(song.path, false) },
     el("div", { class: "head" }, check,
-      el("button", { class: "play small", title: translate("Escuchar"), onclick: () => play(song) }, "▶"),
+      el("button", { class: "play small", title: say("library.play"), onclick: () => play(song) }, "▶"),
       title, badges,
-      el("button", { class: "small practice-open", title: translate("Practicar: mezclar los stems, bajar la velocidad y repetir un tramo"), onclick: () => openPractice(song) }, translate("practicar")),
+      el("button", { class: "small practice-open", title: say("library.practice_mix_stems_slow_down"), onclick: () => openPractice(song) }, say("library.practice")),
       moreMenu(song)));
   if (song.files.length) {
     const open = songOpen(song);
     const n = song.files.length;
     li.querySelector(".head").insertBefore(
-      el("button", { class: "small fold", "aria-expanded": String(open), title: open ? translate("Ocultar sus archivos") : translate("Mostrar sus stems y versiones"),
-        onclick: () => { setSongOpen(song, !open); renderLibrary(); } }, translate("{v} {n} archivo{v2}", { v: open ? "▾" : "▸", n, v2: n === 1 ? "" : "s" })),
+      el("button", { class: "small fold", "aria-expanded": String(open), title: open ? say("library.hide_files") : say("library.show_stems_versions"),
+        onclick: () => { setSongOpen(song, !open); renderLibrary(); } }, say("library.file", { v: open ? "▾" : "▸", n, v2: n === 1 ? "" : "s" })),
       li.querySelector(".head .badge, .head .practice-open"));
     if (open) li.append(el("ul", { class: "files" }, song.files.map(renderFile)));
   }
@@ -1023,25 +1008,25 @@ function moreMenu(song) {
   const item = (label, sub, props) => el("button", { role: "menuitem", ...props }, label, sub ? el("span", { class: "sub" }, sub) : null);
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
-                   title: translate("Más acciones: los datos del tema, la letra, recortar, el proyecto de Reaper"), onclick: toggleMenu },
-       translate("más ▾"), song.lyrics || song.reaper ? el("span", { class: "dot", title: translate("Tiene letra o proyecto de Reaper") }) : null));
+                   title: say("library.more_actions_songs_data_lyrics"), onclick: toggleMenu },
+       say("library.more"), song.lyrics || song.reaper ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
-    item(translate("Datos del tema…"), translate("título, artista, álbum… (artista y título le cambian el nombre)"),
+    item(say("library.song_data"), say("library.title_artist_album_artist_title"),
          { onclick: pick(() => openData(song)) }),
-    item(song.lyrics ? "Letra ✓" : translate("Letra"), song.lyrics ? translate("con sus colores y notas") : translate("buscarla o escribirla, para marcarla"),
+    item(song.lyrics ? "Letra ✓" : say("library.lyrics"), song.lyrics ? say("library.their_colors_notes") : say("library.find_type_them_mark_them"),
          { onclick: pick(() => openLyrics(song)) }),
-    item(translate("Recortar…"), translate("cortar el principio o el final, o agregar silencio"),
+    item(say("library.trim"), say("library.cut_start_end_add_silence"),
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
     song.reaper
-      ? item(translate("Abrir en Reaper"), reaper ? null : translate("No encontré Reaper instalado en esta computadora"),
-             { disabled: !reaper, title: reaper ? translate("Abre {name}.rpp", { name: song.name.replace(/\.[^.]+$/, "") }) : translate("No encontré Reaper instalado en esta computadora"),
+      ? item(say("library.open_reaper"), reaper ? null : say("library.i_didnt_find_reaper_installed"),
+             { disabled: !reaper, title: reaper ? say("library.opens_rpp", { name: song.name.replace(/\.[^.]+$/, "") }) : say("library.i_didnt_find_reaper_installed"),
                onclick: pick(() => reaperProject(song)) })
-      : item(translate("Crear proyecto de Reaper"), reaper ? translate("con los stems, el tempo y el click; y lo abre") : translate("Reaper no está instalado: solo se crea el archivo"),
+      : item(say("library.create_reaper_project"), reaper ? say("library.stems_tempo_click_opens") : say("library.reaper_isnt_installed_only_file"),
              { onclick: pick(() => reaperProject(song)) }),
-    song.reaper ? item(translate("Rehacer proyecto de Reaper"), translate("el actual va a la papelera"), { onclick: pick(() => reaperProject(song, true)) }) : null);
+    song.reaper ? item(say("library.redo_reaper_project"), say("library.current_one_goes_trash"), { onclick: pick(() => reaperProject(song, true)) }) : null);
   box.append(menu);
   requestAnimationFrame(() => menu.querySelector("button:not(:disabled)")?.focus());
   return box;
@@ -1056,14 +1041,14 @@ document.addEventListener("keydown", (e) => {
 // The setting song-wizard changes in REAPER so takes are named after their song: what it was,
 // what it is, and putting it back. Shown in the "Reaper" box for as long as it matters, and in
 // a dialog when it's changed.
-const factory = (v) => v === null || v === undefined ? translate("el de fábrica de Reaper") : el("code", {}, v);
+const factory = (v) => v === null || v === undefined ? say("library.reapers_default") : el("code", {}, v);
 function settingDetails(s) {
   return el("dl", { class: "setting-list" },
-    el("dt", {}, translate("Preferencia")), el("dd", {}, 'Options › Preferences › Recording › "Recorded filenames". Vale para todos tus proyectos de Reaper, no solo los de song-wizard.'),
-    el("dt", {}, translate("Antes")), el("dd", {}, factory(s.before)),
-    el("dt", {}, translate("Ahora")), el("dd", {}, el("code", {}, s.takes)),
-    el("dt", {}, translate("Archivo")), el("dd", {}, s.ini || "?"),
-    s.backup ? el("dt", {}, translate("Copia de antes")) : null, s.backup ? el("dd", {}, s.backup) : null);
+    el("dt", {}, say("reaper.preference")), el("dd", {}, 'Options › Preferences › Recording › "Recorded filenames". Vale para todos tus proyectos de Reaper, no solo los de song-wizard.'),
+    el("dt", {}, say("reaper.before")), el("dd", {}, factory(s.before)),
+    el("dt", {}, say("reaper.now")), el("dd", {}, el("code", {}, s.takes)),
+    el("dt", {}, say("reaper.file")), el("dd", {}, s.ini || "?"),
+    s.backup ? el("dt", {}, say("reaper.copy_from_before")) : null, s.backup ? el("dd", {}, s.backup) : null);
 }
 function renderReaperSetting(s) {
   state.reaperSetting = s;
@@ -1071,23 +1056,23 @@ function renderReaperSetting(s) {
   $("reaper-box").hidden = !(s.installed || s.exists || s.changed);
   const button = (label, what, title) => el("button", { class: "small", title, onclick: () => reaperSetting(what) }, label);
   const parts = [];
-  if (!s.installed) parts.push(el("p", { class: "hint" }, translate("No encontré Reaper instalado en esta computadora: los proyectos se pueden crear igual (desde \"más\" en cada tema), pero no abrir desde acá.")));
+  if (!s.installed) parts.push(el("p", { class: "hint" }, say("reaper.i_didnt_find_reaper_installed")));
   if (s.ours && s.changed) {
-    parts.push(el("p", {}, translate("El {changed} song-wizard cambió una preferencia de Reaper, para que las tomas que grabes se llamen como su tema (\"Tema (record 2026-11-01 19-05-12).wav\") y aparezcan con él en la biblioteca.", { changed: s.changed })),
+    parts.push(el("p", {}, say("reaper.song_wizard_changed_reaper_preference", { changed: s.changed })),
                settingDetails(s),
-               el("div", { class: "row" }, button(translate("restaurar como estaba"), "restore", translate("Vuelve solo esa preferencia a como estaba (con Reaper cerrado); song-wizard no la vuelve a cambiar"))),
-               el("p", { class: "hint" }, translate("Restaurar vuelve solo esa línea a como estaba, sin tocar nada más de Reaper. Después, las tomas nuevas no aparecen con su tema. A mano: en esa preferencia de Reaper, poné lo que dice \"Antes\" (o \"song-wizard reaper --setting restore\" en la terminal).")));
+               el("div", { class: "row" }, button(say("reaper.put_back_was"), "restore", say("reaper.puts_only_preference_back_was"))),
+               el("p", { class: "hint" }, say("reaper.putting_back_restores_only_line")));
   } else if (s.ours) {
-    parts.push(el("p", {}, translate("Reaper ya nombra las tomas como su tema, así que aparecen con él en la biblioteca.")));
+    parts.push(el("p", {}, say("reaper.reaper_already_names_takes_after")));
   } else if (s.declined) {
-    parts.push(el("p", {}, translate("El {restored} restauraste el nombre de las tomas de Reaper (", { restored: s.restored }), factory(s.current), translate("). song-wizard no lo vuelve a cambiar, y las tomas nuevas no aparecen con su tema.")),
-               el("div", { class: "row" }, button(translate("volver a ajustarlo"), "apply", translate("Que las tomas se llamen como su tema otra vez (con Reaper cerrado)"))));
+    parts.push(el("p", {}, say("reaper.you_put_back_reapers_take", { restored: s.restored }), factory(s.current), say("reaper.song_wizard_wont_change_again")),
+               el("div", { class: "row" }, button(say("reaper.set_again"), "apply", say("reaper.name_takes_after_their_song"))));
   } else if (s.exists) {
-    parts.push(el("p", {}, translate("Para que las tomas que grabes se llamen como su tema y aparezcan con él, song-wizard cambia una preferencia de Reaper (con Reaper cerrado) la primera vez que creás o abrís un proyecto desde acá. Te avisa cuando lo hace, y lo podés restaurar desde este apartado.")),
+    parts.push(el("p", {}, say("reaper.so_takes_you_record_are")),
                el("p", { class: "hint" }, 'Options › Preferences › Recording › "Recorded filenames": de ', factory(s.current), " a ", el("code", {}, s.takes), "."),
-               el("div", { class: "row" }, button(translate("ajustarlo ahora"), "apply", translate("Cambia esa preferencia ahora (con Reaper cerrado)"))));
+               el("div", { class: "row" }, button(say("reaper.set_now"), "apply", say("reaper.changes_preference_now_reaper_closed"))));
   } else if (s.installed) {
-    parts.push(el("p", { class: "hint" }, translate("Reaper todavía no se abrió en esta computadora. Cuando crees o abras un proyecto desde acá, song-wizard ajusta el nombre de las tomas para que aparezcan con su tema, y te avisa.")));
+    parts.push(el("p", { class: "hint" }, say("reaper.reaper_hasnt_been_opened_computer")));
   }
   box.className = "reaper-setting";
   box.replaceChildren(...parts);
@@ -1099,12 +1084,12 @@ async function reaperSetting(what) {
   try {
     const got = await api("/api/reaper/setting", { do: what });
     renderReaperSetting(got);
-    if (got.done === "running") toast(translate("Reaper está abierto: cerralo primero (guarda sus preferencias al cerrarse y pisaría el cambio)."), 7000);
-    else if (got.done === "restored") toast(translate("Listo: la preferencia de Reaper quedó como estaba."), 5000);
+    if (got.done === "running") toast(say("reaper.reaper_open_close_first_saves"), 7000);
+    else if (got.done === "restored") toast(say("reaper.done_reaper_preference_back_was"), 5000);
     else if (got.done === "set") showSettingChanged(got);
-    else if (got.done === "not-changed") toast(translate("song-wizard no había cambiado esa preferencia."));
+    else if (got.done === "not-changed") toast(say("reaper.song_wizard_hadnt_changed_preference"));
   } catch (e) {
-    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
+    toast(say("reaper.couldnt_done", { message: e.message }), 6000);
   }
 }
 function showSettingChanged(s) {
@@ -1112,7 +1097,7 @@ function showSettingChanged(s) {
   $("reaper-changed-body").replaceChildren(
     el("p", {}, 'Para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca, cambié esta preferencia de Reaper:'),
     settingDetails(s),
-    el("p", { class: "hint" }, translate("Para volver atrás: \"restaurar como estaba\" (acá o en el apartado Reaper), o a mano en esa preferencia de Reaper poniendo lo que dice \"Antes\".")));
+    el("p", { class: "hint" }, say("reaper.undo_put_back_was_here")));
   $("reaper-changed").showModal();
 }
 $("reaper-changed-ok").onclick = () => $("reaper-changed").close();
@@ -1120,20 +1105,20 @@ $("reaper-changed-restore").onclick = () => { $("reaper-changed").close(); reape
 
 // Open the song's REAPER project, making it first if there's none (or remaking it: "redo").
 async function reaperProject(song, redo = false) {
-  if (redo && !await askConfirm({ title: translate("¿Rehacer el proyecto de Reaper?"), danger: true, ok: translate("rehacer"),
-                                    text: [translate("El proyecto actual va a la papelera, con lo que hayas cambiado en Reaper, y se arma uno nuevo con los stems que hay ahora.")] })) return;
+  if (redo && !await askConfirm({ title: say("reaper.redo_reaper_project"), danger: true, ok: say("reaper.redo"),
+                                    text: [say("reaper.current_project_goes_trash_whatever")] })) return;
   try {
     const got = await api("/api/reaper", { path: song.path, redo });
-    const said = [got.created ? (redo ? translate("Rehice {name}", { name: got.name }) : translate("Creé {name}", { name: got.name })) : null,
-                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : translate("Reaper no está instalado, así que no se abrió."))];
-    if (got.timing === "unaligned") said.push(translate("El tempo sale de bpm.txt, pero el tema no quedó alineado a los compases: ajustá el click en practicar y rehacé el proyecto."));
-    if (got.timing === "no-tempo") said.push(translate("No hay tempo detectado para este tema: el proyecto quedó a 120 BPM."));
-    if (got.takes === "running") said.push(translate("Para que las tomas aparezcan con su tema, cerrá Reaper y volvé a abrir el proyecto desde acá (ver el apartado Reaper)."));
+    const said = [got.created ? (redo ? say("reaper.redid", { name: got.name }) : say("reaper.created", { name: got.name })) : null,
+                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : say("reaper.reaper_isnt_installed_so_wasnt"))];
+    if (got.timing === "unaligned") said.push(say("reaper.tempo_comes_from_bpm_txt"));
+    if (got.timing === "no-tempo") said.push(say("reaper.no_tempo_was_detected_song"));
+    if (got.takes === "running") said.push(say("reaper.takes_show_their_song_close"));
     toast(said.filter(Boolean).join(" "), said.filter(Boolean).length > 1 ? 9000 : 4000);
     if (got.takes === "set") showSettingChanged(got.setting);
     if (got.created) refresh();
   } catch (e) {
-    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
+    toast(say("reaper.couldnt_done", { message: e.message }), 6000);
   }
 }
 
@@ -1157,13 +1142,13 @@ function setAllOpen(open) {
 }
 
 function renderFile(file) {
-  const check = el("input", { type: "checkbox", title: translate("Elegir solo este archivo (con Shift, todos desde el último elegido)"), onclick: toggle(file.path) });
+  const check = el("input", { type: "checkbox", title: say("library.pick_only_file_shift_everything"), onclick: toggle(file.path) });
   state.shown.push(file.path);
   check.checked = state.selected.has(file.path);
   return el("li", {}, check,
-    el("button", { class: "play small", title: translate("Escuchar"), onclick: () => play(file) }, "▶"),
+    el("button", { class: "play small", title: say("library.play"), onclick: () => play(file) }, "▶"),
     el("span", { class: "fname" }, file.name), badgesFor(file),
-    el("button", { class: "small", title: translate("Los datos de este archivo solo (por ejemplo, una nota sobre esta versión)"), onclick: () => openData(file, true) }, translate("datos")),
+    el("button", { class: "small", title: say("library.files_data_alone_note_version"), onclick: () => openData(file, true) }, say("library.data")),
     el("span", { class: "count" }, `${(file.size / 1e6).toFixed(1)} MB`));
 }
 
@@ -1173,16 +1158,16 @@ function renderSelection() {
   const songs = found.filter((f) => f.item === f.song).length;
   const files = found.length - songs;
   const parts = [];
-  if (songs) parts.push(translate("{songs} tema{v}", { songs, v: songs === 1 ? "" : "s" }));
-  if (files) parts.push(translate("{files} archivo{v}", { files, v: files === 1 ? "" : "s" }));
+  if (songs) parts.push(say("selection.song", { songs, v: songs === 1 ? "" : "s" }));
+  if (files) parts.push(say("selection.file", { files, v: files === 1 ? "" : "s" }));
   const box = $("selection");
   box.replaceChildren(n
-    ? el("span", {}, translate("{v} elegido{v2} ", { v: parts.join(" y "), v2: n === 1 ? "" : "s" }),
-        el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, translate("limpiar selección")), " ",
-        el("button", { class: "small", title: translate("Mandar a la papelera lo elegido (pide confirmación)"), onclick: confirmDelete }, translate("borrar archivos seleccionados")), " ",
-        found.some((f) => f.song) ? el("button", { class: "small", title: translate("Una lista para imprimir con los temas elegidos, de cualquier carpeta, en el orden que quieras (un stem o una versión cuenta como su tema)"),
-          onclick: setlistOfSelection }, translate("setlist con lo elegido")) : null)
-    : el("span", { class: "muted" }, translate("Elegí temas en la biblioteca, o un archivo suelto (un stem, por ejemplo) con su casilla. La casilla de una carpeta elige todos sus temas.")));
+    ? el("span", {}, say("selection.picked", { v: parts.join(" y "), v2: n === 1 ? "" : "s" }),
+        el("button", { class: "small", onclick: () => { state.selected.clear(); renderSelection(); renderLibrary(); } }, say("selection.clear_selection")), " ",
+        el("button", { class: "small", title: say("selection.send_whats_picked_trash_asks"), onclick: confirmDelete }, say("selection.delete_selected_files")), " ",
+        found.some((f) => f.song) ? el("button", { class: "small", title: say("selection.list_print_picked_songs_from"),
+          onclick: setlistOfSelection }, say("selection.setlist_picked_songs")) : null)
+    : el("span", { class: "muted" }, say("selection.pick_songs_library_single_file")));
   const kinds = found.map(kindOf);
   for (const b of document.querySelectorAll("[data-needs=songs]")) {
     const rule = ONLY[b.dataset.only];
@@ -1222,20 +1207,20 @@ function updateClickBars() {
 function renderArchives(rows) {
   const box = $("archives");
   box.replaceChildren();
-  if (!rows.length) { box.append(el("p", { class: "empty" }, translate("Todavía no bajaste nada."))); return; }
-  const table = el("table", {}, el("tr", {}, el("th", {}, translate("Playlist")), el("th", {}, translate("Temas")), el("th", {}, translate("Última")), el("th", {})));
+  if (!rows.length) { box.append(el("p", { class: "empty" }, say("playlists.you_havent_downloaded_anything_yet"))); return; }
+  const table = el("table", {}, el("tr", {}, el("th", {}, say("playlists.playlist")), el("th", {}, say("playlists.songs")), el("th", {}, say("playlists.last")), el("th", {})));
   for (const r of rows) {
     table.append(el("tr", {}, el("td", {}, r.title), el("td", {}, r.songs), el("td", { class: "muted" }, r.changed),
       el("td", { class: "row", style: "gap:4px;flex-wrap:nowrap" },
-        r.url ? el("button", { class: "small", title: translate("Baja solo los temas que se agregaron a la playlist"),
-          onclick: () => updatePlaylist(r) }, translate("buscar nuevos")) : null,
-        r.url ? el("button", { class: "small", title: r.folder ? translate("Está en {folder}", { folder: r.folder }) : translate("Llevarla a otra carpeta"),
-          onclick: () => askFolder({ title: translate("Mover \"{title}\"", { title: r.title }), note: translate("Va entera (temas, stems y resultados) a una carpeta nueva dentro de la que elijas, y los temas nuevos se bajan ahí.") + (r.folder ? " " + translate("Ahora está en {folder}.", { folder: r.folder }) : ""),
-            done: (to) => start({ action: "archives-move", id: r.id, title: r.title, to }) }) }, translate("mover")) : null,
-        el("button", { class: "small", title: translate("La próxima vez se baja entera de nuevo. Los temas no se borran."),
-          onclick: () => confirmForget([r.number], r.title) }, translate("olvidar")))));
+        r.url ? el("button", { class: "small", title: say("playlists.downloads_only_songs_added_playlist"),
+          onclick: () => updatePlaylist(r) }, say("playlists.check_new")) : null,
+        r.url ? el("button", { class: "small", title: r.folder ? say("playlists.it_s_in_folder", { folder: r.folder }) : say("playlists.take_another_folder"),
+          onclick: () => askFolder({ title: say("playlists.move", { title: r.title }), note: say("playlists.goes_whole_songs_stems_results") + (r.folder ? " " + say("playlists.now", { folder: r.folder }) : ""),
+            done: (to) => start({ action: "archives-move", id: r.id, title: r.title, to }) }) }, say("playlists.move_2")) : null,
+        el("button", { class: "small", title: say("playlists.next_time_downloaded_whole_again"),
+          onclick: () => confirmForget([r.number], r.title) }, say("playlists.forget")))));
   }
-  box.append(table, el("p", { class: "hint" }, translate("Olvidar una playlist hace que la próxima vez se baje entera de nuevo. Nunca borra los temas.")));
+  box.append(table, el("p", { class: "hint" }, say("playlists.forgetting_playlist_makes_download_whole")));
 }
 
 // Download the playlist again: its archive makes yt-dlp skip what's already here, so only songs
@@ -1259,7 +1244,7 @@ $("folder-pick").onclick = async () => {
   try {
     const picked = await api("/api/pick-folder", {});
     if (picked.path) $("folder-path").value = picked.path;
-  } catch (e) { toast(translate("No se pudo abrir el selector: {message}", { message: e.message })); }
+  } catch (e) { toast(say("playlists.picker_couldnt_opened", { message: e.message })); }
   $("folder-pick").disabled = false;
 };
 
@@ -1268,11 +1253,11 @@ const DEST_KEY = "song-wizard:download-to";
 const downloadTo = () => { try { return localStorage.getItem(DEST_KEY) || ""; } catch { return ""; } };
 function renderDest() {
   const to = downloadTo();
-  $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : translate("Música");
-  $("dest").title = to ? translate("Las playlists nuevas van a {to}", { to }) : translate("Las playlists nuevas van a tu carpeta de música");
+  $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : say("playlists.music");
+  $("dest").title = to ? say("playlists.new_playlists_go", { to }) : say("playlists.new_playlists_go_your_music");
 }
-$("dest").onclick = () => askFolder({ title: translate("¿Dónde van las playlists nuevas?"), value: downloadTo(), allowDefault: true,
-  note: translate("Cada playlist nueva se guarda en una carpeta con su nombre dentro de esta. Las que ya bajaste siguen en su lugar (para llevarlas a otro lado, \"mover\" en Playlists bajadas)."),
+$("dest").onclick = () => askFolder({ title: say("playlists.where_do_new_playlists_go"), value: downloadTo(), allowDefault: true,
+  note: say("playlists.each_new_playlist_saved_folder"),
   done: (to) => { try { to ? localStorage.setItem(DEST_KEY, to) : localStorage.removeItem(DEST_KEY); } catch {} renderDest(); } });
 renderDest();
 
@@ -1281,8 +1266,8 @@ function updatePlaylist(playlist) {
 }
 
 async function confirmForget(numbers, title) {
-  if (await askConfirm({ title: translate("¿Olvidar \"{title}\"?", { title }), ok: translate("olvidar"),
-                         text: [translate("Los temas bajados no se tocan. Si la volvés a bajar, se bajan todos sus temas de nuevo.")] })) {
+  if (await askConfirm({ title: say("playlists.forget_2", { title }), ok: say("playlists.forget"),
+                         text: [say("playlists.downloaded_songs_arent_touched_if")] })) {
     start({ action: "archives-delete", numbers });
   }
 }
@@ -1290,8 +1275,8 @@ async function confirmForget(numbers, title) {
 function renderJobs(jobs) {
   const box = $("jobs");
   box.replaceChildren();
-  if (!jobs.length) { box.append(el("p", { class: "empty" }, translate("Todavía no corriste nada."))); return; }
-  const names = { queued: translate("en espera"), running: translate("corriendo"), done: translate("listo"), failed: translate("falló"), cancelled: translate("cancelado") };
+  if (!jobs.length) { box.append(el("p", { class: "empty" }, say("jobs.you_havent_run_anything_yet"))); return; }
+  const names = { queued: say("jobs.waiting"), running: say("jobs.running"), done: say("jobs.done"), failed: say("jobs.failed"), cancelled: say("jobs.cancelled") };
   for (const job of [...jobs].reverse()) {
     const open = state.openJob === job.id;
     const div = el("div", { class: "job", style: `--t:${Date.now() % 1e6}` },
@@ -1299,8 +1284,8 @@ function renderJobs(jobs) {
         el("span", { class: `status ${job.status}` }, names[job.status] || job.status),
         el("span", { class: "title" }, job.title),
         job.started ? el("span", { class: "elapsed" }, clock((job.ended || job.now) - job.started)) : null,
-        ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, translate("cancelar")) : null,
-        job.status === "failed" ? el("button", { class: "small", title: translate("Armar un reporte para pedir ayuda"), onclick: openReport }, translate("reportar")) : null,
+        ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, say("library.cancel")) : null,
+        job.status === "failed" ? el("button", { class: "small", title: say("jobs.put_together_report_ask_help"), onclick: openReport }, say("jobs.report")) : null,
         el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
     if (job.status === "running") {
       const known = job.percent !== null && job.percent !== undefined;
@@ -1310,7 +1295,7 @@ function renderJobs(jobs) {
       if (text) div.append(el("div", { class: "progress" }, text));
     }
     if (open) {
-      const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || translate("(sin salida todavía)"));
+      const pre = el("pre", { class: "log" }, (state.logs[job.id] || []).join("\n") || say("jobs.no_output_yet"));
       div.append(pre);
       requestAnimationFrame(() => { pre.scrollTop = pre.scrollHeight; });
     }
@@ -1336,7 +1321,7 @@ async function start(request) {
   try {
     const job = await api("/api/jobs", request);
     state.openJob = job.id;
-    toast(translate("En marcha: {title}", { title: job.title }));
+    toast(say("jobs.running_2", { title: job.title }));
     poll();
   } catch (e) {
     if (e.command) showCommand(e.message, e.command);
@@ -1348,7 +1333,7 @@ async function start(request) {
 function showCommand(message, command) {
   $("command-text").textContent = message;
   $("command-code").textContent = command;
-  $("command-copy").textContent = translate("copiar comando");
+  $("command-copy").textContent = say("jobs.copy_command");
   $("command").showModal();
 }
 $("command-copy").onclick = async () => {
@@ -1363,7 +1348,7 @@ $("command-copy").onclick = async () => {
     getSelection().addRange(range);
     document.execCommand("copy");
   }
-  $("command-copy").textContent = translate("copiado ✓");
+  $("command-copy").textContent = say("jobs.copied");
 };
 $("command-close").onclick = () => $("command").close();
 
@@ -1608,7 +1593,7 @@ function play(file) {
   playerWave.clear();
   playerWave.update({ position: 0 });
   loadPeaks(file.path).then((d) => playerWave.set(d)).catch(() => {});
-  playerAudio.play().catch(() => toast(translate("El navegador no pudo reproducir ese formato.")));
+  playerAudio.play().catch(() => toast(say("player.browser_couldnt_play_format")));
 }
 
 function renderPlayer() {
@@ -1650,7 +1635,7 @@ const trimRound = (t) => Math.round(t * 100) / 100;
 async function openTrim(song) {
   trim.song = song;
   playerAudio.pause();  // the bottom player would play over what's being trimmed
-  $("trim-title").textContent = translate("Recortar: {v}", { v: song.name.replace(/\.[^.]+$/, "") });
+  $("trim-title").textContent = say("trim.trim", { v: song.name.replace(/\.[^.]+$/, "") });
   $("trim-pad-start").value = 0;
   $("trim-pad-end").value = 0;
   $("trim-reaper").hidden = !song.reaper;
@@ -1658,9 +1643,9 @@ async function openTrim(song) {
   const take = (n) => / \(record [^)]*\)(-\d+)?\.[^.]+$/.test(n);
   const audio = (n) => /\.(opus|webm|wav|flac|mp3|m4a|ogg|aac|mkv|mp4|aiff?)$/i.test(n);
   const cut = files.filter((n) => audio(n) && !take(n));
-  $("trim-files-title").textContent = translate("Se recortan {length} archivo{v}", { length: cut.length, v: cut.length === 1 ? "" : "s" });
-  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, translate(" (en proporción a su velocidad)")) : null)),
-    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, translate(" (toma de Reaper: queda como está)"))));
+  $("trim-files-title").textContent = say("trim.file_will_trimmed", { length: cut.length, v: cut.length === 1 ? "" : "s" });
+  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, say("trim.proportion_speed")) : null)),
+    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, say("trim.reaper_take_left"))));
   trimWave.clear();
   trimNav.clear();
   $("trim").showModal();
@@ -1672,7 +1657,7 @@ async function openTrim(song) {
     trim.overview = await loadPeaks(song.path);
     setTrimView(0, trim.duration);
   } catch (e) {
-    toast(translate("No se pudo leer el tema: {message}", { message: e.message }), 6000);
+    toast(say("trim.song_couldnt_read", { message: e.message }), 6000);
   }
 }
 
@@ -1703,14 +1688,14 @@ function renderTrim() {
   $("trim-end").value = trim.end.toFixed(2);
   $("trim-start").max = $("trim-end").max = trim.duration.toFixed(2);
   const [a, b] = trim.view;
-  $("trim-view").textContent = b - a < trim.duration - 0.01 ? translate("viendo {v} – {v2}", { v: clockTime(a), v2: clockTime(b) }) : "";
+  $("trim-view").textContent = b - a < trim.duration - 0.01 ? say("trim.showing", { v: clockTime(a), v2: clockTime(b) }) : "";
   const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
   const total = trim.end - trim.start + before + after;
   const changed = trim.start > 0 || trim.end < trimRound(trim.duration) || before || after;
-  $("trim-sum").textContent = translate("Queda {v} de {v2}", { v: clockTime(total), v2: clockTime(trim.duration) }) +
-    (trim.start > 0 ? translate(" · se cortan {v} s del principio", { v: trim.start.toFixed(2) }) : "") +
-    (trim.end < trimRound(trim.duration) ? translate(" · {v} s del final", { v: (trim.duration - trim.end).toFixed(2) }) : "") +
-    (before ? translate(" · {before} s de silencio antes", { before }) : "") + (after ? translate(" · {after} s después", { after }) : "");
+  $("trim-sum").textContent = say("trim.stays", { v: clockTime(total), v2: clockTime(trim.duration) }) +
+    (trim.start > 0 ? say("trim.cut_from_start", { v: trim.start.toFixed(2) }) : "") +
+    (trim.end < trimRound(trim.duration) ? say("trim.from_end", { v: (trim.duration - trim.end).toFixed(2) }) : "") +
+    (before ? say("trim.silence_before", { before }) : "") + (after ? say("trim.after", { after }) : "");
   $("trim-apply").disabled = !changed;
 }
 
@@ -1770,7 +1755,7 @@ function trimListen(from, to) {
   playerAudio.pause();
   trim.stopAt = Math.min(to, trim.duration);
   a.currentTime = Math.max(0, from);
-  a.play().catch(() => toast(translate("El navegador no pudo reproducir el tema.")));
+  a.play().catch(() => toast(say("trim.browser_couldnt_play_song")));
   cancelAnimationFrame(trim.raf);
   const tick = () => {
     trimWave.update({ position: a.currentTime });
@@ -1791,7 +1776,7 @@ $("trim-close").onclick = $("trim-cancel").onclick = () => $("trim").close();
 $("trim").addEventListener("close", trimStop);
 $("trim-apply").onclick = () => {
   const before = parseFloat($("trim-pad-start").value) || 0, after = parseFloat($("trim-pad-end").value) || 0;
-  if (before < 0 || after < 0 || before > 60 || after > 60) { toast(translate("El silencio va de 0 a 60 segundos.")); return; }
+  if (before < 0 || after < 0 || before > 60 || after > 60) { toast(say("trim.silence_goes_from_0_60")); return; }
   const cutEnd = trim.end < trimRound(trim.duration);
   $("trim").close();
   start({ action: "trim", paths: [trim.song.path], start: trim.start, end: cutEnd ? trim.end : null, padStart: before, padEnd: after });
@@ -1809,8 +1794,8 @@ $("trim-apply").onclick = () => {
 // live: each beat is placed on the audio clock from where the song is, so it lands right after
 // any jump, loop or speed change and stays crisp when slowed down (a click file would be
 // stretched along with the song and blur).
-const STEM_NAMES = { vocals: "Voz", drums: translate("Batería"), bass: translate("Bajo"), guitar: translate("Guitarra"), piano: "Piano", other: translate("Otros"),
-                     kick: translate("Bombo"), snare: translate("Redoblante"), toms: "Toms", hihat: "Hi-hat", ride: "Ride", crash: "Crash", "drums rest": translate("Resto de la batería") };
+const STEM_NAMES = { vocals: say("actions.vocals"), drums: say("practice.drums"), bass: say("practice.bass"), guitar: say("practice.guitar"), piano: "Piano", other: say("practice.other"),
+                     kick: say("practice.kick"), snare: say("practice.snare"), toms: say("practice.toms"), hihat: say("practice.hihat"), ride: "Ride", crash: "Crash", "drums rest": say("practice.rest_drums") };
 const KIT = ["kick", "snare", "toms", "hihat", "ride", "crash", "drums rest"];
 const FULL_SET = ["vocals", "drums", "bass", "guitar", "other"];
 const practice = { tracks: [], mixer: [], playing: false, a: null, b: null, loop: false, raf: 0, timer: 0, busy: false,
@@ -1845,26 +1830,26 @@ function trackSets(song) {
   for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
   const sets = [];
   if (FULL_SET.every((k) => found[k])) {
-    sets.push({ label: translate("Todos los instrumentos"), tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
+    sets.push({ label: say("practice.all_instruments"), tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
   }
   if (KIT.every((k) => found[k])) {
     const kit = KIT.map((k) => ({ name: STEM_NAMES[k], file: found[k] }));
     const others = FULL_SET.every((k) => found[k])
       ? FULL_SET.filter((k) => k !== "drums").map((k) => ({ name: STEM_NAMES[k], file: found[k] }))
-      : found["no drums"] ? [{ name: translate("Sin batería"), file: found["no drums"] }] : null;
-    if (others) sets.push({ label: translate("Batería en partes"), tracks: [...kit, ...others] });
+      : found["no drums"] ? [{ name: say("practice.no_drums"), file: found["no drums"] }] : null;
+    if (others) sets.push({ label: say("practice.drum_kit"), tracks: [...kit, ...others] });
   }
   for (const k of ["vocals", "drums", "bass", "guitar", "piano"]) {
     if (found[k] && found[`no ${k}`]) {
-      sets.push({ label: translate("{v} y el resto", { v: STEM_NAMES[k] }), tracks: [{ name: STEM_NAMES[k], file: found[k] }, { name: translate("Sin {v}", { v: STEM_NAMES[k].toLowerCase() }), file: found[`no ${k}`] }] });
+      sets.push({ label: say("practice.rest", { v: STEM_NAMES[k] }), tracks: [{ name: STEM_NAMES[k], file: found[k] }, { name: say("practice.no", { v: STEM_NAMES[k].toLowerCase() }), file: found[`no ${k}`] }] });
     }
   }
-  sets.push({ label: translate("El tema original"), tracks: [{ name: translate("Tema"), file: song }] });
+  sets.push({ label: say("practice.original_song"), tracks: [{ name: say("practice.song"), file: song }] });
   return sets;
 }
 
 // The song's own waveform, on top of the lanes (it stays from one set of tracks to the next).
-const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": translate("Posición: tocá para moverte") }), { onSeek: (t) => moveTo(t) });
+const practiceWave = new Wave(el("canvas", { id: "practice-wave", "aria-label": say("practice.position_click_move") }), { onSeek: (t) => moveTo(t) });
 // The whole song over the lanes, with a box on what they show.
 const practiceNav = new Wave($("practice-nav"), { interactive: false });
 const practiceZoom = { ready: () => practice.duration, view: () => practice.view || [0, practice.duration], setView: (a, b) => setPracticeView(a, b) };
@@ -1878,7 +1863,7 @@ function openPractice(song) {
   const sets = trackSets(song);
   practice.song = song;
   practice.sets = sets;
-  $("practice-title").textContent = translate("Practicar: {v}", { v: song.name.replace(/\.[^.]+$/, "") });
+  $("practice-title").textContent = say("practice.practice", { v: song.name.replace(/\.[^.]+$/, "") });
   $("practice-set").replaceChildren(...sets.map((s, i) => el("option", { value: i }, s.label)));
   $("practice-set-row").hidden = sets.length < 2;
   practice.a = practice.b = null;
@@ -1911,7 +1896,7 @@ function loadSet(index) {
   const ctx = context(), set = practice.sets[index];
   $("practice-set").value = index;
   $("practice-play").disabled = true;
-  $("practice-status").textContent = translate("Cargando las pistas…");
+  $("practice-status").textContent = say("practice.loading_tracks");
   practice.tracks = set.tracks.map((t) => {
     const audio = new Audio(`/api/audio?path=${encodeURIComponent(t.file.path)}`);
     audio.preload = "auto";
@@ -1924,7 +1909,7 @@ function loadSet(index) {
   });
   const clickGain = ctx.createGain();
   clickGain.connect(clickOut());
-  practice.clickTrack = { name: "Click", click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
+  practice.clickTrack = { name: say("practice.click"), click: true, gain: clickGain, volume: 0.8, mute: !practice.click.saved, solo: false };
   practice.mixer = [...practice.tracks, practice.clickTrack];
   practice.active = null;
   practice.gate = false;
@@ -1941,7 +1926,7 @@ function loadSet(index) {
     $("practice-status").textContent = "";
     applySpeed();
     renderPractice();
-  }).catch((e) => { $("practice-status").textContent = translate("El navegador no pudo abrir {message}.", { message: e.message }); });
+  }).catch((e) => { $("practice-status").textContent = say("practice.browser_couldnt_open", { message: e.message }); });
   applyVolumes();
   buildTracks();
   renderPractice();
@@ -1974,19 +1959,19 @@ function buildTracks() {
   for (const t of practice.lanes || []) t.wave.dispose();
   practice.lanes = [];
   box.replaceChildren(
-    el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, translate("Tema")),
-      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, translate("tocá una onda para ir ahí; la rueda acerca y aleja"))),
+    el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, say("practice.song")),
+      el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, say("practice.click_waveform_go_there_wheel"))),
     el("div", { class: "lane main-lane" }, practiceWave.canvas));
   practice.mixer.forEach((t, i) => {
     const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
-    const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": translate("Volumen de {name}", { name: t.name }),
+    const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": say("practice.volume", { name: t.name }),
       oninput: (e) => { t.volume = e.target.value / 100; applyVolumes(); pct.textContent = `${e.target.value} %`; } });
-    const mute = el("button", { class: "small", title: translate("Silenciar"), onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
-    const solo = el("button", { class: "small", title: translate("Solo esta pista (se pueden sumar otras)"), onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
+    const mute = el("button", { class: "small", title: say("practice.mute"), onclick: () => { t.mute = !t.mute; applyVolumes(); renderTracks(); renderPractice(); } }, "M");
+    const solo = el("button", { class: "small", title: say("practice.only_track_others_can_added"), onclick: () => { t.solo = !t.solo; applyVolumes(); renderTracks(); } }, "S");
     const ctl = el("div", { class: "lane-ctl", onpointerdown: () => setActiveTrack(i) },
-      el("span", { class: "name", title: t.click ? translate("El click, al tempo y compás de \"Ajustar el click\"") : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
+      el("span", { class: "name", title: t.click ? say("practice.click_at_tempo_meter_adjust") : t.file.name }, `${t.click ? "C" : i + 1}. ${t.name}`),
       el("span", { class: "ms" }, mute, solo), vol, pct);
-    const canvas = el("canvas", { "aria-label": translate("{name}: tocá para moverte", { name: t.name }) });
+    const canvas = el("canvas", { "aria-label": say("practice.click_move", { name: t.name }) });
     const lane = el("div", { class: "lane" }, canvas);
     box.append(ctl, lane);
     const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
@@ -2053,9 +2038,9 @@ function applySpeed() {
 function renderPractice() {
   const t = now(), duration = practice.duration;
   $("practice-play").textContent = practice.playing ? "⏸" : "▶";
-  $("practice-play").title = (practice.playing ? translate("Pausar") : translate("Reproducir")) + keyHint("play");
+  $("practice-play").title = (practice.playing ? say("practice.pause") : say("practice.play")) + keyHint("play");
   $("practice-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(duration).replace(/\.\d$/, "")}`;
-  $("practice-count").textContent = practice.preroll ? translate("cuenta…") : "";
+  $("practice-count").textContent = practice.preroll ? say("practice.count") : "";
   $("practice-a-time").textContent = clockTime(practice.a);
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);
@@ -2216,7 +2201,7 @@ function keepInStep() {
   }
   practice.worst = Math.max(practice.worst, worst);
   const sync = $("practice-sync");
-  if (!sync.hidden) sync.textContent = translate("desfase entre pistas: ahora {v} ms · máximo {v2} ms · demora de arranque aprendida {v3} ms", { v: Math.round(worst * 1000), v2: Math.round(practice.worst * 1000), v3: Math.round(startLatency() * 1000) });
+  if (!sync.hidden) sync.textContent = say("practice.offset_between_tracks_now_ms", { v: Math.round(worst * 1000), v2: Math.round(practice.worst * 1000), v3: Math.round(startLatency() * 1000) });
 }
 
 // Live pitch: the music (not the click) goes through static/pitch.js when the pitch isn't 0. Its
@@ -2248,7 +2233,7 @@ async function applyPitch() {
   let st = semitones();
   $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st);
   const key = practice.song && practice.song.key, from = key && key.split(/\s+/)[0], to = shiftedKey(key, st);
-  $("practice-pitch-hint").textContent = st && to ? translate("semitonos: {from} → {to}", { from, to }) : translate("semitonos");
+  $("practice-pitch-hint").textContent = st && to ? say("practice.semitones", { from, to }) : say("practice.semitones_2");
   if (st && !pitchNode) {
     try {
       pitchLoading = pitchLoading || ctx.audioWorklet.addModule("/static/pitch.js");
@@ -2258,7 +2243,7 @@ async function applyPitch() {
     } catch (e) {
       pitchLoading = null;
       $("practice-pitch").value = 0;
-      toast(translate("Este navegador no pudo cambiar el tono en vivo."), 6000);
+      toast(say("practice.browser_couldnt_change_pitch_live"), 6000);
     }
     st = semitones();  // it may have moved while loading
   }
@@ -2414,7 +2399,7 @@ function setClick(change, save = true) {
       try {
         practice.song.click = await api("/api/click-settings", { path: practice.song.path, bpm: c.bpm, meter: c.meter, first: c.first });
         c.saved = true;
-      } catch (e) { toast(translate("No se pudo guardar el click: {message}", { message: e.message })); }
+      } catch (e) { toast(say("practice.click_couldnt_saved", { message: e.message })); }
     }, 500);
   }
 }
@@ -2425,7 +2410,7 @@ function renderClickPanel(reload) {
   for (const [id, value] of [["pc-bpm", c.bpm.toFixed(2)], ["pc-meter", c.meter], ["pc-first", c.first.toFixed(3)]]) {
     if (document.activeElement !== $(id)) $(id).value = value;
   }
-  $("pc-summary").textContent = c.saved ? translate("{v} BPM {meter}, primer golpe en {v2} s", { v: c.bpm.toFixed(2), meter: c.meter, v2: c.first.toFixed(3) }) : translate("sin ajustar todavía");
+  $("pc-summary").textContent = c.saved ? say("practice.bpm_first_beat_at", { v: c.bpm.toFixed(2), meter: c.meter, v2: c.first.toFixed(3) }) : say("practice.not_adjusted_yet");
   const end = Math.max(6, first + 2 * perBar * period + period);
   if (reload || !clickWave.view || end > clickWave.view[1] + 0.01 || end < clickWave.view[1] - 4) {
     const view = [0, Math.ceil(end)];
@@ -2475,7 +2460,7 @@ function syncPracticeClick() {
     if (after !== before && s.click) {
       setClick({ bpm: s.click.bpm, meter: s.click.meter, first: s.click.first, saved: true }, false);
       if (practice.clickTrack) { practice.clickTrack.mute = false; applyVolumes(); renderTracks(); }
-      toast(translate("El click quedó ajustado al tema."));
+      toast(say("practice.click_now_adjusted_song"));
     }
   }
 }
@@ -2494,7 +2479,7 @@ const PRACTICE_LYRICS_KEY = "song-wizard:practice-lyrics";
 const lyricsShown = () => !$("practice").classList.contains("no-lyrics");
 function showPracticeLyrics(on, starting = false) {
   $("practice").classList.toggle("no-lyrics", !on);
-  $("practice-lyrics-toggle").textContent = on ? translate("letra ▸") : translate("◂ letra");
+  $("practice-lyrics-toggle").textContent = on ? say("practice.lyrics") : say("practice.lyrics_2");
   $("practice-lyrics-toggle").setAttribute("aria-pressed", String(on));
   try { on ? localStorage.removeItem(PRACTICE_LYRICS_KEY) : localStorage.setItem(PRACTICE_LYRICS_KEY, "hidden"); } catch {}
   if (on && !starting) { lyr.nowLine = undefined; followLyrics(now()); }
@@ -2506,11 +2491,11 @@ showPracticeLyrics((() => { try { return localStorage.getItem(PRACTICE_LYRICS_KE
 // Esc leaves it and the player stays open.
 function togglePracticeFull() {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  else document.documentElement.requestFullscreen().catch(() => toast(translate("El navegador no dejó pasar a pantalla completa.")));
+  else document.documentElement.requestFullscreen().catch(() => toast(say("practice.browser_didnt_allow_full_screen")));
 }
 $("practice-full").onclick = togglePracticeFull;
 document.addEventListener("fullscreenchange", () => {
-  $("practice-full").textContent = document.fullscreenElement ? translate("salir de pantalla completa") : translate("⛶ pantalla completa");
+  $("practice-full").textContent = document.fullscreenElement ? say("practice.leave_full_screen") : say("practice.full_screen");
 });
 // Esc in full screen only leaves full screen: the browser takes that one, but some also send
 // it on to the dialog, which would close the player.
@@ -2543,10 +2528,10 @@ function confirmDelete() {
   const plan = deletePlan();
   if (!plan.names.length) return;
   const n = plan.names.length;
-  $("delete-title").textContent = translate("¿Mandar {n} archivo{v} a la papelera?", { n, v: n === 1 ? "" : "s" });
+  $("delete-title").textContent = say("delete.send_file_trash", { n, v: n === 1 ? "" : "s" });
   $("delete-list").replaceChildren(...plan.names.map((name) => el("li", {}, name)));
-  const notes = [translate("Si te equivocás, los recuperás desde la papelera del sistema.")];
-  if (plan.songs.length) notes.push(translate("Cada tema elegido se va con todos sus archivos y sus resultados (tonalidad, tempo, click); si era de una playlist, \"buscar temas nuevos\" lo vuelve a bajar."));
+  const notes = [say("delete.if_you_make_mistake_you")];
+  if (plan.songs.length) notes.push(say("delete.each_picked_song_goes_all"));
   $("delete-note").textContent = notes.join(" ");
   $("delete").showModal();
   $("delete-cancel").focus();
@@ -2601,14 +2586,14 @@ function renderSetlist() {
   list.replaceChildren(...items.map(({ song, folder }, i) => {
     const key = song.key ? song.key.split(/\s+/)[0] : "", bpm = song.bpm ? `${Math.round(parseFloat(song.bpm))} BPM` : "";
     const li = el("li", { draggable: "true" },
-      el("span", { class: "grip", title: translate("Arrastrar para mover") }, "⠿"),
+      el("span", { class: "grip", title: say("setlist.drag_move") }, "⠿"),
       el("span", { class: "num" }, `${i + 1}.`),
       el("span", { class: "name", title: song.name }, songTitle(song)),
       el("span", { class: "where" }, [key, bpm].filter(Boolean).join(" · ")),
-      folders.size > 1 ? el("span", { class: "where", title: translate("Carpeta") }, folder.name) : null,
-      el("button", { class: "small", title: translate("Más arriba"), disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
-      el("button", { class: "small", title: translate("Más abajo"), disabled: i === items.length - 1, onclick: () => moveSetlist(i, i + 1) }, "↓"),
-      el("button", { class: "small", title: translate("Sacar de este setlist (no borra nada)"), disabled: items.length === 1,
+      folders.size > 1 ? el("span", { class: "where", title: say("setlist.folder") }, folder.name) : null,
+      el("button", { class: "small", title: say("setlist.move_up"), disabled: i === 0, onclick: () => moveSetlist(i, i - 1) }, "↑"),
+      el("button", { class: "small", title: say("setlist.move_down"), disabled: i === items.length - 1, onclick: () => moveSetlist(i, i + 1) }, "↓"),
+      el("button", { class: "small", title: say("setlist.take_off_setlist_deletes_nothing"), disabled: items.length === 1,
         onclick: () => { items.splice(i, 1); renderSetlist(); } }, "×"));
     li.addEventListener("dragstart", (e) => { setlistState.drag = i; li.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i)); });
     li.addEventListener("dragend", () => { setlistState.drag = null; li.classList.remove("dragging"); });
@@ -2621,8 +2606,8 @@ function renderSetlist() {
   $("setlist-lyrics").disabled = !withLyrics;
   if (!withLyrics) $("setlist-lyrics").checked = false;
   $("setlist-lyrics-text").textContent = withLyrics
-    ? translate("con las letras y sus marcas, una por página después de la lista ({which})", { which: withLyrics === items.length ? (items.length === 1 ? translate("el tema la tiene") : translate("los {n} temas la tienen", { n: items.length })) : translate("{some} de {n} temas la tienen", { some: withLyrics, n: items.length }) })
-    : translate("con las letras (ninguno de estos temas tiene letra todavía: más › Letra)");
+    ? say("setlist.lyrics_their_marks_one_per", { which: withLyrics === items.length ? (items.length === 1 ? say("setlist.song_has_them") : say("setlist.all_songs_have_them", { n: items.length })) : say("setlist.songs_have_them", { some: withLyrics, n: items.length }) })
+    : say("setlist.lyrics_none_these_songs_has");
 }
 
 $("setlist-cancel").onclick = () => $("setlist").close();
@@ -2641,7 +2626,7 @@ $("setlist-open").onclick = () => {
 async function openReport() {
   const dialog = $("report");
   $("report-status").hidden = false;
-  $("report-status").textContent = translate("Armando el reporte (revisa la instalación, tarda unos segundos)…");
+  $("report-status").textContent = say("report.putting_report_together_checks_installation");
   $("report-ready").hidden = true;
   dialog.showModal();
   try {
@@ -2652,7 +2637,7 @@ async function openReport() {
     $("report-status").hidden = true;
     $("report-ready").hidden = false;
   } catch (e) {
-    $("report-status").textContent = translate("No se pudo armar el reporte: {message}. Probá con \"song-wizard report\" en la terminal.", { message: e.message });
+    $("report-status").textContent = say("report.report_couldnt_put_together_try", { message: e.message });
   }
 }
 
@@ -2660,7 +2645,7 @@ async function openFolder(path) {
   try {
     await api("/api/open", { path });
   } catch (e) {
-    toast(translate("No se pudo abrir: {message}", { message: e.message }));
+    toast(say("library.couldnt_opened", { message: e.message }));
   }
 }
 
@@ -2668,12 +2653,12 @@ async function refresh() {
   peaksCache.clear();  // a file can change under the same name (trimmed)
   try {
     const lib = await api("/api/library");
-    $("root").textContent = translate("Carpeta de música: {root}", { root: lib.root });
+    $("root").textContent = say("library.music_folder", { root: lib.root });
     state.fileManager = lib.fileManager;
     state.reaperInstalled = lib.reaper;
     loadReaperSetting();
     $("open-root").hidden = false;
-    $("open-root").title = translate("Abrir la carpeta de música en el {fileManager}", { fileManager: lib.fileManager });
+    $("open-root").title = say("library.open_music_folder", { fileManager: lib.fileManager });
     state.folders = lib.folders;
     const existing = new Set(lib.folders.flatMap((f) => [
       ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
@@ -2682,7 +2667,7 @@ async function refresh() {
     syncPracticeClick();
     renderArchives(await api("/api/archives"));
   } catch (e) {
-    $("library").replaceChildren(el("p", { class: "empty" }, translate("No se pudo cargar: {message}", { message: e.message })));
+    $("library").replaceChildren(el("p", { class: "empty" }, say("library.couldnt_loaded", { message: e.message })));
   }
 }
 
@@ -2722,35 +2707,35 @@ async function checkVersion(force = false) {
   try {
     const v = await api(`/api/version${force ? "?check=1" : ""}`);
     state.version = v;
-    $("version").textContent = v.retired ? translate("v{current} (retirada)", { current: v.current }) : `v${v.current}`;
+    $("version").textContent = v.retired ? say("version.v_retired", { current: v.current }) : `v${v.current}`;
     $("version").classList.toggle("retired", Boolean(v.retired));
     $("upgrade").hidden = !v.move;
-    $("upgrade").textContent = `${v.newer ? translate("actualizar") : "cambiar"} a ${v.latest}`;
-    $("version").title = v.retired ? translate("Esta versión fue retirada: {retired}", { retired: v.retired })
-      : v.latest ? (v.newer ? translate("Hay una versión nueva: {latest}", { latest: v.latest }) : translate("Es la última versión (tocá para buscar de nuevo)"))
-      : translate("No se pudo saber si hay una versión nueva (tocá para buscar de nuevo)");
-    if (force) toast(v.latest ? (v.newer ? translate("Hay una versión nueva: {latest}.", { latest: v.latest }) : translate("Tenés la última versión ({current}).", { current: v.current })) : translate("No pude consultar si hay una versión nueva (¿hay internet?)."));
+    $("upgrade").textContent = `${v.newer ? say("version.update") : "cambiar"} a ${v.latest}`;
+    $("version").title = v.retired ? say("version.version_was_retired", { retired: v.retired })
+      : v.latest ? (v.newer ? say("version.theres_new_version", { latest: v.latest }) : say("version.latest_version_click_check_again"))
+      : say("version.couldnt_checked_whether_theres_new");
+    if (force) toast(v.latest ? (v.newer ? say("version.theres_new_version_2", { latest: v.latest }) : say("version.you_have_latest_version", { current: v.current })) : say("version.i_couldnt_check_whether_theres"));
   } catch {}
 }
 $("version").onclick = () => checkVersion(true);
 $("upgrade").onclick = async () => {
   const v = state.version;
   const busy = (state.jobs || []).some((j) => ["queued", "running"].includes(j.status));
-  if (busy) { toast(translate("Hay trabajos corriendo: actualizá cuando terminen."), 5000); return; }
-  if (!await askConfirm({ title: `¿${v.newer ? translate("Actualizar") : translate("Cambiar")} a song-wizard ${v.latest}?`, ok: v.newer ? translate("actualizar") : "cambiar",
-                          text: [v.retired ? translate("Tenés la {current}, que fue retirada: {retired}.", { current: v.current, retired: v.retired }) : translate("Tenés la {current}.", { current: v.current }),
-                                 translate("Baja esa versión (y lo nuevo de lo que usa, como yt-dlp) y reinicia la interfaz; esta página se recarga sola.")] })) return;
+  if (busy) { toast(say("version.jobs_are_running_update_when"), 5000); return; }
+  if (!await askConfirm({ title: `¿${v.newer ? say("version.update_2") : say("version.change")} a song-wizard ${v.latest}?`, ok: v.newer ? say("version.update") : "cambiar",
+                          text: [v.retired ? say("version.you_have_which_was_retired", { current: v.current, retired: v.retired }) : say("version.you_have", { current: v.current }),
+                                 say("version.downloads_version_whats_new_what")] })) return;
   try {
     const job = await api("/api/jobs", { action: "upgrade" });
     state.openJob = job.id;
     poll();
     $("upgrade").disabled = true;
-    $("upgrade").textContent = translate("actualizando…");
+    $("upgrade").textContent = say("version.updating");
     for (;;) {
       await new Promise((r) => setTimeout(r, 1500));
       const found = (await api(`/api/jobs?job=0`)).find((j) => j.id === job.id);
       if (!found || found.status === "running" || found.status === "queued") continue;
-      if (found.status !== "done") { toast(translate("No se pudo actualizar: el detalle está en Trabajos."), 8000); checkVersion(); $("upgrade").disabled = false; return; }
+      if (found.status !== "done") { toast(say("version.couldnt_updated_detail_jobs"), 8000); checkVersion(); $("upgrade").disabled = false; return; }
       break;
     }
     state.restarting = true;
@@ -2764,9 +2749,9 @@ $("upgrade").onclick = async () => {
         if ((await api("/api/version")).server !== v.server) { location.reload(); return; }
       } catch {}
     }
-    $("restarting").textContent = translate("La interfaz no volvió sola: en la terminal, song-wizard ui, y recargá esta página.");
+    $("restarting").textContent = say("version.interface_didnt_come_back_own");
   } catch (e) {
-    toast(translate("No se pudo: {message}", { message: e.message }), 6000);
+    toast(say("reaper.couldnt_done", { message: e.message }), 6000);
     $("upgrade").disabled = false;
   }
 };
@@ -2776,9 +2761,9 @@ $("shutdown").onclick = async () => {
   const busy = state.jobs && state.jobs.filter((j) => ["queued", "running"].includes(j.status));
   const running = busy && busy.length;
   if (!await askConfirm({
-    title: translate("¿Apagar la interfaz?"), ok: running ? translate("cancelar y apagar") : translate("apagar"), danger: Boolean(running),
-    text: [running ? translate("Todavía está corriendo: {v}. Se cancela.", { v: busy.map((j) => j.title).join("; ") }) : null,
-           translate("Para volver a usarla: song-wizard ui en la terminal.")].filter(Boolean) })) return;
+    title: say("version.shut_down_interface"), ok: running ? say("version.cancel_shut_down") : say("version.shut_down"), danger: Boolean(running),
+    text: [running ? say("version.still_running_will_cancelled", { v: busy.map((j) => j.title).join("; ") }) : null,
+           say("version.use_again_song_wizard_ui")].filter(Boolean) })) return;
   try { await api("/api/shutdown", {}); } catch {}
   clearTimeout(poll.timer);
   $("offline").hidden = false;
@@ -2794,7 +2779,7 @@ $("download").addEventListener("submit", (e) => {
 $("filter").addEventListener("input", renderLibrary);
 $("expand-all").onclick = () => setAllOpen(true);
 $("collapse-all").onclick = () => setAllOpen(false);
-$("reload").onclick = () => refresh().then(() => toast(translate("Biblioteca actualizada.")));
+$("reload").onclick = () => refresh().then(() => toast(say("version.library_refreshed")));
 $("open-root").onclick = () => openFolder("");
 $("report-open").onclick = openReport;
 
@@ -2804,9 +2789,9 @@ const lyr = { song: null, data: null, colors: [], noting: null, timer: 0, tool: 
 async function openLyrics(song) {
   lyr.song = song; lyr.data = null; lyr.noting = null; lyr.history = []; lyr.where = "dialog"; lyr.timeline = null;
   $("lyrics").insertBefore($("lyr-view"), $("lyr-editor"));
-  $("lyr-title").textContent = translate("Letra: {v}", { v: song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "") });
+  $("lyr-title").textContent = say("lyrics.lyrics", { v: song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "") });
   $("lyr-editor").hidden = true; $("lyr-view").hidden = false;
-  $("lyr-body").replaceChildren(el("p", { class: "empty-lyrics" }, translate("Cargando…")));
+  $("lyr-body").replaceChildren(el("p", { class: "empty-lyrics" }, say("lyrics.loading")));
   $("lyrics").showModal();
   try {
     const got = await api(`/api/lyrics?path=${encodeURIComponent(song.path)}`);
@@ -2834,43 +2819,43 @@ function renderLyrics() {
   const tools = $("lyr-tools");
   tools.replaceChildren();
   $("lyr-print").disabled = !d;
-  $("lyr-fetch").textContent = d ? translate("buscar de nuevo") : translate("buscar la letra");
-  $("lyr-source").textContent = d && d.source ? translate("Fuente: {v}", { v: d.source === "pasted" ? translate("escrita o pegada a mano") : d.source }) : "";
+  $("lyr-fetch").textContent = d ? say("lyrics.look_up_again") : say("lyrics.find_lyrics");
+  $("lyr-source").textContent = d && d.source ? say("lyrics.source", { v: d.source === "pasted" ? say("lyrics.typed_pasted_hand") : d.source }) : "";
   if (d) {
     // Tools, like a PDF highlighter: pick one, then drag over the text.
     for (const [n, c] of lyr.colors.entries()) {
-      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: translate("{name}: ¿qué es?", { name: c.name }), "aria-label": translate("Qué significa el {name}", { name: c.name }),
+      const input = el("input", { type: "text", value: (d.legend || {})[c.id] || "", placeholder: say("lyrics.what", { name: c.name }), "aria-label": say("lyrics.what_means", { name: c.name }),
         onchange: (e) => { d.legend = { ...(d.legend || {}), [c.id]: e.target.value }; saveLyrics(); } });
       tools.append(el("span", { class: "swatch" + (lyr.tool === c.id ? " active" : "") },
-        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: translate("Marcador {name}", { name: c.name }) + (lyr.where === "practice" ? "" : keyHint(`color${n + 1}`)),
+        el("button", { style: `background:${c.shade}`, "aria-pressed": String(lyr.tool === c.id), title: say("lyrics.marker", { name: c.name }) + (lyr.where === "practice" ? "" : keyHint(`color${n + 1}`)),
           onmousedown: (e) => e.preventDefault(), onclick: () => pickTool(c.id) }), input));
     }
     tools.append(
-      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: translate("Goma: arrastrá o hacé clic sobre lo marcado para sacarle el color") + (lyr.where === "practice" ? "" : keyHint("erase")),
-        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, translate("goma")),
-      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: translate("Nota: hacé clic en una línea para escribirle un comentario") + (lyr.where === "practice" ? "" : keyHint("note")),
-        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, translate("nota")),
-      el("button", { class: "small", title: translate("Deshacer el último cambio") + (lyr.where === "practice" ? "" : keyHint("undo")), disabled: !lyr.history.length, onclick: undoLyrics }, translate("deshacer")));
+      el("button", { class: "small tool" + (lyr.tool === "erase" ? " active" : ""), "aria-pressed": String(lyr.tool === "erase"), title: say("lyrics.eraser_drag_over_click_whats") + (lyr.where === "practice" ? "" : keyHint("erase")),
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("erase") }, say("lyrics.eraser")),
+      el("button", { class: "small tool" + (lyr.tool === "note" ? " active" : ""), "aria-pressed": String(lyr.tool === "note"), title: say("lyrics.note_click_line_write_comment") + (lyr.where === "practice" ? "" : keyHint("note")),
+        onmousedown: (e) => e.preventDefault(), onclick: () => pickTool("note") }, say("lyrics.note")),
+      el("button", { class: "small", title: say("lyrics.undo_last_change") + (lyr.where === "practice" ? "" : keyHint("undo")), disabled: !lyr.history.length, onclick: undoLyrics }, say("lyrics.undo")));
     if (lyr.where === "practice") {
       tools.append(el("button", { class: "small tool" + (lyr.showTimes ? " active" : ""), "aria-pressed": String(!!lyr.showTimes),
-        title: translate("Mostrar la columna con el momento en que empieza cada línea, para ponerlos o corregirlos"),
-        onclick: () => { lyr.showTimes = !lyr.showTimes; try { localStorage.setItem("song-wizard:lyric-times", lyr.showTimes ? "1" : ""); } catch {} renderLyrics(); } }, translate("tiempos")));
+        title: say("lyrics.show_column_moment_each_line"),
+        onclick: () => { lyr.showTimes = !lyr.showTimes; try { localStorage.setItem("song-wizard:lyric-times", lyr.showTimes ? "1" : ""); } catch {} renderLyrics(); } }, say("lyrics.times")));
       if (lyr.showTimes) tools.append(
-        el("button", { class: "small", title: translate("Todos los tiempos medio segundo antes"), onclick: () => shiftTimes(-0.5) }, "−0.5 s"),
-        el("button", { class: "small", title: translate("Todos los tiempos medio segundo después"), onclick: () => shiftTimes(0.5) }, "+0.5 s"));
+        el("button", { class: "small", title: say("lyrics.every_time_half_second_earlier"), onclick: () => shiftTimes(-0.5) }, "−0.5 s"),
+        el("button", { class: "small", title: say("lyrics.every_time_half_second_later"), onclick: () => shiftTimes(0.5) }, "+0.5 s"));
     }
   }
   const inPractice = lyr.where === "practice";
-  const toolName = lyr.tool === "erase" ? translate("Goma") : lyr.tool === "note" ? translate("Nota") : lyr.tool ? translate("Marcador {v}", { v: (lyr.colors.find((c) => c.id === lyr.tool) || {}).name }) : null;
+  const toolName = lyr.tool === "erase" ? say("lyrics.eraser_2") : lyr.tool === "note" ? say("lyrics.note_2") : lyr.tool ? say("lyrics.marker_2", { v: (lyr.colors.find((c) => c.id === lyr.tool) || {}).name }) : null;
   $("lyr-hint").textContent = inPractice && lyr.showTimes && !lyr.tool
-    ? translate("Mientras suena, tocá el tiempo de una línea justo cuando empieza a cantarse{key}. × lo borra. Doble clic en una línea: ir a ese momento.", { key: keysOf("tap").length ? translate(" (o {key} para la siguiente)", { key: keyLabel(keysOf("tap")[0]) }) : "" })
+    ? say("lyrics.while_plays_click_lines_time", { key: keysOf("tap").length ? say("lyrics.next_one", { key: keyLabel(keysOf("tap")[0]) }) : "" })
     : inPractice
-    ? (lyr.tool === "note" ? translate("Nota: hacé clic en la línea que querés comentar.") : toolName ? translate("{toolName}: arrastrá sobre la letra, o clic en una palabra. Tocá la herramienta de nuevo para soltarla.", { toolName })
-       : translate("Elegí un marcador y pasalo por la letra, o clic en una palabra.") + (lyr.timeline ? translate(" La línea que suena se resalta sola.") : ""))
+    ? (lyr.tool === "note" ? say("lyrics.note_click_line_you_want") : toolName ? say("lyrics.drag_over_lyrics_click_word", { toolName })
+       : say("lyrics.pick_marker_run_over_lyrics") + (lyr.timeline ? say("lyrics.line_being_sung_highlighted_own") : ""))
     : !toolName
-    ? translate("Elegí un marcador (un color{v}) y pasalo por la letra arrastrando, o hacé clic en una palabra. Al lado de cada color escribí qué significa. Se guarda solo.", { v: keyHint("color1") ? translate(", o sus teclas") : "" })
-    : lyr.tool === "note" ? translate("Nota: hacé clic en la línea que querés comentar. Esc suelta la herramienta.")
-    : translate("{toolName}: arrastrá sobre la letra, o clic en una palabra. Toma palabras enteras. Esc suelta la herramienta{undo}.", { toolName, undo: keysOf("undo").length ? translate(", {key} deshace", { key: keyLabel(keysOf("undo")[0]) }) : "" });
+    ? say("lyrics.pick_marker_color_drag_over", { v: keyHint("color1") ? say("lyrics.keys") : "" })
+    : lyr.tool === "note" ? say("lyrics.note_click_line_you_want_2")
+    : say("lyrics.drag_over_lyrics_click_word_2", { toolName, undo: keysOf("undo").length ? say("lyrics.undoes", { key: keyLabel(keysOf("undo")[0]) }) : "" });
   const body = $("lyr-body");
   body.className = "lyr-body" + (lyr.where === "practice" && lyr.showTimes ? " with-times" : "") + (lyr.tool ? ` tool-${lyr.tool === "erase" || lyr.tool === "note" ? lyr.tool : "paint"}` : "");
   const tint = lyr.tool && lyr.tool !== "erase" && lyr.tool !== "note" ? (lyr.colors.find((c) => c.id === lyr.tool) || {}).shade : null;
@@ -2882,9 +2867,9 @@ function renderLyrics() {
   body.replaceChildren();
   if (!d) {
     body.append(el("p", { class: "empty-lyrics" },
-      lyr.where === "practice" ? translate("Este tema todavía no tiene letra. ") : translate("Este tema todavía no tiene letra. \"buscar la letra\" la busca por su nombre y duración; si no aparece, \"escribir o pegar\". "),
-      lyr.where === "practice" ? el("button", { class: "small", onclick: fetchLyrics }, translate("buscar la letra")) : null,
-      lyr.where === "practice" ? translate(" (para escribirla o pegarla: \"letra\" en la biblioteca)") : null));
+      lyr.where === "practice" ? say("lyrics.song_has_no_lyrics_yet") : say("lyrics.song_has_no_lyrics_yet_2"),
+      lyr.where === "practice" ? el("button", { class: "small", onclick: fetchLyrics }, say("lyrics.find_lyrics")) : null,
+      lyr.where === "practice" ? say("lyrics.type_paste_them_lyrics_library") : null));
     return;
   }
   const lines = d.text.split("\n");
@@ -2897,19 +2882,19 @@ function renderLyrics() {
     if (lyr.where === "practice" && lyr.showTimes) {
       const at = (d.times || {})[i];
       row.prepend(plain(line) ? el("span", { class: "lyr-time" + (at === undefined ? " unset" : "") },
-        el("button", { title: at === undefined ? translate("Poner acá el momento que está sonando") : translate("Cambiarlo por el momento que está sonando"),
+        el("button", { title: at === undefined ? say("lyrics.put_here_moment_thats_playing") : say("lyrics.change_moment_thats_playing"),
           onclick: (e) => { e.stopPropagation(); setLineTime(i, now()); } }, at === undefined ? "poner" : clockShort(at)),
-        at === undefined ? null : el("button", { class: "x", title: translate("Borrar este tiempo"), onclick: (e) => { e.stopPropagation(); setLineTime(i, null); } }, "×"))
+        at === undefined ? null : el("button", { class: "x", title: say("lyrics.clear_time"), onclick: (e) => { e.stopPropagation(); setLineTime(i, null); } }, "×"))
         : el("span", { class: "lyr-time" }));
     }
     if (lyr.noting === i) row.append(noteBox(i, note || ""));
-    else if (note) row.append(el("span", { class: "lyr-note", title: translate("Tocá para cambiarla (vacía la borra)"), onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
+    else if (note) row.append(el("span", { class: "lyr-note", title: say("lyrics.click_change_empty_deletes"), onclick: () => { lyr.noting = i; renderLyrics(); } }, note));
     body.append(row);
   });
 }
 
 function noteBox(i, value) {
-  const input = el("input", { type: "text", value, placeholder: translate("nota para esta línea"), "aria-label": translate("Nota") });
+  const input = el("input", { type: "text", value, placeholder: say("lyrics.note_line"), "aria-label": say("lyrics.note_2") });
   const done = (save) => {
     if (save) { rememberLyrics(); lyr.data.notes = { ...(lyr.data.notes || {}) }; if (input.value.trim()) lyr.data.notes[i] = input.value.trim(); else delete lyr.data.notes[i]; saveLyrics(); }
     lyr.noting = null; renderLyrics();
@@ -2946,7 +2931,7 @@ async function loadPracticeLyrics(song) {
     lyr.data = got.lyrics;
   } catch (e) { $("pl-summary").textContent = ""; }
   buildTimeline();
-  $("pl-summary").textContent = !lyr.data ? translate("(todavía no tiene)") : lyr.timeline ? translate("(sigue al tema)") : translate("(sin tiempos: \"tiempos\" para ponerlos)");
+  $("pl-summary").textContent = !lyr.data ? say("lyrics.none_yet") : lyr.timeline ? say("lyrics.follows_song") : say("lyrics.no_times_times_set_them");
   renderLyrics();
 }
 
@@ -2982,7 +2967,7 @@ function setLineTime(i, t) {
   lyr.nowLine = undefined;
   saveLyrics();
   renderLyrics();
-  $("pl-summary").textContent = lyr.timeline ? translate("(sigue al tema)") : translate("(sin tiempos: \"tiempos\" para ponerlos)");
+  $("pl-summary").textContent = lyr.timeline ? say("lyrics.follows_song") : say("lyrics.no_times_times_set_them");
 }
 function shiftTimes(by) {
   const d = lyr.data;
@@ -3006,7 +2991,7 @@ function tapNextLine() {
   }
   let next = lyr.lastTap + 1;
   while (next < lines.length && !plain(lines[next])) next++;
-  if (next >= lines.length) { toast(translate("Ya no quedan líneas.")); return; }
+  if (next >= lines.length) { toast(say("lyrics.there_are_no_lines_left")); return; }
   lyr.lastTap = next;
   if (!lyr.showTimes) { lyr.showTimes = true; try { localStorage.setItem("song-wizard:lyric-times", "1"); } catch {} }
   setLineTime(next, t);
@@ -3153,7 +3138,7 @@ function saveLyrics() {
   const song = lyr.song, data = lyr.data;
   lyr.timer = setTimeout(async () => {
     try { await api("/api/lyrics", { path: song.path, lyrics: data }); }
-    catch (e) { toast(translate("No se pudo guardar la letra: {message}", { message: e.message }), 6000); }
+    catch (e) { toast(say("lyrics.lyrics_couldnt_saved", { message: e.message }), 6000); }
   }, 300);
 }
 
@@ -3161,8 +3146,8 @@ $("lyr-fetch").onclick = () => fetchLyrics();
 async function fetchLyrics() {
   const d = lyr.data;
   if (d && ((d.marks || []).length || Object.keys(d.notes || {}).length) &&
-      !await askConfirm({ title: translate("¿Buscar la letra de nuevo?"), ok: translate("buscar de nuevo"), danger: true,
-                          text: [translate("Reemplaza la letra, y se pierden sus colores y notas (la leyenda queda).")] })) return;
+      !await askConfirm({ title: say("lyrics.look_up_lyrics_again"), ok: say("lyrics.look_up_again"), danger: true,
+                          text: [say("lyrics.replaces_lyrics_their_colors_notes")] })) return;
   $("lyr-fetch").disabled = true;
   try {
     lyr.data = await api("/api/lyrics/fetch", { path: lyr.song.path });
@@ -3188,7 +3173,7 @@ $("lyr-save").onclick = async () => {
     notes: old ? Object.fromEntries(Object.entries(old.notes || {}).filter(([i]) => same(+i))) : {},
     times: old ? Object.fromEntries(Object.entries(old.times || {}).filter(([i]) => same(+i))) : {},
     legend: old ? old.legend || {} : {}, source: old && old.text === text ? old.source : "pasted" };
-  if (!text.trim()) { toast(translate("La letra está vacía.")); return; }
+  if (!text.trim()) { toast(say("lyrics.lyrics_are_empty")); return; }
   try {
     lyr.data = await api("/api/lyrics", { path: lyr.song.path, lyrics: data });
     lyr.song.lyrics = true;
@@ -3200,7 +3185,7 @@ $("lyr-save").onclick = async () => {
 $("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}&lang=${LANG}`, "_blank");
 $("lyr-close").onclick = () => $("lyrics").close();
 $("report-close").onclick = () => $("report").close();
-$("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(translate("No se pudo abrir: {message}", { message: e.message })));
+$("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(say("library.couldnt_opened", { message: e.message })));
 // Coming back from the file manager (files renamed, copied or deleted): read the folder again.
 // Both events usually fire together: one reload is enough.
 function refreshOnReturn() {
@@ -3214,7 +3199,7 @@ $("do-key").onclick = () => start({ action: "key", paths: selectedPaths() });
 $("do-bpm").onclick = () => start({ action: "bpm", paths: selectedPaths() });
 $("do-separate").onclick = () => {
   const stems = [...document.querySelectorAll("#stems input:checked")].map((i) => i.value);
-  if (!stems.length) return toast(translate("Elegí al menos un instrumento."));
+  if (!stems.length) return toast(say("lyrics.pick_at_least_one_instrument"));
   start({ action: "separate", stems, cpu: $("cpu").checked, paths: selectedPaths() });
 };
 $("do-transpose").onclick = () => start({ action: "transpose", semitones: parseFloat($("semitones").value), paths: selectedPaths() });
@@ -3232,7 +3217,7 @@ $("do-click").onclick = () => {
   // One song (or one of its files) picked: the click is named after it and listed with it.
   if (selectedPaths().length === 1 && where && where.song) request.for = first;
   if (mode === "like") {
-    if (!first) return toast('Elegí un tema para translate("tan largo como el tema"), o poné una duración.');
+    if (!first) return toast('Elegí un tema para say("lyrics.long_song"), o poné una duración.');
     request.like = first;
   } else if (mode === "bars") request.bars = parseInt($("click-bars").value, 10);
   else request.duration = $("click-duration").value;
@@ -3250,14 +3235,14 @@ $("stems").addEventListener("change", (e) => {
 // goes to the song and its stems and versions (song-wizard tag), and a new artist or title renames
 // them "NNN - Artist - Title"; for one file ("datos" on a stem or version), only that file.
 const TAG_MAIN = ["title", "artist", "album", "date", "genre"];
-const TAG_LABELS = { title: translate("Título"), artist: translate("Artista"), album: translate("Álbum"), date: translate("Año (o fecha)"), genre: translate("Género"),
-  composer: translate("Compositor"), album_artist: translate("Artista del álbum"), track: translate("Número de pista"), disc: translate("Disco"), comment: translate("Comentario"),
-  description: translate("Descripción"), synopsis: translate("Descripción del video"), purl: translate("Link de la descarga"), language: translate("Idioma"),
-  publisher: translate("Sello"), copyright: translate("Derechos"), encoder: translate("Programa que lo escribió"), encoded_by: translate("Hecho con") };
+const TAG_LABELS = { title: say("data.title"), artist: say("data.artist"), album: say("data.album"), date: say("data.year_date"), genre: say("data.genre"),
+  composer: say("data.composer"), album_artist: say("data.album_artist"), track: say("data.track_number"), disc: say("data.disc"), comment: say("data.comment"),
+  description: say("data.description"), synopsis: say("data.video_description"), purl: say("data.download_link"), language: say("data.language"),
+  publisher: say("data.label"), copyright: say("data.copyright"), encoder: say("data.program_wrote"), encoded_by: say("data.made") };
 // Shown, not changed: where the download came from (song-wizard delete uses it), and what ffmpeg
 // writes on its own.
-const TAG_FIXED = { purl: translate("Lo usa \"borrar\" para saber de qué descarga vino: no se cambia."), encoder: translate("Lo escribe solo el programa que guarda el archivo."),
-  encoded_by: translate("La versión de song-wizard que hizo este archivo (cada archivo tiene la suya): no se cambia.") };
+const TAG_FIXED = { purl: say("data.delete_uses_know_which_download"), encoder: say("data.only_program_saves_file_writes"),
+  encoded_by: say("data.song_wizard_version_made_file") };
 const LOOKALIKE = { "\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "|": "｜" };
 const tagNameFor = (tags) => {
   const title = (tags.title || "").trim(), artist = (tags.artist || "").trim();
@@ -3270,8 +3255,8 @@ $("data-known").replaceChildren(...Object.entries(TAG_LABELS).filter(([k]) => !T
 
 async function openData(item, only = false) {
   data.path = item.path; data.name = item.name; data.only = only; data.rows = []; data.loading = true;
-  $("data-title").textContent = only ? translate("Datos de {name}", { name: item.name }) : translate("Datos: {v}", { v: item.name.replace(/\.[^.]+$/, "") });
-  $("data-list").replaceChildren(el("p", { class: "muted" }, translate("Leyendo…")));
+  $("data-title").textContent = only ? say("data.data", { name: item.name }) : say("data.data_2", { v: item.name.replace(/\.[^.]+$/, "") });
+  $("data-list").replaceChildren(el("p", { class: "muted" }, say("data.reading")));
   $("data-scope").textContent = $("data-name").textContent = "";
   $("data-next").hidden = only;
   if (!$("data").open) $("data").showModal();
@@ -3287,7 +3272,7 @@ async function openData(item, only = false) {
     const first = $("data-list").querySelector("input, textarea");
     if (first) first.focus();
   } catch (e) {
-    $("data-list").replaceChildren(el("p", { class: "muted" }, translate("No se pudieron leer los datos: {message}", { message: e.message })));
+    $("data-list").replaceChildren(el("p", { class: "muted" }, say("data.data_couldnt_read", { message: e.message })));
   }
 }
 
@@ -3301,12 +3286,12 @@ function renderData() {
       oninput: (e) => { row.value = e.target.value; e.target.classList.toggle("changed", row.value !== (row.original ?? "")); renderDataName(); } });
     if (long) input.value = row.value;
     return [el("label", {}, TAG_LABELS[row.key] || row.key, TAG_LABELS[row.key] ? el("code", {}, row.key) : null), input,
-      TAG_MAIN.includes(row.key) || fixed ? el("span") : el("button", { type: "button", class: "small x", title: translate("Sacar este dato"),
+      TAG_MAIN.includes(row.key) || fixed ? el("span") : el("button", { type: "button", class: "small x", title: say("data.remove_field"),
         onclick: () => { row.removed = true; renderData(); } }, "×")];
   }));
   const n = data.files.length;
-  $("data-scope").textContent = data.only ? translate("Cambia solo este archivo.") :
-    translate("Se guarda en el tema{others}{kinds}. Las tomas de Reaper quedan como están.", { others: n === 2 ? translate(" y en su otro archivo") : n > 2 ? translate(" y en sus otros {n} archivos", { n: n - 1 }) : "", kinds: n > 1 ? translate(" (stems, versiones…)") : "" });
+  $("data-scope").textContent = data.only ? say("data.only_file_changes") :
+    say("data.saved_song_reaper_takes_are", { others: n === 2 ? say("data.other_file") : n > 2 ? say("data.other_files", { n: n - 1 }) : "", kinds: n > 1 ? say("data.stems_versions") : "" });
   renderDataName();
 }
 
@@ -3316,7 +3301,7 @@ function renderDataName() {
   const now = dataTags(), changed = ["artist", "title"].some((k) => (now[k] || "") !== (was[k] || ""));
   const name = !data.only && changed ? tagNameFor(now) : null;
   const number = (/^\d+ - /.exec(data.name) || [""])[0], ext = (/\.[^.]+$/.exec(data.name) || [""])[0];
-  $("data-name").textContent = name && number + name + ext !== data.name ? translate("Va a pasar a llamarse \"{number}{name}{ext}\", con todos sus archivos.", { number, name, ext }) : "";
+  $("data-name").textContent = name && number + name + ext !== data.name ? say("data.going_named_all_files", { number, name, ext }) : "";
 }
 
 function addDataField() {
@@ -3324,7 +3309,7 @@ function addDataField() {
   if (!typed) return;
   const known = Object.entries(TAG_LABELS).find(([k, label]) => plainText(label) === plainText(typed) || k === typed);
   const key = known ? known[0] : typed;
-  if (key.includes("=")) return toast(translate("El nombre de un dato no puede tener =."));
+  if (key.includes("=")) return toast(say("data.fields_name_cant_have"));
   const row = data.rows.find((r) => r.key === key);
   if (row) row.removed = false;
   else data.rows.push({ key, value: "", original: undefined });
@@ -3351,7 +3336,7 @@ function saveData() {
 function saveDataAndNext() {
   if (data.only || !saveData()) return;
   const songs = state.shownSongs || [], at = songs.findIndex((s) => s.path === data.path), next = songs[at + 1];
-  if (!next) { $("data").close(); return toast(translate("Era el último tema de la lista.")); }
+  if (!next) { $("data").close(); return toast(say("data.was_last_song_list")); }
   setCursor(next.path);
   openData(next);
 }
@@ -3367,58 +3352,58 @@ $("data-add-name").addEventListener("keydown", (e) => { if (e.key === "Enter") {
 // written as a combination: "Shift+ArrowLeft", "z", "Ctrl+z", "1", "?", "MIDI 36" (a note) or
 // "MIDI CC 64" (a pedal). Symbols ("?", "[", "+") are taken as typed, whatever it took to type
 // them (on a Spanish keyboard "[" is AltGr plus a key).
-const SCOPES = { library: translate("Biblioteca"), practice: translate("Practicar"), lyrics: translate("Letra (marcar)"), data: translate("Datos del tema"), all: translate("En todas partes") };
+const SCOPES = { library: say("keys.library"), practice: say("keys.practice"), lyrics: say("keys.lyrics_marking"), data: say("keys.song_data"), all: say("keys.everywhere") };
 const ACTIONS = [
-  ["help", "all", translate("Ver y cambiar los atajos"), ["?"]],
-  ["lib.filter", "library", translate("Ir al filtro"), ["/"]],
-  ["lib.down", "library", translate("Tema siguiente"), ["ArrowDown"]],
-  ["lib.up", "library", translate("Tema anterior"), ["ArrowUp"]],
-  ["lib.play", "library", translate("Escuchar el tema"), ["Enter"]],
-  ["lib.practice", "library", translate("Practicar el tema"), ["p"]],
-  ["lib.lyrics", "library", translate("La letra del tema"), ["l"]],
-  ["lib.more", "library", translate("El menú \"más\" del tema"), ["."]],
-  ["lib.data", "library", translate("Los datos del tema (título, artista, álbum…)"), ["e"]],
-  ["lib.pick", "library", translate("Elegir el tema (o sacarlo de lo elegido)"), ["x"]],
-  ["lib.open", "library", translate("Mostrar sus stems y versiones"), ["ArrowRight"]],
-  ["lib.close", "library", translate("Ocultar sus stems y versiones"), ["ArrowLeft"]],
-  ["lib.pause", "library", translate("Reproductor de abajo: pausar o seguir"), ["Space"]],
-  ["lib.back", "library", translate("Reproductor de abajo: 5 s atrás"), ["Shift+ArrowLeft"]],
-  ["lib.fwd", "library", translate("Reproductor de abajo: 5 s adelante"), ["Shift+ArrowRight"]],
-  ["play", "practice", translate("Reproducir / pausar"), ["Space"]],
-  ["back", "practice", translate("5 s atrás"), ["ArrowLeft"]],
-  ["fwd", "practice", translate("5 s adelante"), ["ArrowRight"]],
-  ["barBack", "practice", translate("Un compás atrás"), ["Shift+ArrowLeft"]],
-  ["barFwd", "practice", translate("Un compás adelante"), ["Shift+ArrowRight"]],
-  ["start", "practice", translate("Al principio (o a A, si está marcado)"), ["Home"]],
-  ["markA", "practice", translate("Marcar A"), ["["]],
-  ["markB", "practice", translate("Marcar B"), ["]"]],
-  ["loop", "practice", translate("Repetir el tramo A-B"), ["l"]],
-  ["slower", "practice", translate("Más lento"), ["-"]],
-  ["faster", "practice", translate("Más rápido"), ["+", "="]],
-  ["pitchDown", "practice", translate("Tono: un semitono abajo"), [","]],
-  ["pitchUp", "practice", translate("Tono: un semitono arriba"), ["."]],
-  ["reset", "practice", translate("Velocidad y tono normales"), ["r"]],
-  ["trackUp", "practice", translate("Elegir la pista de arriba"), ["ArrowUp"]],
-  ["trackDown", "practice", translate("Elegir la pista de abajo"), ["ArrowDown"]],
-  ["trackMute", "practice", translate("Silenciar la pista elegida"), ["m"]],
-  ["trackSolo", "practice", translate("Solo la pista elegida"), ["s"]],
-  ["trackLouder", "practice", translate("Subir el volumen de la pista elegida"), ["Shift+ArrowUp"]],
-  ["trackSofter", "practice", translate("Bajar el volumen de la pista elegida"), ["Shift+ArrowDown"]],
-  ["click", "practice", translate("Prender o apagar el click"), ["c"]],
-  ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", translate("Silenciar la pista {v}", { v: i + 1 }), [String((i + 1) % 10)]]),
-  ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", translate("Solo la pista {v}", { v: i + 1 }), [`Shift+${(i + 1) % 10}`]]),
-  ["zoomIn", "practice", translate("Acercar las ondas"), ["z"]],
-  ["zoomOut", "practice", translate("Alejar las ondas"), ["x"]],
-  ["zoomAll", "practice", translate("Ver el tema entero"), ["v"]],
-  ["full", "practice", translate("Pantalla completa"), ["f"]],
-  ["lyrics", "practice", translate("Mostrar u ocultar la letra"), ["y"]],
-  ["tap", "practice", translate("Tiempos de la letra: marcar la línea siguiente"), ["t"]],
-  ["sync", "practice", translate("Ver cuánto se separan las pistas"), ["d"]],
-  ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", translate("Marcador {v}", { v: i + 1 }), [String(i + 1)]]),
-  ["erase", "lyrics", translate("Goma"), ["g"]],
-  ["note", "lyrics", translate("Nota"), ["n"]],
-  ["undo", "lyrics", translate("Deshacer"), ["Ctrl+z"]],
-  ["data.next", "data", translate("Guardar y seguir con el tema siguiente"), ["Ctrl+Enter"]],
+  ["help", "all", say("keys.see_change_shortcuts"), ["?"]],
+  ["lib.filter", "library", say("keys.go_filter"), ["/"]],
+  ["lib.down", "library", say("keys.next_song"), ["ArrowDown"]],
+  ["lib.up", "library", say("keys.previous_song"), ["ArrowUp"]],
+  ["lib.play", "library", say("keys.play_song"), ["Enter"]],
+  ["lib.practice", "library", say("keys.practice_song"), ["p"]],
+  ["lib.lyrics", "library", say("keys.songs_lyrics"), ["l"]],
+  ["lib.more", "library", say("keys.songs_more_menu"), ["."]],
+  ["lib.data", "library", say("keys.songs_data_title_artist_album"), ["e"]],
+  ["lib.pick", "library", say("keys.pick_song_drop_from_selection"), ["x"]],
+  ["lib.open", "library", say("library.show_stems_versions"), ["ArrowRight"]],
+  ["lib.close", "library", say("keys.hide_stems_versions"), ["ArrowLeft"]],
+  ["lib.pause", "library", say("keys.bottom_player_pause_resume"), ["Space"]],
+  ["lib.back", "library", say("keys.bottom_player_5_back"), ["Shift+ArrowLeft"]],
+  ["lib.fwd", "library", say("keys.bottom_player_5_forward"), ["Shift+ArrowRight"]],
+  ["play", "practice", say("keys.play_pause"), ["Space"]],
+  ["back", "practice", say("keys.5_back"), ["ArrowLeft"]],
+  ["fwd", "practice", say("keys.5_forward"), ["ArrowRight"]],
+  ["barBack", "practice", say("keys.one_bar_back"), ["Shift+ArrowLeft"]],
+  ["barFwd", "practice", say("keys.one_bar_forward"), ["Shift+ArrowRight"]],
+  ["start", "practice", say("keys.start_if_marked"), ["Home"]],
+  ["markA", "practice", say("keys.mark"), ["["]],
+  ["markB", "practice", say("keys.mark_b"), ["]"]],
+  ["loop", "practice", say("keys.loop_b_section"), ["l"]],
+  ["slower", "practice", say("keys.slower"), ["-"]],
+  ["faster", "practice", say("keys.faster"), ["+", "="]],
+  ["pitchDown", "practice", say("keys.pitch_one_semitone_down"), [","]],
+  ["pitchUp", "practice", say("keys.pitch_one_semitone_up"), ["."]],
+  ["reset", "practice", say("keys.normal_speed_pitch"), ["r"]],
+  ["trackUp", "practice", say("keys.pick_track_above"), ["ArrowUp"]],
+  ["trackDown", "practice", say("keys.pick_track_below"), ["ArrowDown"]],
+  ["trackMute", "practice", say("keys.mute_chosen_track"), ["m"]],
+  ["trackSolo", "practice", say("keys.solo_chosen_track"), ["s"]],
+  ["trackLouder", "practice", say("keys.turn_chosen_track_up"), ["Shift+ArrowUp"]],
+  ["trackSofter", "practice", say("keys.turn_chosen_track_down"), ["Shift+ArrowDown"]],
+  ["click", "practice", say("keys.turn_click_off"), ["c"]],
+  ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", say("keys.mute_track", { v: i + 1 }), [String((i + 1) % 10)]]),
+  ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", say("keys.solo_track", { v: i + 1 }), [`Shift+${(i + 1) % 10}`]]),
+  ["zoomIn", "practice", say("keys.zoom_waveforms"), ["z"]],
+  ["zoomOut", "practice", say("keys.zoom_waveforms_out"), ["x"]],
+  ["zoomAll", "practice", say("keys.show_whole_song"), ["v"]],
+  ["full", "practice", say("keys.full_screen"), ["f"]],
+  ["lyrics", "practice", say("keys.show_hide_lyrics"), ["y"]],
+  ["tap", "practice", say("keys.lyrics_times_mark_next_line"), ["t"]],
+  ["sync", "practice", say("keys.see_how_far_apart_tracks"), ["d"]],
+  ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", say("lyrics.marker_2", { v: i + 1 }), [String(i + 1)]]),
+  ["erase", "lyrics", say("lyrics.eraser_2"), ["g"]],
+  ["note", "lyrics", say("lyrics.note_2"), ["n"]],
+  ["undo", "lyrics", say("keys.undo"), ["Ctrl+z"]],
+  ["data.next", "data", say("keys.save_go_next_song"), ["Ctrl+Enter"]],
 ].map(([id, scope, label, keys]) => ({ id, scope, label, keys }));
 const ACTION = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
 const KEYS_KEY = "song-wizard:keys", MIDI_KEY = "song-wizard:midi";
@@ -3449,12 +3434,12 @@ function comboOf(e) {
   } else base = e.key;
   return (ctrl ? "Ctrl+" : "") + (alt ? "Alt+" : "") + (shift ? "Shift+" : "") + base;
 }
-const KEY_LABELS = { Space: translate("espacio"), ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Home: translate("Inicio"), End: translate("Fin"),
-  PageUp: translate("RePág"), PageDown: translate("AvPág"), Enter: "Enter", Backspace: translate("Retroceso"), Delete: translate("Supr"), Insert: "Insert", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift" };
+const KEY_LABELS = { Space: say("keys.space"), ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Home: say("keys.home"), End: say("keys.end"),
+  PageUp: say("keys.pgup"), PageDown: say("keys.pgdn"), Enter: "Enter", Backspace: say("keys.backspace"), Delete: say("keys.del"), Insert: "Insert", Ctrl: "Ctrl", Alt: "Alt", Shift: "Shift" };
 function keyLabel(combo) {
   const note = /^MIDI (\d+)$/.exec(combo), cc = /^MIDI CC (\d+)$/.exec(combo);
-  if (note) return translate("MIDI nota {v}", { v: note[1] });
-  if (cc) return translate("MIDI control {v}", { v: cc[1] });
+  if (note) return say("keys.midi_note", { v: note[1] });
+  if (cc) return say("keys.midi_control", { v: cc[1] });
   return combo.split(/\+(?=.)/).map((p) => KEY_LABELS[p] || (p.length === 1 ? p.toUpperCase() : p)).join("+");
 }
 const keyHint = (id) => { const k = keysOf(id); return k.length ? ` (${k.map(keyLabel).join(" o ")})` : ""; };
@@ -3567,7 +3552,7 @@ function moveCursor(step) {
 }
 function withCursor(action) {
   const song = (state.shownSongs || []).find((s) => s.path === state.cursor);
-  if (song) action(song); else toast(translate("Primero elegí un tema con ↑ ↓ (o tocándolo)."));
+  if (song) action(song); else toast(say("keys.first_pick_song_clicking"));
 }
 
 function runCombo(combo, e) {
@@ -3611,14 +3596,14 @@ function renderKeys() {
     const rows = ACTIONS.filter((a) => a.scope === scope).map((a) => {
       const listening = keys.listening && keys.listening.id === a.id;
       const chips = keysOf(a.id).map((k, i) => listening && keys.listening.index === i
-        ? el("span", { class: "chip listening" }, translate("apretá una tecla… (Esc cancela)"))
+        ? el("span", { class: "chip listening" }, say("keys.press_key_esc_cancels"))
         : el("span", { class: "chip" },
-            el("button", { title: translate("Cambiar esta tecla"), onclick: () => listen(a.id, i) }, keyLabel(k)),
-            el("button", { title: translate("Sacar esta tecla"), "aria-label": translate("Sacar {v}", { v: keyLabel(k) }), onclick: () => setKeys(a.id, keysOf(a.id).filter((_, j) => j !== i)) }, "×")));
-      if (listening && keys.listening.index === -1) chips.push(el("span", { class: "listening" }, translate("apretá una tecla… (Esc cancela)")));
+            el("button", { title: say("keys.change_key"), onclick: () => listen(a.id, i) }, keyLabel(k)),
+            el("button", { title: say("keys.remove_key"), "aria-label": say("keys.remove", { v: keyLabel(k) }), onclick: () => setKeys(a.id, keysOf(a.id).filter((_, j) => j !== i)) }, "×")));
+      if (listening && keys.listening.index === -1) chips.push(el("span", { class: "listening" }, say("keys.press_key_esc_cancels")));
       return el("div", { class: "key-row" + (customKeys[a.id] ? " changed" : ""), "data-id": a.id }, el("span", {}, a.label),
         el("span", { class: "keys" }, ...chips,
-          el("button", { class: "small", title: translate("Agregar otra tecla para lo mismo"), onclick: () => listen(a.id, -1) }, "+")));
+          el("button", { class: "small", title: say("keys.add_another_key_same_thing"), onclick: () => listen(a.id, -1) }, "+")));
     });
     return [el("h4", {}, title), ...rows];
   }).flat();
@@ -3644,10 +3629,10 @@ async function assignKey(combo) {
     (a.scope === action.scope || a.scope === "all" || action.scope === "all"));
   if (clash) {
     const old = index >= 0 ? mine[index] : null;
-    const ok = await askConfirm({ title: translate("{v} ya es \"{label}\"", { v: keyLabel(combo), label: clash.label }),
-      text: old ? translate("Se intercambian: \"{label}\" pasa a {v} y \"{label2}\" a {v2}.", { label: action.label, v: keyLabel(combo), label2: clash.label, v2: keyLabel(old) })
-                : translate("\"{label}\" se queda sin {v} y pasa a \"{label2}\".", { label: clash.label, v: keyLabel(combo), label2: action.label }),
-      ok: old ? translate("intercambiar") : translate("pasarla") });
+    const ok = await askConfirm({ title: say("keys.already", { v: keyLabel(combo), label: clash.label }),
+      text: old ? say("keys.they_swap_goes", { label: action.label, v: keyLabel(combo), label2: clash.label, v2: keyLabel(old) })
+                : say("keys.loses_goes", { label: clash.label, v: keyLabel(combo), label2: action.label }),
+      ok: old ? say("keys.swap") : say("keys.move") });
     if (!ok) { renderKeys(); return; }
     const theirs = keysOf(clash.id).map((k) => k === combo ? old : k).filter(Boolean);
     setKeys(clash.id, [...new Set(theirs)]);
@@ -3659,7 +3644,7 @@ $("keys").addEventListener("cancel", (e) => { if (keys.listening) e.preventDefau
 $("keys-close").onclick = () => $("keys").close();
 $("keys-reset").onclick = async () => {
   if (!Object.keys(customKeys).length) return;
-  if (await askConfirm({ title: translate("¿Volver a los atajos de fábrica?"), text: translate("Se borran todos los cambios que hiciste en los atajos."), ok: translate("restablecer") })) {
+  if (await askConfirm({ title: say("keys.go_back_factory_shortcuts"), text: say("keys.all_changes_you_made_shortcuts"), ok: say("keys.reset") })) {
     customKeys = {};
     try { localStorage.removeItem(KEYS_KEY); } catch {}
     keysChanged();
@@ -3677,13 +3662,13 @@ function keysChanged() {
     if (b.dataset.title === undefined) b.dataset.title = b.title || ACTION[id].label;
     b.title = b.dataset.title + keyHint(id);
   }
-  const shown = [["play", translate("reproducir/pausar")], ["back", "", "fwd", "5 s"], ["barBack", "", "barFwd", translate("un compás")], ["markA", "", "markB", translate("A y B")], ["loop", translate("repetir")],
-    ["slower", "", "faster", translate("velocidad")], ["trackUp", "", "trackDown", translate("elegir pista")], ["trackMute", translate("silenciar")], ["trackSolo", translate("solo")],
-    ["click", "click"], ["zoomIn", "", "zoomOut", translate("acercar")], ["full", translate("pantalla completa")], ["lyrics", translate("letra")]];
+  const shown = [["play", say("keys.play_pause_2")], ["back", "", "fwd", "5 s"], ["barBack", "", "barFwd", say("keys.one_bar")], ["markA", "", "markB", say("keys.b")], ["loop", say("keys.loop")],
+    ["slower", "", "faster", say("keys.speed")], ["trackUp", "", "trackDown", say("keys.pick_track")], ["trackMute", say("keys.mute")], ["trackSolo", say("keys.solo")],
+    ["click", "click"], ["zoomIn", "", "zoomOut", say("keys.zoom")], ["full", say("keys.full_screen_2")], ["lyrics", say("keys.lyrics")]];
   const kbd = (id) => keysOf(id).slice(0, 1).map((k) => el("kbd", {}, keyLabel(k)));
   const parts = shown.map((p) => p.length === 2 ? [...kbd(p[0]), ` ${p[1]}`] : [...kbd(p[0]), " ", ...kbd(p[2]), ` ${p[3]}`]);
   $("practice-keys").replaceChildren(...parts.flatMap((p, i) => i ? [" · ", ...p] : p), " · ",
-    el("button", { class: "small keys-open", onclick: openKeys }, translate("todos los atajos{v}", { v: keyHint("help") })));
+    el("button", { class: "small keys-open", onclick: openKeys }, say("keys.all_shortcuts", { v: keyHint("help") })));
   if ($("keys").open) renderKeys();
   if (practice.lanes) renderPractice();
   if (lyr.data) renderLyrics();
@@ -3692,9 +3677,9 @@ function keysChanged() {
 // ---- MIDI: a note (a pad, a key) or a pedal (a controller going on) is a key like any other.
 const midi = { access: null, cc: {} };
 async function enableMidi(asked) {
-  if (!navigator.requestMIDIAccess) { if (asked) toast(translate("Este navegador no maneja MIDI (Chrome y Edge sí)."), 6000); return; }
+  if (!navigator.requestMIDIAccess) { if (asked) toast(say("keys.browser_doesnt_handle_midi_chrome"), 6000); return; }
   try { midi.access = await navigator.requestMIDIAccess(); }
-  catch { if (asked) toast(translate("El navegador no dio permiso para usar MIDI."), 6000); return; }
+  catch { if (asked) toast(say("keys.browser_didnt_give_permission_use"), 6000); return; }
   const hook = () => { for (const input of midi.access.inputs.values()) input.onmidimessage = onMidi; renderMidiState(); };
   midi.access.onstatechange = hook;
   hook();
@@ -3716,7 +3701,7 @@ function onMidi(e) {
 function renderMidiState() {
   const names = midi.access ? [...midi.access.inputs.values()].map((i) => i.name) : [];
   $("keys-midi").hidden = !!midi.access;
-  $("keys-midi-state").textContent = !midi.access ? "" : names.length ? translate("MIDI: {names}", { names: names.join(", ") }) : translate("MIDI activo, sin aparatos conectados");
+  $("keys-midi-state").textContent = !midi.access ? "" : names.length ? say("keys.midi", { names: names.join(", ") }) : say("keys.midi_no_devices_connected");
 }
 $("keys-midi").onclick = () => enableMidi(true);
 try { if (localStorage.getItem(MIDI_KEY) === "on") enableMidi(false); } catch {}

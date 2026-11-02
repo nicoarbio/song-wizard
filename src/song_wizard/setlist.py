@@ -149,12 +149,12 @@ def page(name, items, with_lyrics=False, lang="es"):
 {lyrics.STYLE}</style></head>
 <body>
 <h1>{html.escape(name)}</h1>
-<div class="meta">{html.escape(say(lang, "{n} temas · {total}", n=len(items), total=clock(total)))}</div>
-<table><thead><tr><th class=n>#</th><th>{say(lang, "Tema")}</th><th class=k>{say(lang, "Tono")}</th><th class=b>BPM</th><th class=d>{say(lang, "Dura")}</th></tr></thead>
+<div class="meta">{html.escape(say(lang, "print.songs", n=len(items), total=clock(total)))}</div>
+<table><thead><tr><th class=n>#</th><th>{say(lang, "print.song")}</th><th class=k>{say(lang, "print.key")}</th><th class=b>BPM</th><th class=d>{say(lang, "print.length")}</th></tr></thead>
 <tbody>
 {body}
 </tbody></table>
-<button class="print" onclick="print()">{say(lang, "Imprimir")}</button>
+<button class="print" onclick="print()">{say(lang, "print.print")}</button>
 {chr(10).join(sheets)}
 </body></html>
 """

@@ -92,7 +92,8 @@ def test_interface(server, monkeypatch):  # noqa: F811
     # The upgrade job runs the CLI's upgrade.
     handler = ui.make_handler(TOKEN, root, ui.Runner(), port)
     from types import SimpleNamespace
-    spanish_page = SimpleNamespace(say=lambda text, **values: text)  # a request from a page in Spanish
+    from song_wizard.i18n import say
+    spanish_page = SimpleNamespace(say=lambda key, **values: say("es", key, **values))  # a request from a page in Spanish
     assert handler.command_for(spanish_page, {"action": "upgrade"}) == ("Actualizar song-wizard", ["upgrade"])
 
 

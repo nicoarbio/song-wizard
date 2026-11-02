@@ -35,8 +35,7 @@ from .paths import music_dir
 
 PORT = 8765
 STATIC = {"/favicon.ico": ("favicon.ico", "image/x-icon"), "/static/logo.png": ("logo.png", "image/png"),
-          "/static/pitch.js": ("pitch.js", "text/javascript"),
-          "/static/strings.js": ("strings.js", "text/javascript; charset=utf-8")}
+          "/static/pitch.js": ("pitch.js", "text/javascript")}
 # Output of a job that is kept to show in the page.
 LOG_LINES = 2000
 
@@ -227,10 +226,9 @@ def folder_from(text):
     path = Path(system.local_path(str(text)))
     if letter := system.unmounted_drive(path):
         raise NeedsCommand(system.mount_command(letter),
-                           "WSL no ve la unidad {letter}: (pasa con la de Google Drive). Conectala corriendo este "
-                           "comando en la terminal de WSL (pide tu contraseña) y probá de nuevo.", letter=letter)
+                           "server.wsl_doesnt_see_drive_happens", letter=letter)
     if not path.is_absolute() or not path.is_dir():
-        raise Said("no existe la carpeta {folder}", folder=text)
+        raise Said("server.folder_doesnt_exist", folder=text)
     return str(path)
 
 
@@ -456,12 +454,15 @@ def make_handler(token, root, runner, port):
             url = urlparse(self.path)
             query = parse_qs(url.query)
             # The icon and the logo: fixed files, asked for by the browser without the token.
+            if url.path == "/static/texts.js" and self.headers.get("Host") in allowed_hosts:
+                from . import i18n
+                return self.send(HTTPStatus.OK, i18n.script().encode(), "text/javascript; charset=utf-8")
             if url.path in STATIC and self.headers.get("Host") in allowed_hosts:
                 name, kind = STATIC[url.path]
                 body = resources.files("song_wizard").joinpath("static", name).read_bytes()
                 return self.send(HTTPStatus.OK, body, kind)
             if not self.authorized(query, page=url.path == "/"):
-                return self.error(HTTPStatus.FORBIDDEN, "Este pedido no viene de la interfaz de song-wizard.")
+                return self.error(HTTPStatus.FORBIDDEN, "server.request_doesnt_come_from_song")
             if url.path == "/":
                 return self.send(HTTPStatus.OK, page.encode(), "text/html; charset=utf-8")
             if url.path == "/api/library":
@@ -492,17 +493,17 @@ def make_handler(token, root, runner, port):
                 try:
                     path = self.resolve(query.get("path", [""])[0])
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 return self.json({"tags": tags.read(path), "files": [os.path.basename(f) for f in tags.song_files(path)]})
             if url.path == "/api/info":
                 try:
                     path = self.resolve(query.get("path", [""])[0])
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 return self.json({"duration": duration(path)})
             if url.path in ("/api/lyrics", "/lyrics"):
                 # The lyrics of a song with their marks (for the page), or printable.
@@ -510,16 +511,16 @@ def make_handler(token, root, runner, port):
                 try:
                     path = self.resolve(query.get("path", [""])[0])
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 title, artist = tags.title_artist(path)
                 data = lyrics.load(path)
                 if url.path == "/api/lyrics":
                     return self.json({"lyrics": data, "title": title, "artist": artist,
                                       "colors": [{"id": c, "shade": lyrics.SHADES[c], "name": self.say(lyrics.NAMES[c])} for c in lyrics.COLORS]})
                 if not data:
-                    return self.error(HTTPStatus.NOT_FOUND, "este tema no tiene letra todavía")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_lyrics_yet")
                 page_title = f"{title} ({artist})" if artist else title
                 return self.send(HTTPStatus.OK, lyrics.page(page_title, data, self.lang).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
@@ -534,13 +535,13 @@ def make_handler(token, root, runner, port):
                     else:
                         here = self.resolve(query.get("folder", [""])[0])
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except LookupError:
-                    return self.error(HTTPStatus.NOT_FOUND, "alguno de esos ya no es un tema de la biblioteca")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.one_those_isnt_song_library")
                 if "path" not in query:
                     folder, here = setlist.find(here, root)
                     if folder is None or not folder["songs"]:
-                        return self.error(HTTPStatus.NOT_FOUND, "esa carpeta no tiene temas")
+                        return self.error(HTTPStatus.NOT_FOUND, "server.folder_has_no_songs")
                     items = setlist.rows(folder, here)
                     title = title or (folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist"))
                 return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics, self.lang).encode(), "text/html; charset=utf-8")
@@ -551,16 +552,16 @@ def make_handler(token, root, runner, port):
                     start = float(query["from"][0]) if "from" in query else None
                     end = float(query["to"][0]) if "to" in query else None
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except ValueError:
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 try:
                     return self.json(peaks(path, n, start, end))
                 except subprocess.CalledProcessError:
-                    return self.error(HTTPStatus.UNPROCESSABLE_ENTITY, "no se pudo leer el audio")
-            self.error(HTTPStatus.NOT_FOUND, "not found")
+                    return self.error(HTTPStatus.UNPROCESSABLE_ENTITY, "server.audio_couldnt_read")
+            self.error(HTTPStatus.NOT_FOUND, "server.not_found")
 
         do_HEAD = do_GET
 
@@ -568,9 +569,9 @@ def make_handler(token, root, runner, port):
             try:
                 path = self.resolve(relative)
             except PermissionError:
-                return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
             if not path.is_file():
-                return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
             size = path.stat().st_size
             kind = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             if path.suffix.lower() == ".opus":
@@ -612,22 +613,22 @@ def make_handler(token, root, runner, port):
         def do_POST(self):
             url = urlparse(self.path)
             if not self.authorized(parse_qs(url.query)):
-                return self.error(HTTPStatus.FORBIDDEN, "Este pedido no viene de la interfaz de song-wizard.")
+                return self.error(HTTPStatus.FORBIDDEN, "server.request_doesnt_come_from_song")
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             except ValueError:
-                return self.error(HTTPStatus.BAD_REQUEST, "JSON inválido")
+                return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_json")
             if url.path == "/api/jobs":
                 try:
                     title, args = self.command_for(body)
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except NeedsCommand as e:
                     return self.json({"error": self.say(e.text, **e.values), "command": e.command}, HTTPStatus.BAD_REQUEST)
                 except Said as e:
                     return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
                 except (KeyError, ValueError, TypeError) as e:
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido: {detail}", detail=e)
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request_2", detail=e)
                 return self.json(runner.add(title, args).summary())
             if url.path == "/api/shutdown":
                 # "apagar" on the page, or song-wizard ui --stop. Not from this request's thread:
@@ -645,7 +646,7 @@ def make_handler(token, root, runner, port):
             if url.path == "/api/report/open":
                 from . import report
                 if not system.open_folder(report.REPORTS_DIR):
-                    return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
+                    return self.error(HTTPStatus.NOT_IMPLEMENTED, "server.i_didnt_find_file_manager")
                 return self.json({})
             if url.path == "/api/pick-folder":
                 # The system's folder dialog, on this computer's screen; waits for an answer.
@@ -658,11 +659,11 @@ def make_handler(token, root, runner, port):
                     if not (20 <= bpm <= 400 and re.fullmatch(r"\d+/\d+", meter) and -60 < first < 3600):
                         raise ValueError
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except (KeyError, ValueError, TypeError):
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 results.save("click", [(str(path), align.describe(bpm, meter, first))])
                 return self.json(align.parse(align.describe(bpm, meter, first)))
             if url.path in ("/api/lyrics", "/api/lyrics/fetch"):
@@ -670,27 +671,27 @@ def make_handler(token, root, runner, port):
                 try:
                     path = self.resolve(str(body["path"]))
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except (KeyError, TypeError):
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 if url.path == "/api/lyrics":
                     try:
                         return self.json(lyrics.save(path, body.get("lyrics")))
                     except (KeyError, ValueError, TypeError):
-                        return self.error(HTTPStatus.BAD_REQUEST, "letra inválida")
+                        return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_lyrics")
                 try:
                     found = lyrics.fetch(path)
                 except lyrics.Unavailable as e:
                     # Reached, but it couldn't answer: the internet is fine, the database isn't.
                     log.error("lyrics: %s", e)
-                    return self.error(HTTPStatus.BAD_GATEWAY, "La base de letras no está respondiendo ahora (está caída o saturada). Probá de nuevo en un rato.")
+                    return self.error(HTTPStatus.BAD_GATEWAY, "server.lyrics_database_isnt_answering_right")
                 except OSError as e:
                     log.error("lyrics: %s", e)
-                    return self.error(HTTPStatus.BAD_GATEWAY, "No pude llegar a la base de letras (¿hay internet?).")
+                    return self.error(HTTPStatus.BAD_GATEWAY, "server.i_couldnt_reach_lyrics_database")
                 if not found:
-                    return self.error(HTTPStatus.NOT_FOUND, "No encontré la letra de este tema: podés pegarla con \"escribir o pegar\".")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.i_didnt_find_songs_lyrics")
                 old = lyrics.load(path)
                 if old:
                     found["legend"] = old.get("legend", {})
@@ -705,24 +706,24 @@ def make_handler(token, root, runner, port):
                     if what not in ("key", "bpm"):
                         raise ValueError
                 except PermissionError:
-                    return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except (KeyError, ValueError, TypeError):
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 note = None
                 if what == "key":
                     found = keys.parse(value)
                     if not found:
-                        return self.error(HTTPStatus.BAD_REQUEST, '"{value}" no es una tonalidad: probá Am, C#, Bb mayor o La menor', value=value)
+                        return self.error(HTTPStatus.BAD_REQUEST, "server.isnt_key_try_am_c", value=value)
                     text = keys.describe(*found, results.HAND)
                 else:
                     number = tempo.parse(value)
                     if number is None:
-                        return self.error(HTTPStatus.BAD_REQUEST, '"{value}" no es un tempo: un número de BPM entre 20 y 400', value=value)
+                        return self.error(HTTPStatus.BAD_REQUEST, "server.isnt_tempo_number_bpm_between", value=value)
                     text = f"{number:.1f} BPM  {results.HAND}"
                     if tempo.click_note(path, number):
-                        note = self.say("El click de práctica de este tema sigue ajustado al tempo anterior: corregilo en practicar → ajustar el click.")
+                        note = self.say("server.songs_practice_click_still_set")
                 results.save(what, [(str(path), text)])
                 log.info("set %s by hand: %s -> %s", what, path.name, text)
                 return self.json({"text": text, "note": note})
@@ -732,7 +733,7 @@ def make_handler(token, root, runner, port):
                 with runner.lock:
                     busy = [j.title for j in runner.jobs.values() if j.status in ("queued", "running")]
                 if busy:
-                    return self.error(HTTPStatus.CONFLICT, "Todavía está corriendo: {jobs}.", jobs="; ".join(busy))
+                    return self.error(HTTPStatus.CONFLICT, "server.still_running", jobs="; ".join(busy))
                 log.info("interface: restarting from the page")
                 restart(port)
                 return self.json({})
@@ -740,7 +741,7 @@ def make_handler(token, root, runner, port):
                 # Put back (or set again) the takes' names setting song-wizard changes in REAPER.
                 from . import reaper
                 if body.get("do") not in ("restore", "apply"):
-                    return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 done = reaper.restore() if body["do"] == "restore" else reaper.apply()
                 return self.json({"done": done, **reaper.setting(), "installed": reaper_installed()})
             if url.path == "/api/reaper":
@@ -751,10 +752,10 @@ def make_handler(token, root, runner, port):
             if match:
                 job = runner.jobs.get(int(match.group(1)))
                 if not job:
-                    return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 runner.cancel(job)
                 return self.json(job.summary(len(job.lines)))
-            self.error(HTTPStatus.NOT_FOUND, "not found")
+            self.error(HTTPStatus.NOT_FOUND, "server.not_found")
 
         def reaper(self, body):
             """Open the song's REAPER project, making it first if there's none (or "redo")."""
@@ -762,15 +763,15 @@ def make_handler(token, root, runner, port):
             try:
                 path = self.resolve(str(body["path"]))
             except PermissionError:
-                return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
             except (KeyError, TypeError):
-                return self.error(HTTPStatus.BAD_REQUEST, "pedido inválido")
+                return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
             if not path.is_file():
-                return self.error(HTTPStatus.NOT_FOUND, "no existe")
+                return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
             try:
                 project, created, info = reaper.make(path, redo=bool(body.get("redo")))
             except SystemExit:  # die() said why in the log: a stem without its song, say
-                return self.error(HTTPStatus.BAD_REQUEST, "No pude armar el proyecto de Reaper (el detalle está en el log).")
+                return self.error(HTTPStatus.BAD_REQUEST, "server.i_couldnt_make_reaper_project")
             opened = bool(body.get("open", True)) and reaper.open_project(project)
             log.info("reaper: %s %s%s", "created" if created else "opened", project.name, " and opened" if opened else "")
             return self.json({"name": project.name, "created": created, "opened": opened, **info,
@@ -780,11 +781,11 @@ def make_handler(token, root, runner, port):
             try:
                 path = self.resolve(str(relative))
             except PermissionError:
-                return self.error(HTTPStatus.FORBIDDEN, "fuera de la carpeta de música")
+                return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
             if not path.is_dir():
-                return self.error(HTTPStatus.NOT_FOUND, "no existe esa carpeta")
+                return self.error(HTTPStatus.NOT_FOUND, "server.folder_doesnt_exist_2")
             if not system.open_folder(path):
-                return self.error(HTTPStatus.NOT_IMPLEMENTED, "no encontré un explorador de archivos en este sistema")
+                return self.error(HTTPStatus.NOT_IMPLEMENTED, "server.i_didnt_find_file_manager")
             return self.json({"opened": str(path)})
 
         def command_for(self, body):
@@ -792,87 +793,87 @@ def make_handler(token, root, runner, port):
             music folder, and nothing but these commands can be run."""
             action = body["action"]
             if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
-                raise Said("acción desconocida: {action}", action=action)
+                raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
                 songs = [str(self.resolve(p)) for p in body.get("songs", [])]
                 files = [str(self.resolve(p)) for p in body.get("files", [])]
                 if not songs and not files:
-                    raise Said("no hay nada elegido")
+                    raise Said("server.nothing_picked")
                 names = ", ".join(os.path.basename(p) for p in [*songs, *files])[:120]
-                return self.say("Borrar: {names}", names=names), ["delete", "--yes", *songs, *[a for f in files for a in ("--file", f)]]
-            label = ", ".join(os.path.basename(p) or self.say("carpeta principal") for p in paths)[:120]
+                return self.say("server.delete", names=names), ["delete", "--yes", *songs, *[a for f in files for a in ("--file", f)]]
+            label = ", ".join(os.path.basename(p) or self.say("server.main_folder") for p in paths)[:120]
             if action == "download":
                 url = str(body["url"]).strip()
                 if not re.match(r"https?://", url):
-                    raise Said("la URL tiene que empezar con http:// o https://")
-                title = self.say("Buscar temas nuevos: {title}", title=body["title"]) if body.get("title") else self.say("Bajar {url}", url=url)
+                    raise Said("server.url_has_start_http_https")
+                title = self.say("server.check_new_songs", title=body["title"]) if body.get("title") else self.say("server.download", url=url)
                 to = folder_from(body.get("to"))
                 return title, ["download", *(["--wav"] if body.get("wav") else []), *(["--to", to] if to else []), url]
             if action == "archives-move":
                 to = folder_from(body.get("to"))
                 if not to:
-                    raise Said("falta la carpeta")
+                    raise Said("server.folder_missing")
                 which = str(body["id"])
                 if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
-                    raise Said("playlist inválida")
-                return self.say("Mover {title} a {to}", title=body.get("title") or which, to=to), ["archives", "--move", which, to]
+                    raise Said("server.invalid_playlist")
+                return self.say("server.move", title=body.get("title") or which, to=to), ["archives", "--move", which, to]
             if action == "upgrade":
-                return self.say("Actualizar song-wizard"), ["upgrade"]
+                return self.say("server.update_song_wizard"), ["upgrade"]
             if not paths and action not in ("click", "archives-delete"):
-                raise Said("no hay archivos elegidos")
+                raise Said("server.no_files_are_picked")
             force = ["--force"] if body.get("force") else []
             if action == "key":
-                return self.say("Tonalidad: {label}", label=label), ["key", *force, *paths]
+                return self.say("server.key", label=label), ["key", *force, *paths]
             if action == "bpm":
-                return self.say("Tempo: {label}", label=label), ["bpm", *force, *paths]
+                return self.say("server.tempo", label=label), ["bpm", *force, *paths]
             if action == "separate":
                 stems = [s for s in body["stems"] if s in ("vocals", "drums", "bass", "guitar", "piano", "drumkit", "all")]
                 if not stems:
-                    raise Said("elegí al menos un instrumento")
+                    raise Said("server.pick_at_least_one_instrument")
                 args = ["separate", *[a for s in stems for a in ("--stem", s)]]
-                return self.say("Separar ({stems}): {label}", stems=", ".join(stems), label=label), [*args, *(["--cpu"] if body.get("cpu") else []), *paths]
+                return self.say("server.separate", stems=", ".join(stems), label=label), [*args, *(["--cpu"] if body.get("cpu") else []), *paths]
             if action == "transpose":
                 n = float(body["semitones"])
-                return self.say("Transponer {n}: {label}", n=f"{n:+g}", label=label), ["transpose", f"{n:+g}", *paths]
+                return self.say("server.transpose", n=f"{n:+g}", label=label), ["transpose", f"{n:+g}", *paths]
             if action == "speed":
                 percent, n = float(body["percent"]), float(body.get("semitones") or 0)
                 args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
-                return self.say("Velocidad {percent}%{pitch}: {label}", percent=f"{percent:g}", pitch=self.say(" y tono {n}", n=f"{n:+g}") if n else "", label=label), args
+                return self.say("server.speed", percent=f"{percent:g}", pitch=self.say("server.pitch", n=f"{n:+g}") if n else "", label=label), args
             if action == "align":
-                return self.say("Tempo y primer golpe: {label}", label=label), ["align", *paths]
+                return self.say("server.tempo_first_beat", label=label), ["align", *paths]
             if action == "rename":
                 if len(paths) != 1:
-                    raise Said("se renombra de a un tema")
+                    raise Said("server.songs_are_renamed_one_at")
                 name = str(body["name"]).strip()
-                return self.say("Renombrar {label} → {name}", label=label, name=name), ["rename", paths[0], name]
+                return self.say("server.rename", label=label, name=name), ["rename", paths[0], name]
             if action == "tag":
                 if len(paths) != 1:
-                    raise Said("los datos se cambian de a un tema")
+                    raise Said("server.data_changed_one_song_at")
                 changes = {str(k): str(v) for k, v in (body.get("set") or {}).items()}
                 gone = [str(k) for k in body.get("unset") or []]
                 if any(not k.strip() or "=" in k for k in [*changes, *gone]):
-                    raise Said("un nombre de dato no puede estar vacío ni tener =")
+                    raise Said("server.field_name_cant_empty_have")
                 if not changes and not gone:
-                    raise Said("no hay cambios")
+                    raise Said("server.there_are_no_changes")
                 args = ["tag", paths[0], *[a for k, v in changes.items() for a in ("--set", f"{k}={v}")],
                         *[a for k in gone for a in ("--unset", k)], *(["--only"] if body.get("only") else [])]
-                return self.say("Datos: {label}", label=label), args
+                return self.say("server.data", label=label), args
             if action == "trim":
                 if len(paths) != 1:
-                    raise Said("se recorta de a un tema")
+                    raise Said("server.songs_are_trimmed_one_at")
                 start, end = float(body.get("start") or 0), body.get("end")
                 pad_start, pad_end = float(body.get("padStart") or 0), float(body.get("padEnd") or 0)
                 args = ["trim", paths[0], "--yes", "--start", f"{start:.4f}",
                         *(["--end", f"{float(end):.4f}"] if end not in (None, "") else []),
                         *(["--pad-start", f"{pad_start:g}"] if pad_start else []),
                         *(["--pad-end", f"{pad_end:g}"] if pad_end else [])]
-                return self.say("Recortar: {label}", label=label), args
+                return self.say("server.trim", label=label), args
             if action == "convert":
                 fmt = body.get("format", "mp3")
                 if fmt not in ("mp3", "m4a"):
-                    raise Said("formato inválido")
-                return self.say("Convertir a {fmt}: {label}", fmt=fmt, label=label), ["convert", "--format", fmt, *paths]
+                    raise Said("server.invalid_format")
+                return self.say("server.convert", fmt=fmt, label=label), ["convert", "--format", fmt, *paths]
             if action == "click":
                 bpm = float(body["bpm"])
                 meter = str(body.get("meter", "4/4"))
@@ -888,11 +889,11 @@ def make_handler(token, root, runner, port):
                     args += ["--duration", str(body["duration"])]
                 if int(body.get("subdivide", 1)) > 1:
                     args += ["--subdivide", str(int(body["subdivide"]))]
-                return self.say("Click {bpm} BPM {meter}", bpm=f"{bpm:g}", meter=meter), args
+                return self.say("server.click_bpm", bpm=f"{bpm:g}", meter=meter), args
             if action == "archives-delete":
                 which = [str(int(n)) for n in body["numbers"]] if body.get("numbers") != "all" else ["all"]
-                return self.say("Olvidar registros"), ["archives", "--delete", *which, "--yes"]
-            raise Said("acción desconocida: {action}", action=action)
+                return self.say("server.forget_records"), ["archives", "--delete", *which, "--yes"]
+            raise Said("server.unknown_action", action=action)
 
     return Handler
 

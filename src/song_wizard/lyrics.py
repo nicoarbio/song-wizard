@@ -194,7 +194,8 @@ def run(paths, text_from=None, force=False, export_page=False):
 
 # Highlight colors, light enough to read black text on, on screen and on paper.
 SHADES = {"yellow": "#ffe066", "green": "#b2f2bb", "blue": "#a5d8ff", "pink": "#fcc2d7", "orange": "#ffc078"}
-NAMES = {"yellow": "amarillo", "green": "verde", "blue": "celeste", "pink": "rosa", "orange": "naranja"}
+# Each color's name, by its text key (see i18n).
+NAMES = {"yellow": "lyrics.yellow", "green": "lyrics.green", "blue": "lyrics.light_blue", "pink": "lyrics.pink", "orange": "lyrics.orange"}
 
 
 def runs(line, marks):
@@ -253,7 +254,7 @@ def page(title, data, lang="es"):
 
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(say(lang, "Letra: {v}", v=title))}</title>
+<title>{escape(say(lang, "lyrics.lyrics", v=title))}</title>
 <style>
   @page {{ size: A4; margin: 14mm; }}
   body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 760px; padding: 0 16px; }}
@@ -264,7 +265,7 @@ def page(title, data, lang="es"):
 <body>
 <h1>{escape(title)}</h1>
 {section(data)}
-<button class="print" onclick="print()">{say(lang, "Imprimir")}</button>
+<button class="print" onclick="print()">{say(lang, "print.print")}</button>
 </body></html>
 """
 
