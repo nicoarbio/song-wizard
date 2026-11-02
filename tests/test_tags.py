@@ -77,6 +77,16 @@ def test_only_one_file(song):
     assert "001 - Someone - Song (HQ) (80%).mp3" in names(song.parent)  # --only never renames
 
 
+def test_field_names_ogg_takes(song, capsys):
+    with pytest.raises(SystemExit):
+        tags.run(song, ["Año=1993"])
+    assert "Ano instead of Año" in capsys.readouterr().err
+    assert "Año" not in tags.read(song)
+    wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    tags.run(wav, ["Año=1993"], only=True)  # a WAV (ID3) takes it
+    assert tags.read(wav)["Año"] == "1993"
+
+
 def test_purl_stays(song):
     with pytest.raises(SystemExit):
         tags.run(song, unset=["purl"])

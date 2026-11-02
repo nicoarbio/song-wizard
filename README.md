@@ -454,6 +454,7 @@ Si cambia el artista o el título, el tema y todo lo suyo pasan a llamarse `001 
 
 En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene el archivo, también lo que trajo la descarga (la descripción del video, la fecha en que se subió), sin filtrar nada. Los cambiados se marcan, × saca un dato y "agregar un dato" suma uno conocido (compositor, comentario, número de pista…) u otro con el nombre que quieras. Abajo avisa si el tema va a cambiar de nombre. "guardar y seguir" (Ctrl+Enter) pasa al tema siguiente. En un stem o una versión, "datos" cambia solo ese archivo.
 
+- Un dato con nombre propio, en un `.opus` (o `.ogg`, `.flac`), no puede llevar tildes ni eñes en el nombre (el valor sí): `Ano` en vez de `Año`.
 - El link de la descarga (`purl`) se muestra pero no se cambia: `delete` lo usa para saber de qué descarga vino el tema.
 - En los `.wav`, los datos se guardan como en los MP3 (ID3), porque los propios del WAV son pocos: los leen ffmpeg, Reaper y la mayoría de los reproductores; alguno viejo puede mostrar solo los básicos.
 - El setlist, la búsqueda de la letra y la biblioteca toman el título y el artista de los datos; un tema sin datos, del nombre del archivo.

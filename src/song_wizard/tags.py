@@ -121,11 +121,32 @@ def _id3(tags):
     return frames
 
 
+# Formats whose data mutagen writes the same everywhere (ffmpeg's stream copy keeps or drops
+# them depending on its version: ffmpeg 8, on the Mac, kept an .opus's old data).
+VORBIS = (".opus", ".ogg", ".oga", ".flac")
+
+
 def _write_copy(path, tags, temp):
     """The file with exactly these fields, at temp (the audio copied as it is)."""
     ext = os.path.splitext(path)[1].lower()
-    # Cleared and written both for the file and for its audio: an Ogg file (.opus) keeps them in
-    # its audio stream, and ffmpeg 7+ copies the stream's own unless told not to.
+    if ext in VORBIS or ext == ".mp3":
+        shutil.copyfile(path, temp)
+        import mutagen
+        if ext == ".mp3":
+            from mutagen.mp3 import MP3
+            audio = MP3(temp)
+            audio.tags = _id3(tags)
+        else:
+            audio = mutagen.File(temp)
+            if audio is None:
+                raise ValueError("not a file it knows")
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags.clear()
+            for k, v in tags.items():
+                audio.tags[k] = v
+        audio.save()
+        return
     command = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", path, "-map", "0", "-c", "copy",
                "-map_metadata", "-1", "-map_metadata:s:a", "-1"]
     if ext == ".wav":
@@ -153,11 +174,11 @@ def write(paths, tags):
             temp = os.path.join(folder, f".{name}.song-wizard-tags{os.path.splitext(name)[1]}")
             temps.append((temp, path))
             _write_copy(path, tags, temp)
-    except (subprocess.CalledProcessError, OSError) as e:
+    except Exception as e:  # ffmpeg, the disk, or mutagen (a field name an Ogg file can't take)
         for temp, _ in temps:
             if os.path.exists(temp):
                 os.remove(temp)
-        detail = e.stderr.decode(errors="replace").strip() if getattr(e, "stderr", None) else str(e)
+        detail = e.stderr.decode(errors="replace").strip() if getattr(e, "stderr", None) else str(e) or type(e).__name__
         die(f"Nothing changed: couldn't write {os.path.basename(temps[-1][1])}: {detail}")
     for temp, path in temps:
         shutil.copymode(path, temp)
@@ -196,6 +217,11 @@ def run(path, set_=(), unset=(), only=False):
     tags = {k: v for k, v in tags.items() if v != "" or k in KEEP}
     tags.pop("encoder", None)  # ffmpeg writes its own
     files = [path] if only else song_files(path)
+    # Ogg and FLAC files take field names of plain letters only.
+    odd = [k for k in tags if not re.fullmatch(r"[\x20-\x3c\x3e-\x7d]+", k)]
+    if odd and any(os.path.splitext(f)[1].lower() in VORBIS for f in files):
+        die(f"Nothing changed: {', '.join(odd)}: a field name in an .opus, .ogg or .flac file can't have accents "
+            "or other special letters (Ano instead of Año, say).")
     write(files, tags)
     for f in files:
         print(f"  {os.path.basename(f)}")
