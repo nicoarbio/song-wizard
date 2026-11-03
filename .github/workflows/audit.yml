@@ -1,0 +1,35 @@
+name: Dependencies
+
+# Looks for known vulnerabilities and malicious or pulled packages (PyPI quarantines them) among
+# what song-wizard uses: the versions in uv.lock, and the ones a new install would get today
+# (installs don't use uv.lock: they take the newest published at least a week ago). Weekly too,
+# since a package can be reported long after it was installed; a failure emails the repo owner.
+on:
+  push:
+    branches: ["**"]
+    paths: ["pyproject.toml", "uv.lock", ".github/workflows/audit.yml"]
+  schedule:
+    - cron: "17 9 * * 1"  # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: The versions in uv.lock
+        run: uv audit --preview-features audit-command --frozen
+
+      # Only what's installed (not the tests' tools), checked against OSV, which also lists
+      # packages found to be malicious.
+      - name: What a new install would get today
+        run: |
+          uv pip compile pyproject.toml -o today.txt --exclude-newer "7 days" --exclude-newer-package "yt-dlp=2 days" --exclude-newer-package "yt-dlp-ejs=2 days"
+          uvx pip-audit --requirement today.txt --no-deps --disable-pip --vulnerability-service osv

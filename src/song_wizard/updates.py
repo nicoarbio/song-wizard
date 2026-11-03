@@ -9,6 +9,7 @@ A version can be retired (a bad bug, say) by listing it in retired.txt on the ma
 the reason: it's no longer offered, nor installed without --force, and whoever has it is told.
 The tag stays, so history isn't rewritten."""
 
+import datetime
 import re
 import shutil
 import subprocess
@@ -88,6 +89,31 @@ def source():
     return "git" if re.search(r"\bgit\s*=", receipt) else None
 
 
+# Only versions of what song-wizard uses that were published some days ago: a release that came
+# out poisoned (a stolen maintainer account, say) is usually found and taken down within hours or
+# days, before it gets here. yt-dlp waits less: sites change and downloads stop working until it's
+# updated. song-wizard itself comes from its tag on GitHub, which this doesn't hold back.
+COOLDOWN_DAYS = 7
+QUICKER = {"yt-dlp": 2, "yt-dlp-ejs": 2}
+
+
+def cooldown(now=None):
+    """uv's options for that: dates, not "7 days", which older uv doesn't understand."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    stamp = lambda days: f"{now - datetime.timedelta(days=days):%Y-%m-%dT%H:%M:%SZ}"
+    args = ["--exclude-newer", stamp(COOLDOWN_DAYS)]
+    for package, days in QUICKER.items():
+        args += ["--exclude-newer-package", f"{package}={stamp(days)}"]
+    return args
+
+
+def uv_install(*args):
+    """uv tool install / upgrade, with the waiting period (the package goes last)."""
+    print(f"Only versions published at least {COOLDOWN_DAYS} days ago "
+          f"({min(QUICKER.values())} for yt-dlp), in case a new one came out with something malicious.", flush=True)
+    return uv(*args[:-1], *cooldown(), args[-1])
+
+
 def uv(*args):
     if not shutil.which("uv"):
         sys.exit("uv is missing; reinstall song-wizard following the README.")
@@ -97,7 +123,7 @@ def uv(*args):
 
 def install(version):
     """Install that published version (and the newest of what it uses). Returns uv's exit code."""
-    return uv("tool", "install", "--force", "--upgrade", f"song-wizard @ git+{REPO}@v{version}")
+    return uv_install("tool", "install", "--force", "--upgrade", f"song-wizard @ git+{REPO}@v{version}")
 
 
 def check():
@@ -138,7 +164,7 @@ def upgrade():
     if source() == "directory":
         # Installed from a copy of the code: upgrading means taking that copy again.
         print("Installed from a folder with the code: reinstalling from it.")
-        return uv("tool", "upgrade", "--reinstall", "song-wizard")
+        return uv_install("tool", "upgrade", "--reinstall", "song-wizard")
     if found and (newer(found) or (__version__ in held and found != __version__)):
         if __version__ in held:
             print(f"song-wizard {__version__} was retired ({held[__version__]}).")
@@ -146,7 +172,7 @@ def upgrade():
         return install(found)
     print((f"song-wizard {__version__} is the newest" if found else "Couldn't check for a newer song-wizard (no internet?)")
           + "; updating what it uses.")
-    return uv("tool", "upgrade", "song-wizard")
+    return uv_install("tool", "upgrade", "song-wizard")
 
 
 def to(version, force=False):

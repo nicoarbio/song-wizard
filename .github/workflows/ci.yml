@@ -54,10 +54,10 @@ jobs:
         run: uv run pytest -v
 
       # The real install, as the README tells users to do it (without the lock file and
-      # without [tool.uv]); it also compiles diffq.
+      # without [tool.uv], with the week's wait); it also compiles diffq.
       - name: Install as a tool
         run: |
-          uv tool install .
+          uv tool install --exclude-newer "7 days" --exclude-newer-package "yt-dlp=2 days" --exclude-newer-package "yt-dlp-ejs=2 days" .
           bin="$(uv tool dir --bin)"
           "$bin/song-wizard" --version
           "$bin/song-wizard" --help

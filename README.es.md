@@ -55,7 +55,9 @@ Todo se procesa en tu computadora: song-wizard no manda tus archivos a ningún s
 
    ```bash
    brew install ffmpeg deno rubberband uv
-   uv tool install git+https://github.com/nicoarbio/song-wizard
+   uv tool install --exclude-newer "7 days" \
+     --exclude-newer-package "yt-dlp=2 days" --exclude-newer-package "yt-dlp-ejs=2 days" \
+     git+https://github.com/nicoarbio/song-wizard
    ```
 
 ### Linux o WSL (Ubuntu)
@@ -71,7 +73,9 @@ curl -fsSL https://deno.land/install.sh | sh
 Cerrá y volvé a abrir la terminal, y después:
 
 ```bash
-uv tool install git+https://github.com/nicoarbio/song-wizard
+uv tool install --exclude-newer "7 days" \
+  --exclude-newer-package "yt-dlp=2 days" --exclude-newer-package "yt-dlp-ejs=2 days" \
+  git+https://github.com/nicoarbio/song-wizard
 ```
 
 ### Comprobar que quedó todo bien
@@ -108,6 +112,8 @@ song-wizard upgrade --to 0.12.0  # instala otra versión, más nueva o más viej
 ```
 
 Cada versión publicada es un tag `vX.Y.Z` en GitHub. `upgrade` instala el más nuevo si tenés uno anterior; si ya tenés el más nuevo, actualiza lo que usa song-wizard (yt-dlp, sobre todo). Una versión con un problema grave se puede **retirar**: queda en `retired.txt` (en este repositorio) con el motivo, y entonces `upgrade` y la interfaz no la ofrecen, `--list` no la muestra (`--list --all` sí, con el motivo), `--to` no la instala salvo con `--force`, y a quien la tenga se le avisa y `upgrade` lo pasa a la más nueva que no esté retirada, aunque sea anterior. El tag no se borra.
+
+**Una semana de espera, por seguridad.** Instalar y `upgrade` toman solo versiones de las librerías que usa song-wizard publicadas hace al menos 7 días (2 para yt-dlp, que los sitios rompen seguido): si alguna salió con código malicioso (les pasó a librerías populares, por una cuenta robada), en general se descubre y se retira en horas o días, antes de llegarte. song-wizard mismo viene de su tag en este repositorio. En GitHub, con cada cambio de dependencias y todos los lunes, se revisan contra las listas de vulnerabilidades y paquetes maliciosos conocidos. Si `uv` no entiende `"7 days"`, está viejo: `uv self update` (o `brew upgrade uv`).
 
 Las versiones anteriores a la 0.15 no saben moverse por tags: si volvés a una de ellas con `--to`, para volver a la más nueva corré `uv tool install --force git+https://github.com/nicoarbio/song-wizard`.
 

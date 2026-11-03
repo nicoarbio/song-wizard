@@ -43,7 +43,11 @@ def test_versions_from_the_tags(monkeypatch):
     assert updates.latest() is None
 
 
+COOL = ("--cooldown",)
+
+
 def test_list_upgrade_and_to(monkeypatch, capsys):
+    monkeypatch.setattr(updates, "cooldown", lambda: list(COOL))
     monkeypatch.setattr(updates.urllib.request, "urlopen", github())
     monkeypatch.setattr(updates, "__version__", "0.9.0")
     monkeypatch.setattr(updates, "source", lambda: "git")
@@ -54,11 +58,11 @@ def test_list_upgrade_and_to(monkeypatch, capsys):
     assert out.index("0.10.0") < out.index("0.9.0  ← installed") < out.index("0.2.0")
     # A newer tag: that tag is installed (not the latest commit).
     assert updates.upgrade() == 0
-    assert ran[-1] == ("tool", "install", "--force", "--upgrade", f"song-wizard @ git+{updates.REPO}@v0.10.0")
+    assert ran[-1] == ("tool", "install", "--force", "--upgrade", *COOL, f"song-wizard @ git+{updates.REPO}@v0.10.0")
     # The newest already: only what it uses gets updated.
     monkeypatch.setattr(updates, "__version__", "0.10.0")
     updates.upgrade()
-    assert ran[-1] == ("tool", "upgrade", "song-wizard")
+    assert ran[-1] == ("tool", "upgrade", *COOL, "song-wizard")
     # An older one, by number; one that doesn't exist, refused.
     assert updates.to("v0.2.0") == 0 and ran[-1][-1].endswith("@v0.2.0")
     assert "can't move to a newer one by themselves" in capsys.readouterr().out
@@ -67,7 +71,7 @@ def test_list_upgrade_and_to(monkeypatch, capsys):
     # Installed from a folder with the code: upgrading takes the folder again.
     monkeypatch.setattr(updates, "source", lambda: "directory")
     updates.upgrade()
-    assert ran[-1] == ("tool", "upgrade", "--reinstall", "song-wizard")
+    assert ran[-1] == ("tool", "upgrade", "--reinstall", *COOL, "song-wizard")
 
 
 @pytest.mark.parametrize("found, says", [("99.0.0", "99.0.0 is out"), (__version__, "up to date"), (None, "Couldn't check")])
@@ -166,3 +170,11 @@ def test_interface_retired(server, monkeypatch):  # noqa: F811
     monkeypatch.setattr(updates, "offered", lambda: (["0.1.0"], {__version__: "a bad bug"}))
     got = json.loads(request(port, "GET", "/api/version")[1])
     assert got["retired"] == "a bad bug" and got["move"] and not got["newer"] and got["latest"] == "0.1.0"
+
+
+def test_cooldown_dates():
+    """A week back for everything, two days for yt-dlp, as dates any uv understands."""
+    now = updates.datetime.datetime(2026, 11, 3, 12, 0, tzinfo=updates.datetime.timezone.utc)
+    assert updates.cooldown(now) == ["--exclude-newer", "2026-10-27T12:00:00Z",
+                                     "--exclude-newer-package", "yt-dlp=2026-11-01T12:00:00Z",
+                                     "--exclude-newer-package", "yt-dlp-ejs=2026-11-01T12:00:00Z"]
