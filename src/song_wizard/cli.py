@@ -285,6 +285,15 @@ def build_parser():
 
     sub.add_parser("config", help="show the settings file and the values in use (creates it if missing)")
     sub.add_parser("setup", help="check dependencies and show how to install what's missing")
+    p = sub.add_parser("uninstall", help="remove song-wizard and what it keeps outside the music folder",
+                       description="Shows what goes and how much it takes, asks, and removes the separation "
+                                   "models, the record of downloads, the logs, the settings and song-wizard itself "
+                                   "(uv tool uninstall). Your music isn't touched, nor ffmpeg, rubberband, deno, uv "
+                                   "or uv's download cache. If song-wizard changed REAPER's takes setting, it offers "
+                                   "to put it back.")
+    p.add_argument("--keep-data", action="store_true",
+                   help="remove only the program: keep the models, the record of downloads and the settings")
+    p.add_argument("--yes", action="store_true", help="don't ask")
     p = sub.add_parser("upgrade", help="update song-wizard and everything it uses (yt-dlp included)",
                        description="Installs the newest published version of song-wizard (each one is a vX.Y.Z "
                                    "tag on GitHub) if there's a newer one, and the newest of what it uses (yt-dlp "
@@ -425,6 +434,9 @@ def dispatch(argv):
     elif args.command == "setup":
         from . import setup
         setup.run()
+    elif args.command == "uninstall":
+        from . import uninstall
+        uninstall.run(keep_data=args.keep_data, yes=args.yes)
     elif args.command == "upgrade" and (args.check or args.list):
         from . import updates
         updates.check() if args.check else updates.show(everything=args.all)

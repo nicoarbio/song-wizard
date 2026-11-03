@@ -132,15 +132,13 @@ Los modelos se bajan de fuentes públicas: los de Demucs, de los servidores de M
 
 ### Desinstalar
 
-Si song-wizard cambió la preferencia de Reaper para las tomas (ver [Reaper](#reaper)) y la querés como estaba, restaurala antes: `song-wizard reaper --setting restore`.
-
 ```bash
-uv tool uninstall song-wizard
-rm -rf ~/.local/share/song-wizard                    # Linux/WSL
-rm -rf ~/Library/Application\ Support/song-wizard    # Mac
+song-wizard uninstall
 ```
 
-Tus temas no se tocan. Si no usás ffmpeg, deno, rubberband ni uv para otra cosa, también podés desinstalarlos con `brew uninstall` (Mac) o `sudo apt remove` (Linux).
+Primero muestra qué borra y cuánto ocupa cada cosa (los modelos de separación, el registro de playlists bajadas, los logs, la configuración y song-wizard mismo, con su propio Python y todo lo que usa), y pregunta. Si song-wizard cambió la preferencia de Reaper para las tomas (ver [Reaper](#reaper)), ofrece dejarla como estaba. `--keep-data` borra solo el programa y deja el resto, para instalarlo de nuevo más adelante.
+
+Tus temas no se tocan. Tampoco ffmpeg, deno, rubberband ni uv, que pueden usar otros programas: si no los usás para otra cosa, desinstalalos vos con `brew uninstall` (Mac) o `sudo apt remove` (Linux). uv guarda un caché de descargas compartido con todo lo que instalás con él; `uv cache clean` lo vacía (no se rompe nada: se vuelve a bajar si hace falta).
 
 ## Uso
 

@@ -132,15 +132,13 @@ The models are downloaded from public sources: Demucs's from the servers of Meta
 
 ### Uninstalling
 
-If song-wizard changed REAPER's preference for takes (see [REAPER](#reaper)) and you want it as it was, put it back first: `song-wizard reaper --setting restore`.
-
 ```bash
-uv tool uninstall song-wizard
-rm -rf ~/.local/share/song-wizard                    # Linux/WSL
-rm -rf ~/Library/Application\ Support/song-wizard    # Mac
+song-wizard uninstall
 ```
 
-Your songs aren't touched. If you don't use ffmpeg, deno, rubberband or uv for anything else, you can uninstall them too with `brew uninstall` (Mac) or `sudo apt remove` (Linux).
+It first shows what it removes and how much each thing takes (the separation models, the record of downloaded playlists, the logs, the settings and song-wizard itself, with its own Python and everything it uses), and asks. If song-wizard changed REAPER's preference for takes (see [REAPER](#reaper)), it offers to put it back as it was. `--keep-data` removes only the program and keeps the rest, to install it again later.
+
+Your songs aren't touched. Nor are ffmpeg, deno, rubberband or uv, which other programs may use: if you don't use them for anything else, uninstall them yourself with `brew uninstall` (Mac) or `sudo apt remove` (Linux). uv keeps a download cache shared with everything you install with it; `uv cache clean` empties it (nothing breaks: it's downloaded again if needed).
 
 ## Usage
 

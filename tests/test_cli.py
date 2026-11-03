@@ -30,6 +30,7 @@ DISPATCH = {
     "lyrics": (["song.opus"], "lyrics", "run"),
     "reaper": (["song.opus"], "reaper", "run"),
     "setup": ([], "setup", "run"),
+    "uninstall": (["--yes"], "uninstall", "run"),
 }
 
 
