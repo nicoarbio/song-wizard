@@ -191,6 +191,23 @@
   .pr-spacer { flex: 1; }
   .transport .ctl { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; padding-left: 12px; border-left: 1px solid var(--line); }
   .transport .ctl input[type=range] { width: 110px; }
+  /* The monitor: the microphone into the in-ears, with its level, volume and limiter. */
+  .mon { padding: 6px 16px 8px; border-bottom: 1px solid var(--line); background: var(--soft); }
+  .mon-row { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+  .mon-row label { display: inline-flex; gap: 4px; align-items: center; }
+  .mon-row select { max-width: 16em; }
+  .mon-row input[type=range] { width: 110px; }
+  .mon-meter { position: relative; display: inline-block; width: 140px; height: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .mon-level { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); }
+  .mon-level.hot { background: var(--warn); }
+  .mon-level.clip { background: var(--bad); }
+  .mon-peak { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; background: var(--ink); opacity: .6; }
+  .mon-db { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4.5em; }
+  .mon-clip { color: var(--bad); font-size: 12px; }
+  .mon-acting { color: var(--warn); font-size: 12px; }
+  .mon-error { color: var(--bad); }
+  .mon-error:empty { display: none; }
+  #practice-monitor.live { color: var(--bad); border-color: var(--bad); font-weight: 600; }
   .pr-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 480px); }
   #practice.no-lyrics .pr-main { grid-template-columns: minmax(0, 1fr); }
   #practice.no-lyrics .pr-lyrics { display: none; }
@@ -213,7 +230,7 @@
   .lanes .ms { display: flex; gap: 4px; }
   .lanes .vol { width: 100%; margin: 0; }
   .lanes .pct { color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
-  .lanes button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .lanes button.on, .transport button.on, .mon button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   /* The canvas fills its cell without giving it a size (else the row grows with every redraw). */
   .lanes .lane { position: relative; min-height: 30px; }
   .lanes canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); border-radius: 6px; cursor: pointer; }
@@ -492,6 +509,7 @@
       <h3 id="practice-title" data-text="keys.practice"></h3>
       <label id="practice-set-row" hidden><span data-text="practice.tracks"></span> <select id="practice-set"></select></label>
       <span class="pr-spacer"></span>
+      <button class="small" id="practice-monitor" data-text-title="monitor.hear_room_through_mic" data-text="monitor.monitor"></button>
       <button class="small" id="practice-lyrics-toggle" data-text-title="keys.show_hide_lyrics" data-text="practice.lyrics"></button>
       <button class="small" id="practice-full" data-text-title="practice.full_screen_without_browsers_bars" data-text="practice.full_screen"></button>
       <button class="small" id="practice-close" data-text="practice.close"></button>
@@ -511,6 +529,24 @@
         <button class="small" id="practice-clear" data-text="practice.clear"></button></span>
       <span class="ctl" data-text-title="practice.volume_everything_together"><span data-text="practice.master"></span> <input type="range" id="practice-master" min="0" max="100" step="1" data-text-aria-label="practice.master_volume"> <span class="pct" id="practice-master-value"></span></span>
     </div>
+  </div>
+  <div class="mon" id="mon-panel" hidden>
+    <div class="mon-row">
+      <button class="small" id="mon-power" data-text="monitor.turn_on"></button>
+      <label><span data-text="monitor.input"></span> <select id="mon-device"><option value="" data-text="monitor.default_mic"></option></select></label>
+      <span class="mon-meter" data-text-title="monitor.level_reaching_mic"><span class="mon-level" id="mon-level"></span><span class="mon-peak" id="mon-peak"></span></span>
+      <span class="mon-db" id="mon-db">–</span>
+      <b class="mon-clip" id="mon-clip" hidden data-text="monitor.clipping"></b>
+      <span class="ctl"><span data-text="monitor.volume"></span> <input type="range" id="mon-volume" min="0" max="100" step="1" data-text-aria-label="monitor.monitor_volume"> <span class="pct" id="mon-volume-value"></span></span>
+      <button class="small" id="mon-mute" data-text="monitor.mute"></button>
+      <label data-text-title="monitor.low_cut_explained"><input type="checkbox" id="mon-lowcut"> <span data-text="monitor.low_cut"></span></label>
+      <label><input type="checkbox" id="mon-limiter"> <span data-text="monitor.limiter"></span></label>
+      <b class="mon-acting" id="mon-acting" hidden data-text="monitor.limiting"></b>
+      <span class="muted" id="mon-latency"></span>
+    </div>
+    <p class="hint" id="mon-limiter-hint"></p>
+    <p class="hint" data-text="monitor.echo_warning"></p>
+    <p class="hint mon-error" id="mon-status"></p>
   </div>
   <div class="pr-main">
     <div class="pr-left">
@@ -2044,6 +2080,7 @@ function renderPractice() {
   $("practice-a-time").textContent = clockTime(practice.a);
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);
+  $("practice-loop").setAttribute("aria-pressed", String(practice.loop));
   $("practice-loop").disabled = practice.a === null || practice.b === null;
   followLyrics(t);
   followPlayhead(t);
@@ -2470,9 +2507,200 @@ $("practice-close").onclick = () => $("practice").close();
 // "close" arrives a moment later: if another song was opened meanwhile, keep its tracks.
 $("practice").addEventListener("close", () => {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  if (!$("practice").open) stopPractice();
+  if (!$("practice").open) { stopPractice(); monitorOff(); }
 });
 $("practice-master").addEventListener("input", (e) => { setMasterVolume(e.target.value / 100); $("practice-master-value").textContent = `${e.target.value} %`; });
+
+// The monitor: a microphone (the room, the band) into the headphones, mixed with the tracks, to
+// hear both with in-ears on. It has its own volume (the master doesn't touch it), starts off and
+// low every time, and the browser remembers the input, the volume, the low cut and the limiter.
+// Chain: mic → low cut → [meter] → volume → limiter (optional) → output. The browser gives
+// the mic with no echo cancellation, noise suppression or automatic gain: they'd add delay
+// and pump the level with the drums.
+const MONITOR_KEY = "song-wizard:monitor";
+const monitorPrefs = (() => {
+  const base = { device: "", volume: 25, lowcut: true, limiter: true };
+  try { return { ...base, ...JSON.parse(localStorage.getItem(MONITOR_KEY)) }; } catch { return base; }
+})();
+const saveMonitorPrefs = () => { try { localStorage.setItem(MONITOR_KEY, JSON.stringify(monitorPrefs)); } catch {} };
+const monitor = { stream: null, source: null, nodes: null, raf: 0, muted: false, starting: false, peak: 0, peakAt: 0, clipAt: 0, actingAt: 0, trim: 1 };
+const LIMIT_DB = -6;            // the limiter's ceiling, in dB below full scale
+const LIMITER_DELAY = 0.006;    // the browsers' compressor looks 6 ms ahead: that much more delay
+// Slider 0–100 → gain: 50 is the mic as it comes (0 dB), 100 is +12 dB, 25 is −12 dB.
+const monitorGain = (v) => 4 * (v / 100) ** 2;
+const gainDb = (g) => g <= 0 ? "−∞ dB" : `${g >= 1 ? "+" : "−"}${Math.abs(20 * Math.log10(g)).toFixed(0)} dB`;
+
+// The browsers' compressor raises the level on its own ("makeup gain"), which would make the
+// limiter turn up everything. How much is measured once, offline, and taken back off after it.
+async function limiterTrim() {
+  const rate = 48000, n = rate / 2, off = new OfflineAudioContext(1, n, rate);
+  const osc = off.createOscillator(), level = off.createGain(), comp = limiterNode(off);
+  osc.frequency.value = 440; level.gain.value = 0.1;  // −20 dB: well under the ceiling
+  osc.connect(level).connect(comp).connect(off.destination);
+  osc.start();
+  const out = (await off.startRendering()).getChannelData(0);
+  let sum = 0;
+  for (let i = n / 2; i < n; i++) sum += out[i] * out[i];
+  const rms = Math.sqrt(sum / (n / 2)), expected = 0.1 / Math.SQRT2;
+  return rms > 0 ? expected / rms : 1;
+}
+function limiterNode(ctx) {
+  const c = ctx.createDynamicsCompressor();
+  c.threshold.value = LIMIT_DB; c.knee.value = 0; c.ratio.value = 20; c.attack.value = 0.001; c.release.value = 0.15;
+  return c;
+}
+
+function monitorGraph() {
+  if (monitor.nodes) return monitor.nodes;
+  const ctx = context();
+  const lowcut = ctx.createBiquadFilter(), meter = ctx.createAnalyser(), volume = ctx.createGain(),
+        limiter = limiterNode(ctx), trim = ctx.createGain();
+  lowcut.type = "highpass"; lowcut.Q.value = 0.707;
+  meter.fftSize = 2048;
+  volume.gain.value = 0;
+  trim.gain.value = monitor.trim;
+  lowcut.connect(meter);
+  lowcut.connect(volume);
+  limiter.connect(trim).connect(ctx.destination);
+  monitor.nodes = { lowcut, meter, volume, limiter, trim, data: new Float32Array(meter.fftSize) };
+  applyMonitor();
+  return monitor.nodes;
+}
+
+function applyMonitor() {
+  const n = monitor.nodes, ctx = context();
+  $("mon-volume").value = monitorPrefs.volume;
+  $("mon-volume-value").textContent = gainDb(monitorGain(monitorPrefs.volume));
+  $("mon-lowcut").checked = monitorPrefs.lowcut;
+  $("mon-limiter").checked = monitorPrefs.limiter;
+  $("mon-mute").classList.toggle("on", monitor.muted);
+  $("mon-mute").setAttribute("aria-pressed", String(monitor.muted));
+  $("mon-limiter-hint").textContent = monitorPrefs.limiter ? say("monitor.limiter_on_explained", { v: `−${-LIMIT_DB}` }) : say("monitor.limiter_off_explained");
+  const live = !!monitor.stream;
+  $("mon-power").textContent = live ? say("monitor.turn_off") : say("monitor.turn_on");
+  $("mon-power").classList.toggle("primary", !live);
+  $("practice-monitor").classList.toggle("live", live);
+  $("practice-monitor").textContent = live ? say("monitor.monitor_live") : say("monitor.monitor");
+  if (!n) return;
+  // A 120 Hz low cut: the drums' low end reaches you through your body anyway, and it's what
+  // most overloads a laptop mic. Off, the filter sits at 10 Hz (nothing audible).
+  n.lowcut.frequency.setTargetAtTime(monitorPrefs.lowcut ? 120 : 10, ctx.currentTime, 0.01);
+  n.volume.gain.setTargetAtTime(live && !monitor.muted ? monitorGain(monitorPrefs.volume) : 0, ctx.currentTime, 0.01);
+  n.volume.disconnect();
+  n.volume.connect(monitorPrefs.limiter ? n.limiter : ctx.destination);
+  showMonitorLatency();
+}
+
+function showMonitorLatency() {
+  if (!monitor.stream) { $("mon-latency").textContent = ""; return; }
+  const ctx = context(), input = monitor.stream.getAudioTracks()[0]?.getSettings().latency;
+  const seconds = (ctx.baseLatency || 0) + (ctx.outputLatency || 0) + (input || 0) + (monitorPrefs.limiter ? LIMITER_DELAY : 0);
+  const v = Math.round(seconds * 1000);
+  $("mon-latency").textContent = input === undefined ? say("monitor.delay_without_input", { v }) : say("monitor.delay", { v });
+}
+
+async function listMicrophones() {
+  if (!navigator.mediaDevices?.enumerateDevices) return;
+  const mics = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput" && d.deviceId !== "default" && d.deviceId !== "communications");
+  // Before the permission the browser hides the names: only "the default one" until then.
+  const options = [el("option", { value: "" }, say("monitor.default_mic"))];
+  mics.forEach((d, i) => { if (d.deviceId) options.push(el("option", { value: d.deviceId }, d.label || say("monitor.mic_n", { v: i + 1 }))); });
+  $("mon-device").replaceChildren(...options);
+  $("mon-device").value = mics.some((d) => d.deviceId === monitorPrefs.device) ? monitorPrefs.device : "";
+}
+
+async function monitorOn() {
+  if (monitor.stream || monitor.starting) return;
+  $("mon-status").textContent = "";
+  if (!navigator.mediaDevices?.getUserMedia) { $("mon-status").textContent = say("monitor.needs_secure_page"); return; }
+  monitor.starting = true;
+  try {
+    const ctx = context();
+    ctx.resume();
+    if (!monitor.trimmed) { monitor.trim = await limiterTrim().catch(() => 1); monitor.trimmed = true; if (monitor.nodes) monitor.nodes.trim.gain.value = monitor.trim; }
+    const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, latency: { ideal: 0 } };
+    if (monitorPrefs.device) audio.deviceId = { exact: monitorPrefs.device };
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio }); }
+    catch (e) {
+      if (e.name !== "OverconstrainedError" || !monitorPrefs.device) throw e;
+      delete audio.deviceId;  // the remembered mic isn't plugged in: the default one
+      stream = await navigator.mediaDevices.getUserMedia({ audio });
+    }
+    if (!$("practice").open) { stream.getTracks().forEach((t) => t.stop()); return; }
+    const n = monitorGraph();
+    monitor.stream = stream;
+    monitor.source = ctx.createMediaStreamSource(stream);
+    monitor.source.connect(n.lowcut);
+    stream.getAudioTracks()[0].addEventListener("ended", () => { monitorOff(); $("mon-status").textContent = say("monitor.mic_disconnected"); });
+    monitor.peak = 0; monitor.clipAt = monitor.actingAt = 0;
+    applyMonitor();
+    monitorLoop();
+    listMicrophones().then(() => {
+      const id = stream.getAudioTracks()[0].getSettings().deviceId;
+      if (id && [...$("mon-device").options].some((o) => o.value === id)) $("mon-device").value = id;
+    }).catch(() => {});
+  } catch (e) {
+    $("mon-status").textContent = e.name === "NotAllowedError" ? say("monitor.permission_denied")
+      : e.name === "NotFoundError" ? say("monitor.no_mic_found")
+      : e.name === "NotReadableError" ? say("monitor.mic_busy")
+      : say("monitor.couldnt_open_mic", { message: e.message || e.name });
+  } finally {
+    monitor.starting = false;
+  }
+}
+
+function monitorOff() {
+  cancelAnimationFrame(monitor.raf);
+  if (monitor.source) monitor.source.disconnect();
+  if (monitor.stream) monitor.stream.getTracks().forEach((t) => t.stop());
+  monitor.stream = monitor.source = null;
+  monitor.muted = false;
+  $("mon-level").style.width = "0"; $("mon-peak").style.left = "0";
+  $("mon-db").textContent = "–";
+  $("mon-clip").hidden = $("mon-acting").hidden = true;
+  applyMonitor();
+}
+
+const toggleMonitor = () => monitor.stream ? monitorOff() : monitorOn();
+
+// The level reaching the mic (before the monitor's volume, which doesn't change it), with a
+// peak mark that falls slowly, "overload" when it hits the top (it then sounds broken however
+// low the volume is), and "limiting" while the limiter is holding a peak back.
+const METER_FLOOR = -60;
+function monitorLoop() {
+  const n = monitor.nodes, t = performance.now();
+  n.meter.getFloatTimeDomainData(n.data);
+  let peak = 0;
+  for (const x of n.data) { const a = Math.abs(x); if (a > peak) peak = a; }
+  const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity;
+  const at = (d) => `${Math.max(0, Math.min(1, (d - METER_FLOOR) / -METER_FLOOR)) * 100}%`;
+  if (db >= monitor.peak || t - monitor.peakAt > 1500) { monitor.peak = db; monitor.peakAt = t; }
+  if (peak >= 0.99) monitor.clipAt = t;
+  const level = $("mon-level");
+  level.style.width = at(db);
+  level.classList.toggle("hot", db > -6 && db < -0.1);
+  level.classList.toggle("clip", db >= -0.1);
+  $("mon-peak").style.left = at(monitor.peak);
+  $("mon-db").textContent = isFinite(monitor.peak) ? `${monitor.peak.toFixed(0)} dB` : "−∞ dB";
+  $("mon-clip").hidden = !(monitor.clipAt && t - monitor.clipAt < 2000);
+  if (monitorPrefs.limiter && !monitor.muted && n.limiter.reduction < -0.5) monitor.actingAt = t;
+  $("mon-acting").hidden = !(monitorPrefs.limiter && monitor.actingAt && t - monitor.actingAt < 400);
+  monitor.raf = requestAnimationFrame(monitorLoop);
+}
+
+$("practice-monitor").onclick = () => { $("mon-panel").hidden = !$("mon-panel").hidden; if (!$("mon-panel").hidden) listMicrophones().catch(() => {}); };
+$("mon-power").onclick = toggleMonitor;
+$("mon-device").onchange = (e) => {
+  monitorPrefs.device = e.target.value; saveMonitorPrefs();
+  if (monitor.stream) { monitorOff(); monitorOn(); }
+};
+$("mon-volume").addEventListener("input", (e) => { monitorPrefs.volume = +e.target.value; saveMonitorPrefs(); applyMonitor(); });
+$("mon-mute").onclick = () => { monitor.muted = !monitor.muted; applyMonitor(); };
+$("mon-lowcut").onchange = (e) => { monitorPrefs.lowcut = e.target.checked; saveMonitorPrefs(); applyMonitor(); };
+$("mon-limiter").onchange = (e) => { monitorPrefs.limiter = e.target.checked; saveMonitorPrefs(); applyMonitor(); };
+navigator.mediaDevices?.addEventListener?.("devicechange", () => { if (!$("mon-panel").hidden) listMicrophones().catch(() => {}); });
+applyMonitor();
 
 // The lyrics column folds away (the waves get its room); the browser remembers it.
 const PRACTICE_LYRICS_KEY = "song-wizard:practice-lyrics";
@@ -3390,6 +3618,7 @@ const ACTIONS = [
   ["trackLouder", "practice", say("keys.turn_chosen_track_up"), ["Shift+ArrowUp"]],
   ["trackSofter", "practice", say("keys.turn_chosen_track_down"), ["Shift+ArrowDown"]],
   ["click", "practice", say("keys.turn_click_off"), ["c"]],
+  ["monitor", "practice", say("keys.monitor_on_off"), ["i"]],
   ...Array.from({ length: 10 }, (_, i) => [`mute${i + 1}`, "practice", say("keys.mute_track", { v: i + 1 }), [String((i + 1) % 10)]]),
   ...Array.from({ length: 10 }, (_, i) => [`solo${i + 1}`, "practice", say("keys.solo_track", { v: i + 1 }), [`Shift+${(i + 1) % 10}`]]),
   ["zoomIn", "practice", say("keys.zoom_waveforms"), ["z"]],
@@ -3501,6 +3730,7 @@ const RUN = {
   zoomOut: () => zoomPractice(2),
   zoomAll: () => setPracticeView(0, practice.duration),
   full: togglePracticeFull,
+  monitor: () => { $("mon-panel").hidden = false; toggleMonitor(); },
   lyrics: () => showPracticeLyrics(!lyricsShown()),
   tap: tapNextLine,
   sync: () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
