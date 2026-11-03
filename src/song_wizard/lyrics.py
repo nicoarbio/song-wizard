@@ -107,11 +107,19 @@ def search(title, artist="", seconds=None):
 
     The closest in length wins (the same song comes in several albums and edits); one more than
     15 s off is probably another version, and only taken if there's nothing better."""
-    query = {"track_name": title, "artist_name": artist} if artist else {"q": title}
-    found = [r for r in get(f"{API}/search?{urllib.parse.urlencode(query)}") if r.get("plainLyrics") or r.get("syncedLyrics")]
-    if not found and artist:  # "Artist - Title" may have been the other way around
-        found = [r for r in get(f"{API}/search?{urllib.parse.urlencode({'q': f'{artist} {title}'})}")
-                 if r.get("plainLyrics") or r.get("syncedLyrics")]
+    queries = [{"track_name": title, "artist_name": artist} if artist else {"q": title}]
+    if " - " in title:
+        # A video uploaded by someone else: its "artist" is whoever uploaded it, and the title
+        # holds the real one ("Band - Song").
+        real_artist, real_title = (part.strip() for part in title.split(" - ", 1))
+        queries.append({"track_name": real_title, "artist_name": real_artist})
+    if artist:  # "Artist - Title" may have been the other way around
+        queries.append({"q": f"{artist} {title}"})
+    found = []
+    for query in queries:
+        found = [r for r in get(f"{API}/search?{urllib.parse.urlencode(query)}") if r.get("plainLyrics") or r.get("syncedLyrics")]
+        if found:
+            break
     if not found:
         return None
     if seconds:

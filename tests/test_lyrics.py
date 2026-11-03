@@ -46,6 +46,19 @@ def test_search_without_artist(database):
     assert "q=Song" in database[0]
 
 
+def test_search_a_video_uploaded_by_someone_else(monkeypatch):
+    """The file's artist is the uploader and its title "Band - Song": it's looked up as Band, Song."""
+    asked = []
+
+    def get(url):
+        asked.append(url)
+        return RESULTS if "artist_name=Band" in url else []
+    monkeypatch.setattr(lyrics, "get", get)
+    found = lyrics.search("Band - Song", "Some Uploader", 60)
+    assert "#2" in found["source"]
+    assert "artist_name=Some+Uploader" in asked[0] and "track_name=Song" in asked[1] and len(asked) == 2
+
+
 def test_parse_lrc():
     assert lyrics.parse_lrc("[ar: x]\n[01:02.25]hola\n[00:00.00] ") == [[62.25, "hola"], [0.0, ""]]
     assert lyrics.parse_lrc("") is None
