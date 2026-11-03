@@ -423,11 +423,15 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
     job = json.loads(request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": str(other)})[1])
     wait_for(port, job["id"])
     assert ran[-1] == ["download", "--to", str(other), "https://example.com/x"]
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "order", "folder": f"{key}/Show", "songs": [f"{key}/Show/001 - A.wav"]})[1])
+    wait_for(port, job["id"])
+    assert ran[-1] == ["order", str(drive.resolve()), str((drive / "001 - A.wav").resolve())]
     job = json.loads(request(port, "POST", "/api/jobs", {"action": "archives-add", "to": str(other)})[1])
     wait_for(port, job["id"])
     assert ran[-1] == ["archives", "--add", str(other)]
     for bad in [{"action": "archives-move", "id": "PLx", "to": str(tmp_path / "nope")}, {"action": "archives-move", "id": "../x", "to": str(other)},
                 {"action": "archives-add", "to": str(tmp_path / "nope")}, {"action": "archives-add"},
+                {"action": "order", "folder": f"{key}/Show", "songs": []}, {"action": "order", "folder": f"{key}/Show", "songs": ["x.wav"]},
                 {"action": "download", "url": "https://example.com/x", "to": "relative/dir"}]:
         assert request(port, "POST", "/api/jobs", bad)[0].status == 400
     monkeypatch.setattr(system, "pick_folder", lambda: "/picked")

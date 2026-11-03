@@ -271,6 +271,14 @@ def library(root):
     candidates = [p for place in [root, *archives.places()] for p in subfolders_of(place)]
     archives.sync(candidates)
     known = archives.playlists()
+    # Songs added by hand to a playlist's folder get the number after the last one.
+    from . import numbering
+    for playlist in known:
+        if playlist["folder"] and Path(playlist["folder"]).is_dir():
+            try:
+                numbering.tidy(playlist["folder"], wav=playlist["wav"])
+            except OSError:
+                pass
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
     places = [(root, "", f) for f in [root, *subfolders]]
@@ -803,7 +811,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "archives-add", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
                 raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -829,6 +837,13 @@ def make_handler(token, root, runner, port):
                 if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
                     raise Said("server.invalid_playlist")
                 return self.say("server.move", title=body.get("title") or which, to=to), ["archives", "--move", which, to]
+            if action == "order":
+                folder = self.resolve(str(body.get("folder", "")))
+                songs = [str(self.resolve(p)) for p in body.get("songs", [])]
+                if not os.path.isdir(folder) or not songs or any(os.path.dirname(p) != str(folder) for p in songs):
+                    raise Said("server.nothing_picked")
+                return self.say("server.order", folder=os.path.basename(folder) or self.say("server.main_folder")), \
+                    ["order", str(folder), *songs]
             if action == "archives-add":
                 to = folder_from(body.get("to"))
                 if not to:

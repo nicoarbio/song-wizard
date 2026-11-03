@@ -20,24 +20,9 @@ def node_ok():
 
 
 def name_by_data(path):
-    from . import rename, tags
-    from .audio import base_of
+    from . import numbering
 
-    new = tags.name_for(tags.read(path))
-    current = base_of(Path(path).name)
-    number = re.match(r"^\d+ - ", current)
-    target = (number.group(0) if number else "") + new if new else current
-    if target != current:
-        try:
-            rename.run(path, new)
-        except SystemExit as e:
-            print(f"  {Path(path).name}: kept its name ({e.code})")
-            target = current
-    # song-wizard's mark on what it downloaded (and the .wav made from it).
-    final = Path(path).with_name(target + Path(path).suffix)
-    if final.is_file():
-        for f in tags.song_files(final):
-            tags.stamp(f, f)
+    numbering.name(path)
 
 
 def run(url, wav=False, extra=(), to=None):
@@ -62,9 +47,16 @@ def fetch(url, wav=False, extra=(), to=None):
     escape = lambda path: str(path).replace("%", "%%")
     song = "%(playlist_index&{:03d} - |)s%(title)s.%(ext)s"
     known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
+    last = None
     if known and Path(known).is_dir():
+        from . import numbering
+
         # Another computer may have downloaded more songs into it (a synced folder): its record says.
         archives.adopt(known)
+        # New songs go after the last one in the folder (songs added by hand, numbered first, or
+        # an order of its own), not by their place in the playlist.
+        numbering.tidy(known, wav=wav or archives.read_meta(archive_id).get("wav", False))
+        last = numbering.highest(known)
     if to is None and known and Path(known).is_dir():
         output = f"{escape(known)}/{song}"
     else:
@@ -101,8 +93,13 @@ def fetch(url, wav=False, extra=(), to=None):
         files_file.unlink(missing_ok=True)
     # Named by its data, "001 - Artist - Title", as the song's data window names it: what the
     # site put there (often the uploader as the artist) shows up front, to be corrected by hand.
-    for path in files:
-        name_by_data(path)
+    from . import numbering
+
+    for i, path in enumerate(files, 1):
+        if last is not None and Path(path).parent.resolve() == Path(known).resolve():
+            numbering.name(path, last[0] + i, last[1])
+        else:
+            numbering.name(path)
     if archive.exists():
         archives.remember(archive_id, url, lines[-1] if lines else None,
                           folder=str(Path(files[-1]).parent) if files else None, wav=wav)

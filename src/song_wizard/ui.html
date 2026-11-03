@@ -692,10 +692,10 @@
 <dialog id="setlist" data-text-aria-label="setlist.setlist">
   <h3 data-text="setlist.setlist"></h3>
   <label><span data-text="data.title"></span> <input id="setlist-title" maxlength="120"></label>
-  <p class="hint" data-text="setlist.drag_songs_change_order_use"></p>
+  <p class="hint" id="setlist-hint" data-text="setlist.drag_songs_change_order_use"></p>
   <ol id="setlist-list"></ol>
   <label><input type="checkbox" id="setlist-lyrics"> <span id="setlist-lyrics-text" data-text="setlist.lyrics"></span></label>
-  <div class="row" style="justify-content:flex-end"><button id="setlist-cancel" data-text="library.cancel"></button><button class="open" id="setlist-open" data-text="setlist.open_print"></button></div>
+  <div class="row" style="justify-content:flex-end"><button id="setlist-save" hidden data-text="setlist.save_order" data-text-title="setlist.save_order_title"></button><button id="setlist-cancel" data-text="library.cancel"></button><button class="open" id="setlist-open" data-text="setlist.open_print"></button></div>
 </dialog>
 
 <dialog id="lyrics">
@@ -978,7 +978,7 @@ function renderLibrary() {
         folder.playlist ? el("button", { class: "small open", title: say("library.looks_at_playlist_again_downloads", { title: folder.playlist.title }),
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, say("library.check_new_songs")) : null,
         el("button", { class: folder.playlist ? "small" : "small open", title: say("library.list_print_each_song_key"),
-          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name); } }, say("library.setlist")),
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name, folder); } }, say("library.setlist")),
         el("button", { class: "small", title: say("library.open_folder", { fileManager: state.fileManager }),
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, say("library.open"))));
     details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
@@ -2786,7 +2786,8 @@ function setlistOfSelection() {
   openSetlist(items, "Setlist");
 }
 
-const setlistState = { items: [], drag: null };
+// folder: opened from a folder's "setlist", whose order can be saved (renumbering its files).
+const setlistState = { items: [], drag: null, folder: null, start: [] };
 // As the printed sheet shows it (setlist.title_of): no number, no "(Official Video)" or "[HD]".
 const NOISE = /\s*[(\[][^()\[\]]*\b(official|audio|video|lyrics?|hd|hq|4k|remaster(ed)?|visualizer|videoclip)\b[^()\[\]]*[)\]]/gi;
 // From the song's data (artist and title) if it has them, else from its file name.
@@ -2796,9 +2797,11 @@ const songTitle = (song) => {
   return song.name.replace(/\.[^.]+$/, "").replace(/^\d+\s*-\s*/, "").replace(NOISE, "").trim();
 };
 
-function openSetlist(items, title) {
+function openSetlist(items, title, folder = null) {
   if (!items.length) return;
   setlistState.items = items.slice();
+  setlistState.folder = folder;
+  setlistState.start = items.map((i) => i.song.path);
   $("setlist-title").value = title || "Setlist";
   renderSetlist();
   $("setlist").showModal();
@@ -2835,6 +2838,12 @@ function renderSetlist() {
     li.addEventListener("drop", (e) => { e.preventDefault(); li.classList.remove("over"); if (setlistState.drag !== null) moveSetlist(setlistState.drag, i); });
     return li;
   }));
+  // Saving the order: only the whole folder (none taken off), and only if it changed.
+  const save = $("setlist-save");
+  save.hidden = !setlistState.folder;
+  save.disabled = !setlistState.folder || items.length !== setlistState.start.length
+    || items.every((it, i) => it.song.path === setlistState.start[i]);
+  $("setlist-hint").textContent = setlistState.folder ? say("setlist.drag_songs_change_order_save") : say("setlist.drag_songs_change_order_use");
   const withLyrics = items.filter((i) => i.song.lyrics).length;
   $("setlist-lyrics").disabled = !withLyrics;
   if (!withLyrics) $("setlist-lyrics").checked = false;
@@ -2844,6 +2853,12 @@ function renderSetlist() {
 }
 
 $("setlist-cancel").onclick = () => $("setlist").close();
+$("setlist-save").onclick = () => {
+  const folder = setlistState.folder;
+  if (!folder) return;
+  start({ action: "order", folder: folder.path, songs: setlistState.items.map((i) => i.song.path) });
+  $("setlist").close();
+};
 $("setlist-open").onclick = () => {
   const query = new URLSearchParams();
   for (const { song } of setlistState.items) query.append("path", song.path);

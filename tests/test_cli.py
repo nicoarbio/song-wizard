@@ -27,6 +27,7 @@ DISPATCH = {
     "report": ([], "report", "run"),
     "list": ([], "listing", "run"),
     "setlist": ([], "setlist", "run"),
+    "order": (["Show", "002 - B.opus"], "numbering", "reorder"),
     "lyrics": (["song.opus"], "lyrics", "run"),
     "reaper": (["song.opus"], "reaper", "run"),
     "setup": ([], "setup", "run"),

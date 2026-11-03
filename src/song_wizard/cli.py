@@ -261,6 +261,15 @@ def build_parser():
                    help="add the lyrics of the songs that have them, with their marks, one per page after the list")
     p.add_argument("--out", metavar="FILE.html", help="save the page here (for a folder: instead of in it)")
 
+    p = sub.add_parser("order", help="put a folder's songs in another order (renumbering their files)",
+                       description="Numbers the folder's songs (001 - ...) in the order given: each song's "
+                                   "stems, versions, results, lyrics and REAPER project follow it. Songs not "
+                                   "given go after, in the order they had. Songs added by hand to a playlist's "
+                                   "folder get the number after the last one on their own, and new downloads go "
+                                   "on from there.")
+    p.add_argument("folder", metavar="FOLDER")
+    p.add_argument("songs", nargs="+", metavar="SONG", help="songs of the folder (paths or file names), in their new order")
+
     p = sub.add_parser("reaper", help="open the song's REAPER project, making it first if there's none",
                        description='Opens "<song>.rpp" (next to the song) in REAPER. If there\'s none, makes it '
                                    "first: a track per stem (the set the practice player starts with playing, the "
@@ -392,6 +401,9 @@ def dispatch(argv):
     elif args.command == "setlist":
         from . import setlist
         setlist.run(args.paths, name=args.title, with_lyrics=args.lyrics, out=args.out)
+    elif args.command == "order":
+        from . import numbering, system
+        numbering.reorder(system.local_path(args.folder), args.songs)
     elif args.command == "reaper":
         from . import reaper
         if args.setting:
