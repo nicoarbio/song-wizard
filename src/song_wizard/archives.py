@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -10,13 +11,18 @@ from pathlib import Path
 from .paths import ARCHIVE_DIR
 
 SINGLES = "singles"
+# Each playlist's folder keeps a copy of its record (what was downloaded into it and from where),
+# so the folder carries it: copied to another computer, or kept in a synced drive, the playlist
+# shows up there with "look for new songs" working, without downloading again what it has.
+RECORD = ".song-wizard.json"
 
 
 def remember(archive_id, url, title, folder=None, wav=None):
     """Store the playlist's URL, name and folder next to its archive (the archive only has video
     IDs), and whether it was downloaded with --wav, to look for new songs the same way."""
     meta_path = ARCHIVE_DIR / f"{archive_id}.json"
-    meta = read_meta(archive_id)
+    before = read_meta(archive_id)
+    meta = dict(before)
     meta["url"] = url if archive_id != SINGLES else None
     if title:
         meta["title"] = title
@@ -25,7 +31,122 @@ def remember(archive_id, url, title, folder=None, wav=None):
         add_place(Path(folder).parent)
     if wav is not None:
         meta["wav"] = wav
-    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+    if meta != before or not meta_path.exists():
+        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
+    write_record(archive_id)
+
+
+def downloaded(archive_id):
+    """The lines of a playlist's archive: "<site> <id>" of each song downloaded."""
+    path = ARCHIVE_DIR / f"{archive_id}.txt"
+    return [l for l in path.read_text().splitlines() if l.strip()] if path.exists() else []
+
+
+def read_record(folder):
+    """The record kept in a folder, or None. It may come from anywhere (a shared drive), so only
+    a well-formed one counts."""
+    try:
+        record = json.loads((Path(folder) / RECORD).read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(record, dict) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", str(record.get("id", ""))):
+        return None
+    return record
+
+
+def write_record(archive_id):
+    """Keep a playlist's record in its folder (only when it changed: the folder may be synced)."""
+    meta = read_meta(archive_id)
+    folder = meta.get("folder")
+    if not folder or not Path(folder).is_dir():
+        return
+    record = {"about": "song-wizard: what was downloaded into this folder, so another computer knows it too",
+              "id": archive_id, "title": meta.get("title"), "url": meta.get("url"), "wav": bool(meta.get("wav")),
+              "downloaded": downloaded(archive_id)}
+    text = json.dumps(record, ensure_ascii=False, indent=2) + "\n"
+    path = Path(folder) / RECORD
+    try:
+        if path.is_file() and path.read_text() == text:
+            return
+        part = path.with_name(RECORD + ".part")
+        part.write_text(text)
+        part.replace(path)
+    except OSError:
+        pass  # a read-only folder: it just doesn't travel with its record
+
+
+def adopt(folder):
+    """Make the playlist recorded in this folder this computer's too, downloading into it from
+    now on. The folder's record wins over what this computer had (another one may have
+    downloaded more songs into it, or deleted some). Returns its id, or None if the folder has
+    no record or this computer downloads that playlist into another folder that's still there."""
+    folder = Path(folder).resolve()
+    record = read_record(folder)
+    if record is None:
+        return None
+    archive_id = record["id"]
+    mine = read_meta(archive_id).get("folder")
+    if mine and Path(mine).is_dir() and Path(mine).resolve() != folder:
+        return None
+    songs = [l for l in record.get("downloaded") or [] if isinstance(l, str) and len(l.split()) == 2]
+    archive = ARCHIVE_DIR / f"{archive_id}.txt"
+    text = "".join(f"{l}\n" for l in songs)
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    if not archive.exists() or archive.read_text() != text:
+        archive.write_text(text)
+    url = record.get("url")
+    url = url if isinstance(url, str) and re.match(r"https?://", url) else None
+    title = record.get("title") if isinstance(record.get("title"), str) else None
+    remember(archive_id, url, title, folder=str(folder), wav=bool(record.get("wav")))
+    return archive_id
+
+
+def sync(folders):
+    """Take the playlists recorded in these folders, and give the folders of the playlists this
+    computer knows their record (those downloaded before records were kept, too)."""
+    for folder in folders:
+        adopt(folder)
+    for path in sorted(ARCHIVE_DIR.glob("*.json")) if ARCHIVE_DIR.exists() else []:
+        write_record(path.stem)
+
+
+def add(folder):
+    """Show a folder in the library (a synced drive, a folder copied from another computer) and
+    take the playlists recorded in it or in the folders inside it."""
+    from . import system
+
+    if letter := system.unmounted_drive(folder):
+        sys.exit(system.mount_hint(letter))
+    folder = Path(folder).expanduser().resolve()
+    if not folder.is_dir():
+        sys.exit(f"{folder}: no such folder.")
+    inside = sorted((p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")),
+                    key=lambda p: p.name.lower())
+    taken, elsewhere = [], []
+    for candidate in [folder, *inside]:
+        record = read_record(candidate)
+        if record is None:
+            continue
+        if adopt(candidate):
+            taken.append(read_meta(record["id"]).get("title") or candidate.name)
+        else:
+            elsewhere.append((candidate, read_meta(record["id"]).get("folder")))
+    if read_record(folder) is None:
+        from .paths import music_dir
+
+        root = music_dir().resolve()
+        if folder != root and root not in folder.parents:
+            add_place(folder)
+    for title in taken:
+        print(f"{title}: looking for new songs downloads only what isn't in its folder yet.")
+    for candidate, mine in elsewhere:
+        print(f"{candidate.name}: this computer already downloads it into {system.shown_path(mine)}; left as it is.")
+    if not taken:
+        print(f"No playlists recorded in {system.shown_path(folder)}"
+              + (" (other than those above)." if elsewhere else
+                 "; its songs show in the library. (Playlists downloaded with song-wizard 0.28 or newer carry "
+                 "their record: opening the library on the computer that downloaded them writes it.)"))
 
 
 def forget_sources(links):
@@ -39,6 +160,7 @@ def forget_sources(links):
         if len(kept) != len(lines):
             path.write_text("".join(f"{l}\n" for l in kept))
             gone += len(lines) - len(kept)
+            write_record(path.stem)
     return gone
 
 
@@ -249,6 +371,12 @@ def delete(which, yes=False):
             print("Nothing deleted.")
             return
     for archive_id, *_ in chosen:
+        # The folder's record too, or the library would take the playlist back.
+        if (folder := read_meta(archive_id).get("folder")) and read_record(folder):
+            try:
+                (Path(folder) / RECORD).unlink()
+            except OSError:
+                pass
         (ARCHIVE_DIR / f"{archive_id}.txt").unlink(missing_ok=True)
         (ARCHIVE_DIR / f"{archive_id}.json").unlink(missing_ok=True)
     print(f"Deleted {len(chosen)} archive{'s' if len(chosen) != 1 else ''}.")

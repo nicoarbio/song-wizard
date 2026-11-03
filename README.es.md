@@ -167,7 +167,7 @@ Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo q
 - **Atajos de teclado**: casi todo se puede hacer con el teclado, y las teclas se pueden cambiar. "⌨ atajos" arriba (o `?`) los muestra todos. Ver [Atajos de teclado](#atajos-de-teclado).
 - **Idioma**: "es · en · pt", arriba a la derecha, cambia la interfaz entre español, inglés y portugués (la primera vez toma el idioma del navegador). El navegador lo recuerda, y las hojas para imprimir (setlist, letra) y los mensajes del servidor lo siguen.
 - **Colores**: arriba a la derecha, "automático" sigue al sistema (claro u oscuro, como lo tengas en Windows o en el Mac), y "claro" u "oscuro" lo dejan fijo. El navegador lo recuerda. Las hojas para imprimir (setlist, letra) son siempre claras.
-- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
+- **Playlists bajadas**: las mismas de `song-wizard archives`, con la opción de buscar temas nuevos, moverlas a otra carpeta (van enteras y se siguen viendo en la biblioteca, con su ubicación) o olvidarlas. "agregar carpeta…" suma una carpeta copiada de otra compu o en Drive (ver [Playlists en otra compu](#playlists-en-otra-compu)). Las carpetas que son una playlist también tienen "buscar temas nuevos": baja solo lo que se agregó a la playlist desde la última vez.
 
 La interfaz queda corriendo de fondo y la terminal queda libre para otra cosa (o para cerrarla). Volver a escribir `song-wizard ui` abre la misma interfaz, sin arrancar otra. Para cerrarla: "apagar" (abajo, en Trabajos) o `song-wizard ui --stop`; si hay algo corriendo, pregunta antes. `song-wizard ui --restart` la cierra y la vuelve a abrir (por ejemplo después de `upgrade`, que avisa si la interfaz sigue con la versión anterior). Con `--foreground` queda en la terminal como antes, y Ctrl+C la cierra.
 
@@ -233,7 +233,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Biblioteca | `song-wizard list` (`list TEXTO` filtra, `--files` muestra los stems y versiones de cada tema) |
 | Bajar (y "en Música" para elegir la carpeta) | `song-wizard download URL` (`--wav`, `--to CARPETA`) |
 | "buscar temas nuevos" | `song-wizard archives --update N` (o `all`) |
-| Playlists bajadas: mover, olvidar | `song-wizard archives` (`--move N CARPETA`, `--delete N`) |
+| Playlists bajadas: mover, olvidar, agregar carpeta | `song-wizard archives` (`--move N CARPETA`, `--delete N`, `--add CARPETA`) |
 | "abrir" | `song-wizard open` (la carpeta de música, o la que digas) |
 | Tonalidad, Tempo | `song-wizard key`, `song-wizard bpm` |
 | Tocar la tonalidad o el tempo para corregirlos | `song-wizard key --set Am TEMA`, `song-wizard bpm --set 120 TEMA` |
@@ -285,6 +285,14 @@ song-wizard archives
 ```
 
 Para llevar una playlist a otra carpeta sin perder nada (temas, stems, resultados y su registro): `song-wizard archives --move 1 "G:\Mi unidad\Ensayos"`. Queda en `G:\Mi unidad\Ensayos\<nombre de la playlist>`, la interfaz la sigue mostrando y los temas nuevos se bajan ahí. Si ya la moviste a mano, el mismo comando solo anota dónde está ahora.
+
+#### Playlists en otra compu
+
+Cada playlist guarda su registro (de dónde salió y qué temas ya se bajaron) en su propia carpeta, en un archivo oculto `.song-wizard.json`. Así la carpeta lo lleva consigo: copiala a otra compu, o tenela en una carpeta sincronizada como Google Drive, y ahí la playlist aparece en "Playlists bajadas" con "buscar temas nuevos" andando, bajando solo lo que todavía no está en la carpeta. Si otra compu baja temas en la misma carpeta sincronizada, esta también se entera.
+
+- Dentro de la carpeta de música (o donde ya van tus descargas), se toma sola al abrir la biblioteca.
+- En cualquier otro lado: `song-wizard archives --add "G:\Mi unidad\Ensayos"` (o "agregar carpeta…" en la interfaz). Puede ser la carpeta de la playlist o la que tiene varias; desde entonces sus temas se ven en la biblioteca.
+- Las playlists bajadas antes de la 0.28.0 reciben su registro la primera vez que se abre la biblioteca con la 0.28.0 o más nueva en la compu que las bajó.
 
 Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo: `song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y nunca borra los temas ya bajados.
 
@@ -660,7 +668,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
-- `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives`.
+- `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives` (también el que cada playlist guarda en su carpeta: lo toma otra compu, se actualiza al bajar y al borrar, se quita al olvidarla, una copia no se adueña, y uno dañado o raro se ignora).
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
 - `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.

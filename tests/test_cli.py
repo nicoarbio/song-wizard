@@ -80,6 +80,14 @@ def test_archives_delete(monkeypatch):
     assert calls == [(["1", "3"], True)]
 
 
+def test_archives_add(monkeypatch):
+    from song_wizard import archives
+    calls = []
+    monkeypatch.setattr(archives, "add", calls.append)
+    cli.main(["archives", "--add", "/some/folder"])
+    assert calls == ["/some/folder"]
+
+
 def test_upgrade(monkeypatch):
     from song_wizard import updates
     calls = []

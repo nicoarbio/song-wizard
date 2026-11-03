@@ -167,7 +167,7 @@ Opens a page in the browser (on WSL, the Windows browser) with everything song-w
 - **Keyboard shortcuts**: almost everything can be done with the keyboard, and the keys can be changed. "⌨ shortcuts" at the top (or `?`) shows them all. See [Keyboard shortcuts](#keyboard-shortcuts).
 - **Language**: "es · en · pt" at the top right switches the interface between Spanish, English and Portuguese (the first time, it takes the browser's language). The browser remembers it, and the pages to print (setlist, lyrics) and the server's messages follow it.
 - **Colors**: at the top right, "auto" follows the system (light or dark, as you have it on Windows or the Mac), and "light" or "dark" keep it fixed. The browser remembers it. The pages to print (setlist, lyrics) are always light.
-- **Downloaded playlists**: the same as `song-wizard archives`, with the option to check for new songs, move them to another folder (they go whole and still show in the library, with their location) or forget them. Folders that are a playlist also have "check for new songs": it downloads only what was added to the playlist since last time.
+- **Downloaded playlists**: the same as `song-wizard archives`, with the option to check for new songs, move them to another folder (they go whole and still show in the library, with their location) or forget them. "add folder…" brings in a folder copied from another computer or kept in Drive (see [Playlists on another computer](#playlists-on-another-computer)). Folders that are a playlist also have "check for new songs": it downloads only what was added to the playlist since last time.
 
 The interface keeps running in the background and the terminal is free for something else (or to close it). Typing `song-wizard ui` again opens the same interface, without starting another. To close it: "shut down" (below, in Jobs) or `song-wizard ui --stop`; if something is running, it asks first. `song-wizard ui --restart` closes it and opens it again (after `upgrade`, say, which tells you if the interface is still on the old version). With `--foreground` it stays in the terminal as before, and Ctrl+C closes it.
 
@@ -233,7 +233,7 @@ Everything the interface does can also be done from the terminal; it's almost al
 | Library | `song-wizard list` (`list TEXT` filters, `--files` shows each song's stems and versions) |
 | Download (and "in Music" to pick the folder) | `song-wizard download URL` (`--wav`, `--to FOLDER`) |
 | "check for new songs" | `song-wizard archives --update N` (or `all`) |
-| Downloaded playlists: move, forget | `song-wizard archives` (`--move N FOLDER`, `--delete N`) |
+| Downloaded playlists: move, forget, add folder | `song-wizard archives` (`--move N FOLDER`, `--delete N`, `--add FOLDER`) |
 | "open" | `song-wizard open` (the music folder, or the one you name) |
 | Key, Tempo | `song-wizard key`, `song-wizard bpm` |
 | Clicking the key or tempo to correct them | `song-wizard key --set Am SONG`, `song-wizard bpm --set 120 SONG` |
@@ -285,6 +285,14 @@ song-wizard archives
 ```
 
 To take a playlist to another folder without losing anything (songs, stems, results and its record): `song-wizard archives --move 1 "G:\My Drive\Rehearsals"`. It ends up in `G:\My Drive\Rehearsals\<playlist name>`, the interface keeps showing it and new songs are downloaded there. If you already moved it by hand, the same command just notes where it is now.
+
+#### Playlists on another computer
+
+Each playlist keeps its record (where it came from and which songs were already downloaded) in its own folder, in a hidden file `.song-wizard.json`. So the folder carries it: copy it to another computer, or keep it in a synced folder like Google Drive, and there the playlist shows up in "Downloaded playlists" with "check for new songs" working, downloading only what isn't in the folder yet. If another computer downloads songs into the same synced folder, this one knows it too.
+
+- Inside the music folder (or where your downloads already go), it's picked up on its own when the library opens.
+- Anywhere else: `song-wizard archives --add "G:\My Drive\Rehearsals"` (or "add folder…" in the interface). It can be the playlist's folder or the one that holds several; its songs show in the library from then on.
+- Playlists downloaded before 0.28.0 get their record the first time the library opens with 0.28.0 or newer on the computer that downloaded them.
 
 To forget a playlist, so it's downloaded whole again next time: `song-wizard archives --delete 1` (or several numbers, or `all` for all of them). It asks for confirmation and never deletes the songs already downloaded.
 
@@ -660,7 +668,7 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `transpose`: the pitch changes by what was asked (an A 440 goes up to 880 with +12), the length doesn't change and peaks over 0 dB are kept intact; with 0 semitones it gives back the original.
 - `speed`: from 25 % to 200 %, the length changes exactly as asked, the pitch stays the same (and changes as asked with `--semitones`) and peaks over 0 dB are kept intact; a click's hits fall in place at the new tempo.
 - `convert`: turns down only what goes over 0 dB; in a folder it skips compressed files; it doesn't overwrite files without `--overwrite`.
-- `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records.
+- `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records (also the one each playlist keeps in its folder: taken by another computer, updated by downloading and deleting, removed when forgetting, a copy that doesn't take over, and a damaged or odd record ignored).
 - `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
 - `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).
 - `trim`: the same cut in the song and its stems, sample-exact (a pulse at 3 s stays where it should), the `.opus` encoded again lined up with the stems (under half a millisecond), versions at another speed in proportion, the silence added, REAPER takes untouched, 32-bit float WAVs that stay float, the download's link kept, the click and lyrics moving along, and that if one file fails nothing changes.

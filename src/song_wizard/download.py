@@ -62,6 +62,9 @@ def fetch(url, wav=False, extra=(), to=None):
     escape = lambda path: str(path).replace("%", "%%")
     song = "%(playlist_index&{:03d} - |)s%(title)s.%(ext)s"
     known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
+    if known and Path(known).is_dir():
+        # Another computer may have downloaded more songs into it (a synced folder): its record says.
+        archives.adopt(known)
     if to is None and known and Path(known).is_dir():
         output = f"{escape(known)}/{song}"
     else:

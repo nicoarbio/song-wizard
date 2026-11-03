@@ -1243,7 +1243,12 @@ function updateClickBars() {
 function renderArchives(rows) {
   const box = $("archives");
   box.replaceChildren();
-  if (!rows.length) { box.append(el("p", { class: "empty" }, say("playlists.you_havent_downloaded_anything_yet"))); return; }
+  // A folder from another computer or a synced drive: its playlists carry their record.
+  const add = el("p", { class: "hint row", style: "gap:8px;align-items:center" },
+    el("button", { class: "small", onclick: () => askFolder({ title: say("playlists.add_folder_title"), note: say("playlists.add_folder_note"),
+      done: (to) => start({ action: "archives-add", to }) }) }, say("playlists.add_folder")),
+    el("span", {}, say("playlists.folders_carry_their_record")));
+  if (!rows.length) { box.append(el("p", { class: "empty" }, say("playlists.you_havent_downloaded_anything_yet")), add); return; }
   const table = el("table", {}, el("tr", {}, el("th", {}, say("playlists.playlist")), el("th", {}, say("playlists.songs")), el("th", {}, say("playlists.last")), el("th", {})));
   for (const r of rows) {
     table.append(el("tr", {}, el("td", {}, r.title), el("td", {}, r.songs), el("td", { class: "muted" }, r.changed),
@@ -1256,7 +1261,7 @@ function renderArchives(rows) {
         el("button", { class: "small", title: say("playlists.next_time_downloaded_whole_again"),
           onclick: () => confirmForget([r.number], r.title) }, say("playlists.forget")))));
   }
-  box.append(table, el("p", { class: "hint" }, say("playlists.forgetting_playlist_makes_download_whole")));
+  box.append(table, el("p", { class: "hint" }, say("playlists.forgetting_playlist_makes_download_whole")), add);
 }
 
 // Download the playlist again: its archive makes yt-dlp skip what's already here, so only songs

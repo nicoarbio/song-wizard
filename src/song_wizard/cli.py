@@ -196,7 +196,7 @@ def build_parser():
     p = sub.add_parser("archives", help="list the playlists downloaded so far, or forget them",
                        description="Lists each playlist downloaded so far, how many songs and where its folder "
                                    "is. --update looks for songs added to them and downloads only those. --move "
-                                   "takes one to another folder. --delete forgets some of them (by the numbers in "
+                                   "takes one to another folder. --add takes playlists from a folder copied from another computer or kept in a synced drive: each playlist's folder carries its record. --delete forgets some of them (by the numbers in "
                                    "the list) or all, so downloading them again gets every song again. Downloaded "
                                    "songs are never deleted.")
     p.add_argument("--delete", nargs="+", metavar="N", help='numbers from the list, or "all"')
@@ -205,6 +205,9 @@ def build_parser():
     p.add_argument("--move", nargs=2, metavar=("N", "FOLDER"),
                    help="move playlist N (songs, stems and all) into FOLDER and keep downloading there; if you "
                         "moved it by hand already, records where it is now")
+    p.add_argument("--add", metavar="FOLDER",
+                   help="show FOLDER in the library (a synced drive, a folder copied from another computer) "
+                        "and take the playlists recorded in it or in the folders inside it")
     p.add_argument("--yes", action="store_true", help="don't ask for confirmation")
 
     p = sub.add_parser("list", help="list the songs in the music folder (and wherever downloads went)",
@@ -367,6 +370,8 @@ def dispatch(argv):
             archives.update(args.update)
         elif args.move:
             archives.move(args.move[0], system.local_path(args.move[1]))
+        elif args.add:
+            archives.add(system.local_path(args.add))
         elif args.delete:
             archives.delete(args.delete, yes=args.yes)
         else:

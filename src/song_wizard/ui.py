@@ -253,12 +253,23 @@ def with_audio(folder):
         return False
 
 
+def subfolders_of(folder):
+    try:
+        return [p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")]
+    except OSError:
+        return []
+
+
 def library(root):
     """The music folder and the folders directly in it, plus playlists kept elsewhere, with their
     songs and, for each song, the files generated from it (stems, transpositions, conversions)."""
     if not root.exists():
         return []
     folders = []
+    # Playlists recorded in their folders (copied from another computer, or in a synced drive)
+    # become this one's, and the ones this computer knows get their folder's record written.
+    candidates = [p for place in [root, *archives.places()] for p in subfolders_of(place)]
+    archives.sync(candidates)
     known = archives.playlists()
     subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower())
@@ -792,7 +803,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "delete", "archives-delete", "archives-move", "archives-add", "trim", "upgrade"):
                 raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -818,6 +829,11 @@ def make_handler(token, root, runner, port):
                 if not re.fullmatch(r"[A-Za-z0-9_-]+", which):
                     raise Said("server.invalid_playlist")
                 return self.say("server.move", title=body.get("title") or which, to=to), ["archives", "--move", which, to]
+            if action == "archives-add":
+                to = folder_from(body.get("to"))
+                if not to:
+                    raise Said("server.folder_missing")
+                return self.say("server.add_folder", folder=system.shown_path(to)), ["archives", "--add", to]
             if action == "upgrade":
                 return self.say("server.update_song_wizard"), ["upgrade"]
             if not paths and action not in ("click", "archives-delete"):

@@ -53,6 +53,7 @@ The real tests were run on:
 | `delete`: a stem alone, a copy with `--file`, without confirming, a trash that fails | Simulated | ✅ Only that file; without `--yes` and without a terminal it doesn't delete; if the trash fails it touches nothing else |
 | `ui`: "delete selected files" | Real | ✅ The window lists exactly what goes (a song with all its files, a stem alone) and starts with "cancel" chosen |
 | `archives --move` with a Windows path, from a Linux folder to `C:` | Real | ✅ The playlist goes whole (song, stem and `key.txt`); an older record, without a saved folder, is found by name; moving it again to the same place says it's already there |
+| A playlist's record in its folder, on "another computer" (an isolated interface with nothing downloaded) | Simulated (Edge, with a script) | ✅ The empty list offers "add folder…"; adding a folder outside the music folder shows its playlist with its 2 songs already recorded, and its songs in the library |
 | `download --to` and already-downloaded playlists staying in their folder | Simulated (without downloading) | ✅ New ones go to the folder asked; known ones, to theirs; a `%` in the path doesn't break yt-dlp's template |
 | `ui`: a playlist outside the music folder | Real | ✅ Shows in the library with its location (in Windows format on WSL), plays and gets processed; paths to leave its folder, refused |
 | `ui`: "choose…" (the system's folder picker) | Real (by the user, on Windows) | ✅ Opens the Windows folder picker and the chosen folder becomes the destination |

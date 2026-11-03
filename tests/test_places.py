@@ -31,7 +31,7 @@ def test_move(playlist, tmp_path):
     drive.mkdir()
     archives.move("1", str(drive))
     assert not playlist.exists()
-    assert sorted(p.name for p in (drive / "Show").iterdir()) == ["001 - A (drums).wav", "001 - A.opus", "key.txt"]
+    assert sorted(p.name for p in (drive / "Show").iterdir()) == [archives.RECORD, "001 - A (drums).wav", "001 - A.opus", "key.txt"]
     assert recorded() == str(drive / "Show")
     back = tmp_path / "music"
     archives.move("PLx", str(back))  # by id too
