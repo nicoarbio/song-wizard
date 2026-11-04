@@ -43,10 +43,13 @@ LOG_LINES = 2000
 class Job:
     ids = itertools.count(1)
 
-    def __init__(self, title, args):
+    def __init__(self, title, args, about=None):
         self.id = next(Job.ids)
         self.title = title
         self.args = args
+        # What the page asked for (action, the paths as the page knows them, the notes' part):
+        # Practicar shows the jobs of the song it has open, and the progress on the row being detected.
+        self.about = about or {}
         self.status = "queued"  # queued, running, done, failed, cancelled
         self.lines = []
         self.progress = ""  # last line written with \r (progress bars)
@@ -57,7 +60,7 @@ class Job:
         return {"id": self.id, "title": self.title, "status": self.status, "progress": self.progress,
                 "percent": percent_of(self.progress), "step": self.lines[-1] if self.lines else "",
                 "lines": self.lines[since:], "total": len(self.lines),
-                "started": self.started, "ended": self.ended, "now": time.time()}
+                "started": self.started, "ended": self.ended, "now": time.time(), **self.about}
 
 
 def percent_of(progress):
@@ -77,8 +80,8 @@ class Runner:
         self.wake = threading.Event()
         threading.Thread(target=self.loop, daemon=True).start()
 
-    def add(self, title, args):
-        job = Job(title, args)
+    def add(self, title, args, about=None):
+        job = Job(title, args, about)
         with self.lock:
             self.jobs[job.id] = job
             self.queue.append(job)
@@ -676,7 +679,9 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
                 except (KeyError, ValueError, TypeError) as e:
                     return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request_2", detail=e)
-                return self.json(runner.add(title, args).summary())
+                about = {"action": body.get("action"), "paths": [str(p) for p in body.get("paths", [])],
+                         "part": body.get("part")}
+                return self.json(runner.add(title, args, about).summary())
             if url.path == "/api/shutdown":
                 # "apagar" on the page, or song-wizard ui --stop. Not from this request's thread:
                 # shutdown() waits for serve_forever, which waits for this request.

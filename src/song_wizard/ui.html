@@ -193,6 +193,14 @@
   .transport .ctl { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; padding-left: 12px; border-left: 1px solid var(--line); }
   .transport .ctl input[type=range] { width: 110px; }
   /* The monitor: the microphone into the in-ears, with its level, volume and limiter. */
+  .pr-jobs { padding: 6px 16px 8px; border-bottom: 1px solid var(--line); background: var(--soft); max-height: 32vh; overflow: auto; }
+  .pr-jobs-head { display: flex; gap: 12px; align-items: center; }
+  .pr-jobs-head label { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; }
+  #practice-jobs.busy { color: var(--accent); border-color: var(--accent); }
+  /* On the row being detected, in place of its "detect" button. */
+  .row-job { display: inline-flex; gap: 6px; align-items: center; font-size: 11px; color: var(--muted); --t: 0; }
+  .row-job .bar { width: 56px; margin-top: 0; height: 5px; }
+  .row-job .bar.unknown > div { animation-delay: calc(var(--t) * -1ms); }
   .mon { padding: 6px 16px 8px; border-bottom: 1px solid var(--line); background: var(--soft); }
   .mon-row { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
   .mon-row label { display: inline-flex; gap: 4px; align-items: center; }
@@ -548,6 +556,7 @@
       <h3 id="practice-title" data-text="keys.practice"></h3>
       <label id="practice-set-row" hidden><span data-text="practice.tracks"></span> <select id="practice-set"></select></label>
       <span class="pr-spacer"></span>
+      <button class="small" id="practice-jobs" hidden data-text-title="practice.jobs_title"></button>
       <button class="small" id="practice-monitor" data-text-title="monitor.hear_room_through_mic" data-text="monitor.monitor"></button>
       <button class="small" id="practice-chords-toggle" data-text-title="keys.show_hide_chords"></button>
       <button class="small" id="practice-lyrics-toggle" data-text-title="keys.show_hide_lyrics" data-text="practice.lyrics"></button>
@@ -570,6 +579,11 @@
         <button class="small" id="practice-clear" data-text="practice.clear"></button></span>
       <span class="ctl" data-text-title="practice.volume_everything_together"><span data-text="practice.master"></span> <input type="range" id="practice-master" min="0" max="100" step="1" data-text-aria-label="practice.master_volume"> <span class="pct" id="practice-master-value"></span></span>
     </div>
+  </div>
+  <div class="pr-jobs" id="pr-jobs-panel" hidden>
+    <div class="pr-jobs-head"><b data-text="actions.jobs"></b>
+      <label><input type="checkbox" id="pr-jobs-all"> <span data-text="practice.jobs_all"></span></label></div>
+    <div id="pr-jobs"></div>
   </div>
   <div class="mon" id="mon-panel" hidden>
     <div class="mon-row">
@@ -1389,10 +1403,20 @@ async function confirmForget(numbers, title) {
 }
 
 function renderJobs(jobs) {
-  const box = $("jobs");
+  jobList($("jobs"), jobs, say("jobs.you_havent_run_anything_yet"));
+  renderPracticeJobs();
+}
+
+const JOB_ACTIVE = ["queued", "running"];
+function jobNames() {
+  return { queued: say("jobs.waiting"), running: say("jobs.running"), done: say("jobs.done"), failed: say("jobs.failed"), cancelled: say("jobs.cancelled") };
+}
+
+// The list of jobs, in the library's box or in Practicar's (only the open song's ones there).
+function jobList(box, jobs, empty) {
   box.replaceChildren();
-  if (!jobs.length) { box.append(el("p", { class: "empty" }, say("jobs.you_havent_run_anything_yet"))); return; }
-  const names = { queued: say("jobs.waiting"), running: say("jobs.running"), done: say("jobs.done"), failed: say("jobs.failed"), cancelled: say("jobs.cancelled") };
+  if (!jobs.length) { box.append(el("p", { class: "empty" }, empty)); return; }
+  const names = jobNames();
   for (const job of [...jobs].reverse()) {
     const open = state.openJob === job.id;
     const div = el("div", { class: "job", style: `--t:${Date.now() % 1e6}` },
@@ -1402,7 +1426,7 @@ function renderJobs(jobs) {
         job.started ? el("span", { class: "elapsed" }, clock((job.ended || job.now) - job.started)) : null,
         ["queued", "running"].includes(job.status) ? el("button", { class: "small", onclick: () => api(`/api/jobs/${job.id}/cancel`, {}).catch((e) => toast(e.message)) }, say("library.cancel")) : null,
         job.status === "failed" ? el("button", { class: "small", title: say("jobs.put_together_report_ask_help"), onclick: openReport }, say("jobs.report")) : null,
-        el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(jobs); } }, open ? "ocultar" : "detalle")));
+        el("button", { class: "small", onclick: () => { state.openJob = open ? null : job.id; renderJobs(state.jobs || []); poll(); } }, open ? say("jobs.hide_detail") : say("jobs.detail"))));
     if (job.status === "running") {
       const known = job.percent !== null && job.percent !== undefined;
       div.append(el("div", { class: "bar" + (known ? "" : " unknown") },
@@ -1418,6 +1442,68 @@ function renderJobs(jobs) {
     box.append(div);
   }
 }
+
+// A job is the song's when the page sent it for the song or one of its files.
+function jobIsFor(job, song) {
+  const mine = new Set([song.path, ...(song.files || []).map((f) => f.path)]);
+  return (job.paths || []).some((p) => mine.has(p));
+}
+
+function practiceJobs() {
+  return practice.song ? (state.jobs || []).filter((j) => jobIsFor(j, practice.song)) : [];
+}
+
+// Practicar: a button with the count of what is running for this song, a panel with the list,
+// and the progress on the row being detected.
+function renderPracticeJobs() {
+  const button = $("practice-jobs");
+  if (!$("practice").open || !practice.song) return;
+  const all = state.jobs || [], mine = practiceJobs(), busy = mine.filter((j) => JOB_ACTIVE.includes(j.status)).length;
+  button.hidden = !all.length;
+  button.textContent = busy ? say("practice.jobs_busy", { n: busy }) : say("practice.jobs");
+  button.classList.toggle("busy", !!busy);
+  button.setAttribute("aria-expanded", String(!$("pr-jobs-panel").hidden));
+  if (!$("pr-jobs-panel").hidden) {
+    const everything = $("pr-jobs-all").checked;
+    jobList($("pr-jobs"), everything ? all : mine, everything ? say("jobs.you_havent_run_anything_yet") : say("practice.jobs_none_for_song"));
+  }
+  practiceRowJobs();
+}
+
+function rowJob(box, job) {
+  box.hidden = !job;
+  if (!job) { box.replaceChildren(); return; }
+  const known = job.status === "running" && job.percent !== null && job.percent !== undefined;
+  box.style.setProperty("--t", Date.now() % 1e6);
+  box.title = job.title;
+  box.replaceChildren(...[el("span", { class: `status ${job.status}` }, jobNames()[job.status]),
+    job.status === "running" ? el("span", { class: "bar" + (known ? "" : " unknown") }, el("div", { style: known ? `width:${job.percent}%` : null })) : null,
+    known ? el("span", {}, `${Math.round(job.percent)} %`) : null].filter(Boolean));
+}
+
+function practiceRowJobs() {
+  const active = practiceJobs().filter((j) => JOB_ACTIVE.includes(j.status));
+  // The one running goes before the ones waiting.
+  const find = (test) => active.find((j) => j.status === "running" && test(j)) || active.find(test);
+  if ($("chords-job")) {
+    const job = find((j) => j.action === "chords");
+    rowJob($("chords-job"), job);
+    $("chords-detect").hidden = !!job;
+  }
+  for (const ui of practice.lanes || []) {
+    const part = partOf(ui.track);
+    if (!part || !ui.jobBox) continue;
+    const job = find((j) => j.action === "notes" && (!j.part || j.part === part));
+    rowJob(ui.jobBox, job);
+    if (job) ui.detectButton.hidden = true;
+  }
+}
+
+$("practice-jobs").onclick = () => {
+  $("pr-jobs-panel").hidden = !$("pr-jobs-panel").hidden;
+  renderPracticeJobs();
+};
+$("pr-jobs-all").onchange = renderPracticeJobs;
 
 function clock(seconds) {
   const s = Math.max(0, Math.round(seconds));
@@ -2004,6 +2090,7 @@ function openPractice(song) {
   loadPracticeChords(song);
   loadPracticeNotes(song);
   $("practice").showModal();
+  renderPracticeJobs();
   // The browser would put the focus on the first control (the track sets), which keeps the
   // arrows to itself: the shortcuts start on the player.
   $("practice").focus();
@@ -2677,7 +2764,7 @@ function chordsBuild() {
     onclick: () => { try { localStorage.setItem(CHORDS_SIMPLE_KEY, chordsSimple() ? "" : "1"); } catch {} renderChords(); } },
     say("practice.simplify"));
   const ctl = el("div", { class: "lane-ctl chord-ctl" }, el("span", { class: "name" }, say("practice.chords")),
-    el("span", { class: "ms" }, detect, simple));
+    el("span", { class: "ms" }, detect, el("span", { class: "row-job", id: "chords-job", hidden: true }), simple));
   const lane = el("div", { class: "lane chord-lane", id: "chord-lane" });
   lane.addEventListener("pointerdown", (e) => {
     if (e.target !== lane || !practice.duration) return;
@@ -2705,6 +2792,7 @@ function detectChords() {
 function renderChords() {
   const lane = $("chord-lane");
   if (!lane) return;
+  practiceRowJobs();
   const data = chordsState.data, d = practice.duration;
   $("chords-detect").textContent = data ? say("practice.detect_chords_again") : say("practice.detect_chords");
   $("chords-simple").classList.toggle("on", chordsSimple());
@@ -2907,11 +2995,12 @@ function renderNotes() {
       const label = ui.ctl.querySelector(".name");
       const box = el("span", { class: "name-box" });
       label.replaceWith(box);
-      box.append(label, ui.detectButton, ui.showButton, ui.listenButton);
+      ui.jobBox = el("span", { class: "row-job", hidden: true });
+      box.append(label, ui.detectButton, ui.jobBox, ui.showButton, ui.listenButton);
     }
     const notes = notesState.data && notesState.data[part] ? notesState.data[part].notes : null;
     const hidden = !!notesHidden()[part];
-    ui.detectButton.hidden = !!notes;
+    ui.detectButton.hidden = !!notes || !ui.jobBox.hidden;
     ui.showButton.hidden = !notes;
     ui.showButton.textContent = hidden ? say("practice.notes_toggle_2") : say("practice.notes_toggle");
     ui.listenButton.hidden = !notes || !notes.length;

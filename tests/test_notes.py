@@ -101,7 +101,11 @@ def test_interface(server, monkeypatch):  # noqa: F811
     assert get_json(port, f"/api/notes?path={q}")["notes"]["vocals"]["notes"][0]["midi"] == 64
     assert get_json(port, "/api/library")["folders"][0]["songs"][0]["notes"]
     assert request(port, "POST", "/api/notes", {"path": path, "notes": {"drums": {"notes": []}}})[0].status == 400
-    assert request(port, "POST", "/api/jobs", {"action": "notes", "part": "vocals", "paths": [path]})[0].status == 200
+    response, content = request(port, "POST", "/api/jobs", {"action": "notes", "part": "vocals", "paths": [path]})
+    assert response.status == 200
+    # Practicar finds the jobs of its song, and the row they are detecting, by these.
+    job = json.loads(content)
+    assert (job["action"], job["paths"], job["part"]) == ("notes", [path], "vocals")
     for _ in range(50):
         if ran:
             break
