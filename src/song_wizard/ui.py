@@ -332,6 +332,7 @@ def library(root):
                           "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
                           "lyrics": (folder / f"{base}.lyrics.json").is_file(),
                           "chords": chords_stamp(folder / f"{base}.chords.json"),
+                          "notes": chords_stamp(folder / f"{base}.notes.json"),
                           "reaper": f"{base}.rpp".lower() in entries,
                           "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
         # The song's data (title, artist, album...), for the library and its filter.
@@ -533,6 +534,15 @@ def make_handler(token, root, runner, port):
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 return self.json({"duration": duration(path)})
+            if url.path == "/api/notes":
+                from . import notes
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
+                return self.json({"notes": notes.load(path)})
             if url.path == "/api/chords":
                 from . import chords
                 try:
@@ -703,6 +713,20 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 results.save("click", [(str(path), align.describe(bpm, meter, first))])
                 return self.json(align.parse(align.describe(bpm, meter, first)))
+            if url.path == "/api/notes":
+                from . import notes
+                try:
+                    path = self.resolve(str(body["path"]))
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
+                except (KeyError, TypeError):
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
+                try:
+                    return self.json(notes.save(path, body.get("notes")))
+                except (KeyError, ValueError, TypeError):
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_notes")
             if url.path == "/api/chords":
                 from . import chords
                 try:
@@ -843,7 +867,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "notes", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
                 raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -907,6 +931,11 @@ def make_handler(token, root, runner, port):
                 return self.say("server.tempo_first_beat", label=label), ["align", *paths]
             if action == "chords":
                 return self.say("server.chords", label=label), ["chords", *force, *paths]
+            if action == "notes":
+                part = body.get("part")
+                if part not in (None, "bass", "vocals"):
+                    raise Said("server.invalid_request")
+                return self.say("server.notes", label=label), ["notes", *force, *(["--part", part] if part else []), *paths]
             if action == "rename":
                 if len(paths) != 1:
                     raise Said("server.songs_are_renamed_one_at")

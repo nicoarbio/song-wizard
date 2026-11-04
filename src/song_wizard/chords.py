@@ -10,17 +10,13 @@ The model's weights (12 MB) are downloaded once from a fixed address and used on
 SHA-256 matches; they're opened as numbers only (torch's weights_only), allowing just the two
 numpy types they hold (the normalization's mean and standard deviation)."""
 
-import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
-import sys
-import urllib.request
 from pathlib import Path
 
-from . import __version__, align, results
+from . import __version__, align, results, weights
 from .audio import expand
 from .audio import load as load_audio
 from .paths import MODELS_DIR
@@ -95,33 +91,7 @@ def save(song, data):
 
 def model_path():
     """The model's weights, downloaded and checked the first time. Exits if they don't match."""
-    path = MODELS_DIR / MODEL_FILE
-    if path.is_file() and sha256(path) == MODEL_SHA256:
-        return path
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".part")
-    print("Downloading the chord model (12 MB, once)...", flush=True)
-    try:
-        request = urllib.request.Request(MODEL_URL, headers={"User-Agent": f"song-wizard/{__version__}"})
-        with urllib.request.urlopen(request, timeout=60) as response, open(tmp, "wb") as f:
-            shutil.copyfileobj(response, f)
-    except OSError as e:
-        tmp.unlink(missing_ok=True)
-        sys.exit(f"Couldn't download the chord model ({getattr(e, 'reason', e)}). Try again in a while.")
-    if sha256(tmp) != MODEL_SHA256:
-        tmp.unlink(missing_ok=True)
-        sys.exit("The chord model downloaded isn't the expected one (its SHA-256 doesn't match), so it "
-                 "wasn't used. Try again later; if it keeps happening, report it (song-wizard report).")
-    os.replace(tmp, path)
-    return path
-
-
-def sha256(path):
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            h.update(block)
-    return h.hexdigest()
+    return weights.fetch(MODEL_URL, MODEL_SHA256, MODEL_FILE, "chord model", "12 MB", MODELS_DIR)
 
 
 _model = None

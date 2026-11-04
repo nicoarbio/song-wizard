@@ -112,6 +112,17 @@ def build_parser():
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
     p.add_argument("--force", action="store_true", help="detect again also the chords corrected by hand")
 
+    p = sub.add_parser("notes", help="detect the notes the bass and the voice play, from their stems",
+                       description="Follows the notes of the separated bass (pYIN) and voice (CREPE) and saves "
+                                   "them next to the song as \"<song>.notes.json\", which the practice player of "
+                                   "\"song-wizard ui\" shows, plays and lets you correct. It needs the stems: "
+                                   "song-wizard separate --stem bass / --stem vocals. One line at a time: where "
+                                   "several voices sing at once, it follows one. Notes corrected by hand are kept "
+                                   "unless --force. The first time, it downloads the voice model (89 MB).")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--part", choices=["bass", "vocals"], help="only this one (both by default)")
+    p.add_argument("--force", action="store_true", help="detect again also the notes corrected by hand")
+
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
                                    "(32-bit float) next to the original.")
@@ -446,6 +457,9 @@ def dispatch(argv):
         from . import click
         click.run(args.bpm, meter=args.meter, duration=args.duration, bars=args.bars, like=args.like,
                   subdivide=args.subdivide, output=args.output, song=args.song)
+    elif args.command == "notes":
+        from . import notes
+        notes.run(args.paths, part=args.part, force=args.force)
     elif args.command == "chords":
         from . import chords
         chords.run(args.paths, force=args.force)

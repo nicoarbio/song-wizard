@@ -13,7 +13,7 @@ import pytest
 import synth
 from test_ui import get_json, request, server  # noqa: F401  (the fixture)
 
-from song_wizard import align, chords, rename, results, trim, ui
+from song_wizard import align, chords, rename, results, trim, ui, weights
 
 CLICK = {"bpm": 120.0, "meter": "4/4", "first": 0.5}  # a beat every 0.5 s
 
@@ -110,17 +110,17 @@ class Response(io.BytesIO):
 
 def test_model_only_if_its_hash_matches(tmp_path, monkeypatch):
     monkeypatch.setattr(chords, "MODELS_DIR", tmp_path)
-    monkeypatch.setattr(chords.urllib.request, "urlopen", lambda *a, **k: Response(b"something else"))
+    monkeypatch.setattr(weights.urllib.request, "urlopen", lambda *a, **k: Response(b"something else"))
     with pytest.raises(SystemExit, match="SHA-256"):
         chords.model_path()
     assert not any(tmp_path.iterdir())  # nothing kept
     good = b"the real weights"
     monkeypatch.setattr(chords, "MODEL_SHA256", hashlib.sha256(good).hexdigest())
-    monkeypatch.setattr(chords.urllib.request, "urlopen", lambda *a, **k: Response(good))
+    monkeypatch.setattr(weights.urllib.request, "urlopen", lambda *a, **k: Response(good))
     path = chords.model_path()
     assert path.read_bytes() == good
     # Already there and right: not downloaded again.
-    monkeypatch.setattr(chords.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded again"))
+    monkeypatch.setattr(weights.urllib.request, "urlopen", lambda *a, **k: pytest.fail("downloaded again"))
     assert chords.model_path() == path
 
 

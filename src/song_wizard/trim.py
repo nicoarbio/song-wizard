@@ -186,6 +186,24 @@ def shift_chords(song, start, pad_start, length):
     return True
 
 
+def shift_notes(song, start, pad_start, length):
+    """The notes' times, moved by the cut, as the chords'."""
+    from . import notes
+    data = notes.load(song)
+    if not data:
+        return False
+    delta = pad_start - start
+    for part in data.values():
+        moved = []
+        for n in part.get("notes") or []:
+            a, b = max(0.0, n["from"] + delta), min(length, n["to"] + delta)
+            if b - a > 0.02:
+                moved.append({**n, "from": round(a, 3), "to": round(b, 3)})
+        part["notes"] = moved
+    notes.save(song, data)
+    return True
+
+
 def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     require_ffmpeg()
     song = system.local_path(str(song))
@@ -259,6 +277,8 @@ def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     from .ui import duration
     if shift_chords(os.path.join(folder, files[0][0]), start, pad_start, duration(Path(folder) / files[0][0]) or 36000):
         print("  moved the chords' times")
+    if shift_notes(os.path.join(folder, files[0][0]), start, pad_start, duration(Path(folder) / files[0][0]) or 36000):
+        print("  moved the notes' times")
     if reaper.existing(os.path.join(folder, files[0][0])):
         print("  the REAPER project is out of step now: remake it (song-wizard reaper --redo, or "
               "más › Rehacer proyecto de Reaper)")

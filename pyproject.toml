@@ -1,6 +1,6 @@
 [project]
 name = "song-wizard"
-version = "0.31.0"
+version = "0.32.0"
 description = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -11,6 +11,8 @@ dependencies = [
     "essentia>=2.1b6.dev1177",
     "audio-separator[cpu]",
     "numpy",
+    # Chords (BTC's features) and the bass's notes (pYIN); audio-separator brings it too.
+    "librosa",
     "soundfile",
     "platformdirs",
     # audio-separator imports it but no longer gets it through librosa.

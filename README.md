@@ -127,7 +127,7 @@ It's worth doing often: sites change a lot, and downloads can stop working until
 |---|---|---|
 | song-wizard and its libraries | `~/.local/share/uv/tools/song-wizard` | ~6 GB on Linux/WSL (it includes NVIDIA's libraries to use the graphics card); much less on a Mac |
 | Separation models | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB if you use all four instruments (piano comes from the same model as the guitar), and 0.4 GB more for the drum kit; each is downloaded the first time it's used |
-| Chord model | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB, downloaded the first time chords are detected |
+| Chord and voice models | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB (chords) and 89 MB (the voice's notes), each downloaded the first time it's used |
 | Record of songs already downloaded | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | a few KB |
 | Log (which commands ran and the errors, to solve problems) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB at most: the oldest is deleted on its own |
 | Reports from `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | a few KB each; they can be deleted |
@@ -213,6 +213,8 @@ The tracks are streamed from the music folder as they play, without loading them
 - "hide chords" (or `A`) hides the row and the "now → next", for whoever doesn't need them (the drummer, say); the browser remembers it.
 - Zoom in with the wheel to read them: with the whole song in view, chords too short to fit show their name only when you hover over them.
 
+**The notes.** On the bass's and the voice's rows (with those instruments separated), their notes, at the height of their pitch, so the line's shape shows too, with their names when they fit (zoom in to read them; the octave shows on hover). "detect notes" on the row finds them (see [Notes](#notes)). "♪" plays them with a soft tone, following the speed and the pitch: to learn the melody or the bass line, slowed down if needed. To correct one, click it and type the note (E, Eb, F#2: without the number it keeps its octave), or delete it; what you correct is kept when detecting again. "hide notes" (or `N`) hides them. They follow the pitch like the chords.
+
 **The monitor.** "🎤 monitor" opens a bar to hear a microphone (the room, the band) in your headphones, mixed with the tracks: to practice with in-ears on without taking one out. "turn on" asks the browser for the mic (the first time it asks for permission) and turns it on; it starts off and low every time. It has:
 
 - **Input**: which mic. The browser remembers it; if it isn't plugged in, it uses the default one.
@@ -265,6 +267,7 @@ Everything the interface does can also be done from the terminal; it's almost al
 | "more › Create REAPER project", "Open in REAPER", "Redo" | `song-wizard reaper SONG` (`--redo`, `--no-open`) |
 | REAPER box: the takes preference, putting it back | `song-wizard reaper --setting show` (`restore`, `apply`) |
 | Chords: "more › Detect the chords", "Chords" in Analyze (the picked songs), "detect" in Practice | `song-wizard chords SONG` (`--force`); correcting them is done in the browser |
+| Notes in Practice: "detect notes" | `song-wizard notes SONG` (`--part`, `--force`); correcting them is done in the browser |
 | Practice | It's a player, so it lives in the browser: `song-wizard ui --practice SONG` opens it straight on that song |
 
 ### Downloading songs
@@ -407,6 +410,18 @@ Detects the song's chords and saves them next to it as `<song>.chords.json`, whi
 It's a guide to correct by ear, not a transcription: on rock and pop songs, in our tests, it got the chord's root right about 95 % of the time (checked against what the bass plays), and major or minor almost always. It names richer chords too (7, maj7, m7, sus...) when it hears them; "simplify" in the player hides them.
 
 The detection is [BTC](https://github.com/jayg996/BTC-ISMIR19) (a model trained to recognize chords, from a 2019 research paper). Its code is copied into song-wizard (`third_party/btc`, with its MIT license), not installed as a library that updates on its own. Its model (12 MB) is downloaded the first time from a fixed address and used only if its fingerprint (SHA-256) matches, and it's opened as numbers only, so a tampered file can't run anything.
+
+### Notes
+
+```bash
+song-wizard notes "song.opus"                 # the bass's and the voice's
+song-wizard notes --part vocals "song.opus"   # only one
+song-wizard notes --force "song.opus"         # detect again also what was corrected by hand
+```
+
+Follows the notes of the separated bass and voice (separate them first with `song-wizard separate --stem bass` / `--stem vocals`) and saves them next to the song as `<song>.notes.json`, which the practice player shows, plays and lets you correct (see [Practice](#practice)). Renaming, trimming and deleting the song take them along.
+
+The bass's come out solid. The voice's do well with a clear, upfront voice; a rough voice or backing vocals singing over it throw it off: it follows one line at a time. The bass is followed with pYIN (in librosa), and the voice with [CREPE](https://github.com/maxrmorrison/torchcrepe), a model made for following a voice's pitch, copied into song-wizard (`third_party/crepe`, with its MIT license) like the chords' model; its model (89 MB) is downloaded the first time from a fixed address, used only if its SHA-256 matches and opened as numbers only.
 
 ### Changing the key
 
@@ -680,6 +695,8 @@ song-wizard is a thin layer over the work of other free projects:
 - MDX23C DrumSep, by aufr33 and jarredou (with the MDX23C architecture, by ZFTurbo): the drum kit.
 - [Essentia](https://essentia.upf.edu), by the Music Technology Group of Universitat Pompeu Fabra: key, tempo and beats.
 - [BTC](https://github.com/jayg996/BTC-ISMIR19), by Jonggwon Park, Kyoyun Choi, Sungwook Jeon, Dokyun Kim and Jonghun Park (ISMIR 2019): chords. Its code is in `src/song_wizard/third_party/btc`, under its MIT license.
+- [CREPE](https://github.com/marl/crepe), by Jong Wook Kim, Justin Salamon, Peter Li and Juan Pablo Bello (ICASSP 2018), in its PyTorch version [torchcrepe](https://github.com/maxrmorrison/torchcrepe), by Max Morrison: the voice's notes. Its code is in `src/song_wizard/third_party/crepe`, under its MIT license.
+- [librosa](https://librosa.org): the audio features of the chords, and pYIN for the bass's notes.
 - [LRCLIB](https://lrclib.net): an open, community lyrics database.
 - [Rubber Band](https://breakfastquay.com/rubberband/), by Breakfast Quay: pitch and speed changes.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): downloads.
@@ -706,6 +723,7 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
 - `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).
 - `chords`: BTC's names written as on a chord sheet (Am7, C#m7b5, N.C.), the changes moved onto the click's beats (flickers under half a beat dropped), what was corrected by hand kept when detecting again, any name saved with its quotes escaped (and shapes that don't fit refused), the chords following a rename and a trim, the page reading and saving them, and the model used only if its SHA-256 matches (and not downloaded again). Detecting with the real model needs to download it (12 MB): `uv run pytest -m network` checks that a synthetic I-IV-V-I in G gives G, C and D.
+- `notes`: a synthetic bass line followed with pYIN gives its exact notes on time (±50 ms), with the same note across a tiny gap joined; notes corrected by hand kept when detecting again (and not with `--force`); a song without stems says so; shapes that don't fit refused; the notes following a trim and a rename; the page reading and saving them and asking for one part. With the voice model (`-m network`): a synthetic sung melody with vibrato gives its notes within 40 ms.
 - `trim`: the same cut in the song and its stems, sample-exact (a pulse at 3 s stays where it should), the `.opus` encoded again lined up with the stems (under half a millisecond), versions at another speed in proportion, the silence added, REAPER takes untouched, 32-bit float WAVs that stay float, the download's link kept, the click and lyrics moving along, and that if one file fails nothing changes.
 - `reaper`: which tracks go in (every stem, an instrument with the rest or the song alone, and the rest muted), the first beat on a bar line with tempos with decimals, names with quotes, that an existing project isn't overwritten (and `--redo`), the takes preference (with REAPER open it isn't touched; restoring puts back only that line, without touching what changed afterwards, and song-wizard doesn't change it again), Windows line endings intact, and that the project, the file names inside it and the takes follow the song when renaming and deleting it. REAPER isn't opened or touched in the tests.
 - `tag`: data read and written in `.opus`, `.wav` and `.mp3` (also with line breaks and your own field names), in the song and its stems and versions but not in the takes, the audio intact, a WAV that stays a WAV (and one damaged by 0.22.0–0.22.3 mended), renaming when the artist or title changes (with the characters Windows doesn't allow), `--only`, the download's link that isn't removed, what's made later carrying the song's data and song-wizard's mark, the name of what's downloaded, the filter by words without accents, the settings file created by any command, and the interface's window.

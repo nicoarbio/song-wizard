@@ -127,7 +127,7 @@ Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dej
 |---|---|---|
 | song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
 | Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB si usás los cuatro instrumentos (el piano sale del mismo modelo que la guitarra), y 0.4 GB más para la batería en partes; se bajan la primera vez que se usa cada uno |
-| Modelo de acordes | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB, se baja la primera vez que se detectan acordes |
+| Modelos de acordes y de voz | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB (acordes) y 89 MB (las notas de la voz), cada uno se baja la primera vez que se usa |
 | Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
 | Log (qué comandos corrieron y los errores, para resolver problemas) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB como máximo: lo más viejo se borra solo |
 | Reportes de `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | unos pocos KB cada uno; se pueden borrar |
@@ -213,6 +213,8 @@ Las pistas se escuchan desde la carpeta de música a medida que suenan, sin carg
 - "ocultar acordes" (o `A`) oculta la fila y el "ahora → sigue", para el que no los necesita (el baterista, por ejemplo); el navegador lo recuerda.
 - Acercá con la rueda para leerlos: con el tema entero a la vista, los acordes muy cortos muestran su nombre solo al pasar el mouse.
 
+**Las notas.** En las filas del bajo y de la voz (con esos instrumentos separados), sus notas, a la altura de su tono, así también se ve el dibujo de la línea, con sus nombres cuando entran (acercá para leerlos; la octava aparece al pasar el mouse). "detectar notas" en la fila las encuentra (ver [Notas](#notas)). "♪" las hace sonar con un tono suave, siguiendo la velocidad y el tono: para aprender la melodía o la línea de bajo, más lento si hace falta. Para corregir una, tocala y escribí la nota (E, Eb, F#2: sin el número mantiene su octava), o borrala; lo corregido se mantiene al volver a detectar. "ocultar notas" (o `N`) las oculta. Siguen al tono como los acordes.
+
 **El monitor.** "🎤 monitor" abre una barra para escuchar un micrófono (la sala, la banda) en los auriculares, mezclado con las pistas: para ensayar con in-ears puestos sin sacarte uno. "prender" le pide el micrófono al navegador (la primera vez pide permiso) y lo prende; arranca apagado y bajo cada vez. Tiene:
 
 - **Entrada**: qué micrófono. El navegador lo recuerda; si no está enchufado, usa el predeterminado.
@@ -265,6 +267,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
 | Apartado Reaper: la preferencia de las tomas, restaurarla | `song-wizard reaper --setting show` (`restore`, `apply`) |
 | Acordes: "más › Detectar los acordes", "Acordes" en Analizar (los temas elegidos), "detectar" en Practicar | `song-wizard chords TEMA` (`--force`); corregirlos se hace en el navegador |
+| Notas en Practicar: "detectar notas" | `song-wizard notes TEMA` (`--part`, `--force`); corregirlas se hace en el navegador |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
@@ -407,6 +410,18 @@ Detecta los acordes del tema y los guarda al lado, como `<tema>.chords.json`, qu
 Es una guía para corregir de oído, no una transcripción: en temas de rock y pop, en nuestras pruebas, acertó la nota base del acorde cerca del 95 % de las veces (comparando con lo que toca el bajo), y mayor o menor casi siempre. También nombra acordes más ricos (7, maj7, m7, sus...) cuando los escucha; "simplificar" en el reproductor los oculta.
 
 La detección es [BTC](https://github.com/jayg996/BTC-ISMIR19) (un modelo entrenado para reconocer acordes, de un trabajo de investigación de 2019). Su código está copiado dentro de song-wizard (`third_party/btc`, con su licencia MIT), no instalado como una librería que se actualiza sola. Su modelo (12 MB) se baja la primera vez de una dirección fija y se usa solo si su huella digital (SHA-256) coincide, y se abre solo como números, así que un archivo alterado no puede ejecutar nada.
+
+### Notas
+
+```bash
+song-wizard notes "tema.opus"                 # las del bajo y las de la voz
+song-wizard notes --part vocals "tema.opus"   # solo una
+song-wizard notes --force "tema.opus"         # volver a detectar también lo corregido a mano
+```
+
+Sigue las notas del bajo y de la voz separados (separalos antes con `song-wizard separate --stem bass` / `--stem vocals`) y las guarda al lado del tema, como `<tema>.notes.json`, que el reproductor de práctica muestra, hace sonar y deja corregir (ver [Practicar](#practicar)). Renombrar, recortar y borrar el tema las llevan con él.
+
+Las del bajo salen sólidas. Las de la voz andan bien con una voz clara y al frente; una voz rasposa o coros cantando encima la confunden: sigue una sola línea a la vez. El bajo se sigue con pYIN (de librosa), y la voz con [CREPE](https://github.com/maxrmorrison/torchcrepe), un modelo hecho para seguir la altura de una voz, copiado dentro de song-wizard (`third_party/crepe`, con su licencia MIT) como el modelo de acordes; su modelo (89 MB) se baja la primera vez de una dirección fija, se usa solo si su SHA-256 coincide y se abre solo como números.
 
 ### Cambiar el tono
 
@@ -680,6 +695,8 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 - MDX23C DrumSep, de aufr33 y jarredou (con la arquitectura MDX23C, de ZFTurbo): la batería en partes.
 - [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
 - [BTC](https://github.com/jayg996/BTC-ISMIR19), de Jonggwon Park, Kyoyun Choi, Sungwook Jeon, Dokyun Kim y Jonghun Park (ISMIR 2019): los acordes. Su código está en `src/song_wizard/third_party/btc`, con su licencia MIT.
+- [CREPE](https://github.com/marl/crepe), de Jong Wook Kim, Justin Salamon, Peter Li y Juan Pablo Bello (ICASSP 2018), en su versión para PyTorch [torchcrepe](https://github.com/maxrmorrison/torchcrepe), de Max Morrison: las notas de la voz. Su código está en `src/song_wizard/third_party/crepe`, con su licencia MIT.
+- [librosa](https://librosa.org): los datos de audio de los acordes, y pYIN para las notas del bajo.
 - [LRCLIB](https://lrclib.net): base de letras abierta y comunitaria.
 - [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
@@ -706,6 +723,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
 - `chords`: los nombres de BTC escritos como en una hoja de acordes (Am7, C#m7b5, N.C.), los cambios ubicados sobre los tiempos del click (los parpadeos de menos de medio tiempo se descartan), lo corregido a mano se mantiene al volver a detectar, cualquier nombre se guarda con sus comillas escapadas (y lo que no tiene la forma esperada se rechaza), los acordes siguen al renombrar y al recortar, la página los lee y los guarda, y el modelo se usa solo si su SHA-256 coincide (y no se vuelve a bajar). Detectar con el modelo real necesita bajarlo (12 MB): `uv run pytest -m network` comprueba que un I-IV-V-I sintético en G da G, C y D.
+- `notes`: una línea de bajo sintética seguida con pYIN da sus notas exactas a tiempo (±50 ms), y la misma nota cortada por un hueco mínimo queda unida; lo corregido a mano se mantiene al volver a detectar (y no con `--force`); un tema sin stems lo avisa; lo que no tiene la forma esperada se rechaza; las notas siguen al recortar y al renombrar; la página las lee, las guarda y pide una sola parte. Con el modelo de voz (`-m network`): una melodía cantada sintética con vibrato da sus notas a menos de 40 ms.
 - `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.
 - `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
 - `tag`: los datos leídos y escritos en `.opus`, `.wav` y `.mp3` (también con saltos de línea y nombres propios), en el tema y sus stems y versiones pero no en las tomas, el audio intacto, el renombrado al cambiar artista o título (con los caracteres que Windows no acepta), `--only`, el link de la descarga que no se borra, el nombre de lo que se baja, el filtro por palabras sin tildes, el archivo de configuración creado por cualquier comando, y la ventana de la interfaz.
