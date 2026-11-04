@@ -147,19 +147,46 @@ def musicxml(title, data, fold=True):
             f'<part id="P1">{"".join(measures)}</part></score-partwise>')
 
 
-def render(xml):
-    """The sheet's pages, as SVG."""
+def toolkit(height):
     import os
 
     import verovio
     # Its fonts, by path: what it finds on its own is only set up in the main thread, and the
     # interface answers in others.
-    toolkit = verovio.toolkit(False)
-    toolkit.setResourcePath(os.path.join(os.path.dirname(verovio.__file__), "data"))
-    toolkit.setOptions(PAGE)
-    if not toolkit.loadData(xml):
+    tk = verovio.toolkit(False)
+    tk.setResourcePath(os.path.join(os.path.dirname(verovio.__file__), "data"))
+    tk.setOptions({**PAGE, "pageHeight": height})
+    return tk
+
+
+def heading_mm(title, artist):
+    """About how much of the first page the heading takes (title lines, the artist, the
+    legend), in mm; a little more rather than less, so the music never has to shrink."""
+    lines = max(1, -(-len(title) // 38))
+    return 18 + 9.5 * lines + (7 if artist else 0)
+
+
+def render(xml, first_height=None):
+    """The sheet's pages, as SVG. The first one is shorter (first_height, in Verovio's units) to
+    leave room for the heading, and the rest start where it ends: every page at the same size."""
+    whole = toolkit(PAGE["pageHeight"])
+    if not whole.loadData(xml):
         raise ValueError("verovio couldn't read the sheet")
-    return [scalable(toolkit.renderToSVG(page)) for page in range(1, toolkit.getPageCount() + 1)]
+    if not first_height or first_height >= PAGE["pageHeight"]:
+        return [scalable(whole.renderToSVG(n)) for n in range(1, whole.getPageCount() + 1)]
+    mei = whole.getMEI()
+    first = toolkit(first_height)
+    first.loadData(mei)
+    pages = [first.renderToSVG(1)]
+    if first.getPageCount() > 1:
+        # The rest from the next bar (bars counted in order, as Verovio's selection does).
+        shown = len(re.findall(r'class="measure"', pages[0]))
+        rest = toolkit(PAGE["pageHeight"])
+        rest.loadData(mei)
+        rest.select({"measureRange": f"{shown + 1}-end"})
+        rest.redoLayout()
+        pages += [rest.renderToSVG(n) for n in range(1, rest.getPageCount() + 1)]
+    return [scalable(p) for p in pages]
 
 
 def scalable(svg):
@@ -178,8 +205,10 @@ def logo():
 
 
 def file_title(title, artist):
-    """The page's title, which the browser offers as the PDF's name."""
-    return f"{artist} - {title} - drum tab by song-wizard" if artist else f"{title} - drum tab by song-wizard"
+    """The page's title, which the browser offers as the PDF's name: without the characters a
+    file name can't have (a "/" in it makes the browser offer something else)."""
+    name = f"{artist} - {title} - drum tab by song-wizard" if artist else f"{title} - drum tab by song-wizard"
+    return re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|]+', "-", name)).strip()
 
 
 STYLE = """
@@ -221,7 +250,9 @@ def page(title, data, lang="es", fold=True, hidden=None, artist=None):
     """The printable drum sheet: A4 pages, the first with the title (and the artist under it)
     centered and the icon. hidden: the form's fixed values ([(name, value)]), to show the
     choices; None for a page saved to a file."""
-    pages = render(musicxml(title, data, fold)) if data.get("hits") else []
+    # The first page's music is shorter by the heading, so all pages keep the same size.
+    first = PAGE["pageHeight"] - int(heading_mm(title, artist) * PAGE["pageWidth"] / 186)
+    pages = render(musicxml(title, data, fold), first) if data.get("hits") else []
     bar = ""
     if hidden is not None:
         from urllib.parse import quote

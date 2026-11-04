@@ -190,6 +190,21 @@ def test_sheet():
     assert 'viewBox="0 0 ' in page and 'preserveAspectRatio="xMidYMin meet"' in page
 
 
+def test_first_page_shorter_same_size():
+    """The first page leaves room for the heading with fewer systems, not smaller ones: the rest
+    start at the next bar, and no bar is lost or repeated."""
+    import re
+    xml = drumsheet.musicxml("Song", {"hits": beat(160), "click": CLICK}, fold=False)
+    whole = drumsheet.render(xml)
+    split = drumsheet.render(xml, first_height=1500)
+    count = lambda pages: [len(re.findall(r'class="measure"', p)) for p in pages]
+    assert sum(count(split)) == sum(count(whole)) == 160
+    assert count(split)[0] < count(whole)[0] and len(split) >= len(whole)
+    size = lambda svg: tuple(map(float, re.match(r'<svg viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).groups()))
+    assert size(split[0])[0] == size(split[1])[0] and size(split[0])[1] < size(split[1])[1]
+    assert drumsheet.file_title("A/B: C?", "X") == "X - A-B- C- - drum tab by song-wizard"
+
+
 def test_goes_along(song):
     drums.save(song, {"hits": [{"t": 0.5, "part": "kick"}, {"t": 3.0, "part": "snare"}], "click": {**CLICK, "first": 0.25}})
     trim.run(str(song), start="1", yes=True)
