@@ -204,6 +204,24 @@ def shift_notes(song, start, pad_start, length):
     return True
 
 
+def shift_drums(song, start, pad_start, length):
+    """The drums' hits, moved by the cut, as the chords' (with their click)."""
+    from . import drums
+    data = drums.load(song)
+    if not data:
+        return False
+    delta = pad_start - start
+    data["hits"] = [{**h, "t": round(h["t"] + delta, 3)} for h in data.get("hits") or [] if 0 <= h["t"] + delta <= length]
+    if data.get("click"):
+        beat = 60 / data["click"]["bpm"]
+        first = data["click"]["first"] + delta
+        while first < 0:
+            first += beat
+        data["click"] = {**data["click"], "first": round(first, 3)}
+    drums.save(song, data)
+    return True
+
+
 def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     require_ffmpeg()
     song = system.local_path(str(song))
@@ -279,6 +297,8 @@ def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
         print("  moved the chords' times")
     if shift_notes(os.path.join(folder, files[0][0]), start, pad_start, duration(Path(folder) / files[0][0]) or 36000):
         print("  moved the notes' times")
+    if shift_drums(os.path.join(folder, files[0][0]), start, pad_start, duration(Path(folder) / files[0][0]) or 36000):
+        print("  moved the drums' hits")
     if reaper.existing(os.path.join(folder, files[0][0])):
         print("  the REAPER project is out of step now: remake it (song-wizard reaper --redo, or "
               "más › Rehacer proyecto de Reaper)")

@@ -245,6 +245,14 @@ class NeedsCommand(Said):
         self.command = command
 
 
+class NeedsConsent(Exception):
+    """A request that needs the user to agree to something first (a model with its own license)."""
+
+    def __init__(self, what):
+        super().__init__(what)
+        self.what = what
+
+
 def folder_from(text):
     """A folder typed or picked in the page (a Windows path works on WSL): its path, or None.
     It must already exist."""
@@ -352,6 +360,7 @@ def library(root):
                           "lyrics": (folder / f"{base}.lyrics.json").is_file(),
                           "chords": chords_stamp(folder / f"{base}.chords.json"),
                           "notes": chords_stamp(folder / f"{base}.notes.json"),
+                          "drums": chords_stamp(folder / f"{base}.drums.json"),
                           "reaper": f"{base}.rpp".lower() in entries,
                           "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
         # The song's data (title, artist, album...), for the library and its filter.
@@ -571,6 +580,29 @@ def make_handler(token, root, runner, port):
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
                 return self.json({"chords": chords.load(path)})
+            if url.path in ("/api/drums", "/drums", "/drums.mid"):
+                # The song's drums: for the practice player, as a printable sheet, or as MIDI.
+                from . import drums, drumsheet, tags
+                try:
+                    path = self.resolve(query.get("path", [""])[0])
+                except PermissionError:
+                    return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
+                if not path.is_file():
+                    return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
+                data = drums.load(path)
+                if url.path == "/api/drums":
+                    return self.json({"drums": data})
+                if not data:
+                    return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_drums_yet")
+                if url.path == "/drums.mid":
+                    name = quote(f"{path.stem}.drums.mid")
+                    return self.send(HTTPStatus.OK, drums.midi(data), "audio/midi",
+                                     [("Content-Disposition", f"attachment; filename*=UTF-8''{name}")])
+                title, artist = tags.title_artist(path)
+                fold = query.get("fold", ["1"])[-1] != "0"
+                hidden = [("path", query["path"][0]), ("lang", self.lang)]
+                return self.send(HTTPStatus.OK, drumsheet.page(f"{title} ({artist})" if artist else title, data, self.lang,
+                                                               fold, hidden).encode(), "text/html; charset=utf-8")
             if url.path in ("/api/lyrics", "/lyrics"):
                 # The lyrics of a song with their marks (for the page), or printable.
                 from . import lyrics, tags
@@ -702,6 +734,11 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.FORBIDDEN, "server.outside_music_folder")
                 except NeedsCommand as e:
                     return self.json({"error": self.say(e.text, **e.values), "command": e.command}, HTTPStatus.BAD_REQUEST)
+                except NeedsConsent as e:
+                    # The page shows what's being agreed to and asks again with "accept".
+                    from . import drums
+                    return self.json({"error": self.say("server.drums_model_license"), "consent": e.what,
+                                      "page": drums.MODEL_PAGE}, HTTPStatus.CONFLICT)
                 except Said as e:
                     return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
                 except (KeyError, ValueError, TypeError) as e:
@@ -899,7 +936,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "notes", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "notes", "drums", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
                 raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -963,6 +1000,11 @@ def make_handler(token, root, runner, port):
                 return self.say("server.tempo_first_beat", label=label), ["align", *paths]
             if action == "chords":
                 return self.say("server.chords", label=label), ["chords", *force, *paths]
+            if action == "drums":
+                from . import drums
+                if not drums.model_ready() and not body.get("accept"):
+                    raise NeedsConsent("drums")
+                return self.say("server.drums", label=label), ["drums", *force, *(["--accept-model-license"] if body.get("accept") else []), *paths]
             if action == "notes":
                 part = body.get("part")
                 if part not in (None, "bass", "vocals"):

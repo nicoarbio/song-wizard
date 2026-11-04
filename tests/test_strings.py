@@ -29,7 +29,7 @@ def server_keys():
     read with Python's own parser; and the lyrics markers' color names."""
     from song_wizard import lyrics
     keys = set(lyrics.NAMES.values())
-    for name in ("ui.py", "setlist.py", "lyrics.py", "sheet.py"):
+    for name in ("ui.py", "setlist.py", "lyrics.py", "sheet.py", "drumsheet.py"):
         tree = ast.parse(resources.files("song_wizard").joinpath(name).read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):

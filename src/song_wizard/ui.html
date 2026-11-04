@@ -270,6 +270,12 @@
   #chord-next-name { display: inline-block; min-width: 6ch; }
   #chord-next.none { visibility: hidden; }
   .chord-edit[hidden] { display: none; }
+  .lanes .drum-lane { height: 66px; background: var(--bg); border-radius: 6px; overflow: hidden; cursor: pointer; }
+  .drum-lane canvas { display: block; width: 100%; height: 100%; }
+  .lanes .drum-ctl { grid-template-columns: minmax(0, 1fr); }
+  .lanes .drum-ctl .ms { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .lanes .drum-ctl .vol { width: 70px; }
+  .lanes .drum-ctl[hidden], .lanes .drum-lane[hidden] { display: none; }
   /* Notes over their stem's lane, at the height of their pitch. */
   .note-layer { position: absolute; inset: 2px 0; pointer-events: none; }
   .note-layer .note { position: absolute; height: 14px; margin: 0; padding: 0 3px; border: 0; border-radius: 3px; box-sizing: border-box;
@@ -725,6 +731,13 @@
   <div class="row" style="justify-content:flex-end"><button id="command-close" data-text="practice.close"></button><button class="primary" id="command-copy" data-text="jobs.copy_command"></button></div>
 </dialog>
 
+<dialog id="consent">
+  <h3 data-text="consent.title"></h3>
+  <p data-text="consent.text"></p>
+  <p><a id="consent-page" target="_blank" rel="noopener" data-text="consent.model_page"></a></p>
+  <div class="row" style="justify-content:flex-end"><button id="consent-cancel" data-text="consent.cancel"></button><button class="primary" id="consent-ok" data-text="consent.ok"></button></div>
+</dialog>
+
 <dialog id="trim" data-text-aria-label="trim.trim_2">
   <div class="row" style="justify-content:space-between"><h3 id="trim-title" data-text="trim.trim_2"></h3><button class="small" id="trim-close" data-text="practice.close"></button></div>
   <p class="hint" data-text="trim.drag_two_handles_type_times"></p>
@@ -865,7 +878,7 @@ async function api(path, body) {
   }
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { command: data.command });
+  if (!res.ok) throw Object.assign(new Error(data.error || res.statusText), { command: data.command, consent: data.consent, page: data.page });
   return data;
 }
 
@@ -1133,7 +1146,7 @@ function moreMenu(song) {
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
                    title: say("library.more_actions_songs_data_lyrics"), onclick: toggleMenu },
-       say("library.more"), song.lyrics || song.reaper || song.chords || song.notes ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
+       say("library.more"), song.lyrics || song.reaper || song.chords || song.notes || song.drums ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
@@ -1148,6 +1161,10 @@ function moreMenu(song) {
       ? item(song.notes ? say("library.notes_again") : say("library.notes"), say("library.notes_from_stems"),
              { onclick: pick(() => start({ action: "notes", paths: [song.path] })) })
       : null,
+    item(song.drums ? say("library.drums_again") : say("library.drums"), say("library.drums_sub"),
+         { onclick: pick(() => { start({ action: "drums", paths: [song.path] }); if (!song.click) toast(say("library.chords_check_click")); }) }),
+    song.drums ? item(say("library.drums_sheet"), say("library.drums_sheet_sub"),
+                      { onclick: pick(() => window.open(drumsSheetUrl(song.path), "_blank")) }) : null,
     item(say("library.trim"), say("library.cut_start_end_add_silence"),
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
@@ -1496,6 +1513,12 @@ function practiceRowJobs() {
     rowJob($("chords-job"), job);
     $("chords-detect").hidden = !!job;
   }
+  if ($("drums-job")) {
+    const job = find((j) => j.action === "drums");
+    rowJob($("drums-job"), job);
+    $("drums-detect").hidden = !!job;
+    showDrumsRow(!!job);
+  }
   for (const ui of practice.lanes || []) {
     const part = partOf(ui.track);
     if (!part || !ui.jobBox) continue;
@@ -1533,9 +1556,20 @@ async function start(request) {
     poll();
   } catch (e) {
     if (e.command) showCommand(e.message, e.command);
+    else if (e.consent) askConsent(e, request);
     else toast(e.message);
   }
 }
+
+// A model with its own license (the drums'): what it is and its terms, and only on "yes" the
+// request goes again, saying so.
+function askConsent(e, request) {
+  $("consent-page").href = e.page || "#";
+  $("consent-page").textContent = e.page || "";
+  $("consent-ok").onclick = () => { $("consent").close(); start({ ...request, accept: true }); };
+  $("consent").showModal();
+}
+$("consent-cancel").onclick = () => $("consent").close();
 
 // Errors that need a command run first (in a terminal): shown in a dialog where it can be copied.
 function showCommand(message, command) {
@@ -2095,6 +2129,7 @@ function openPractice(song) {
   loadPracticeLyrics(song);
   loadPracticeChords(song);
   loadPracticeNotes(song);
+  loadPracticeDrums(song);
   $("practice").showModal();
   renderPracticeJobs();
   // The browser would put the focus on the first control (the track sets), which keeps the
@@ -2173,7 +2208,7 @@ function buildTracks() {
     el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, say("practice.song")),
       el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, say("practice.click_waveform_go_there_wheel"))),
     el("div", { class: "lane main-lane" }, practiceWave.canvas),
-    ...chordsBuild());
+    ...chordsBuild(), ...drumsBuild());
   practice.mixer.forEach((t, i) => {
     const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": say("practice.volume", { name: t.name }),
@@ -2195,6 +2230,7 @@ function buildTracks() {
   renderTracks();
   renderChords();
   renderNotes();
+  renderDrums();
 }
 
 function renderTracks() {
@@ -2275,6 +2311,7 @@ function renderPractice() {
   followLyrics(t);
   followChords(t);
   followNotes(t);
+  drawDrums(t);
   followPlayhead(t);
   practiceNav.update({ position: t, a: practice.a, b: practice.b });
   $("practice-zoom-loop").disabled = practice.a === null || practice.b === null;
@@ -2312,6 +2349,7 @@ function showPracticeView() {
   practiceNav.update({ box: practice.view });
   renderChords();
   renderNotes();
+  renderDrums();
   $("practice-view").textContent = practice.view ? `${clockTime(a).replace(/\.\d$/, "")}–${clockTime(b).replace(/\.\d$/, "")}` : "";
   clearTimeout(practice.zoomTimer);
   if (span > d * 0.6) return;
@@ -2546,8 +2584,8 @@ function silenceClicks() { for (const v of voices) { try { v.stop(); } catch {} 
 
 // Where the song is on the audio clock: song time - rate * audio time, from the last second of
 // readings (the median drops the odd late one).
-const sched = { est: [], done: new Set(), notesDone: new Set() };
-function resetSchedule() { sched.est = []; sched.done = new Set(); sched.notesDone = new Set(); silenceClicks(); }
+const sched = { est: [], done: new Set(), notesDone: new Set(), drumsDone: new Set() };
+function resetSchedule() { sched.est = []; sched.done = new Set(); sched.notesDone = new Set(); sched.drumsDone = new Set(); silenceClicks(); }
 function scheduleClicks() {
   if (!practice.playing || practice.busy || practice.preroll || !practice.tracks.length) return;
   const ctx = context(), song = practice.tracks[0].audio.currentTime, rate = speed();
@@ -2564,6 +2602,7 @@ function scheduleClicks() {
     if (when > ctx.currentTime + 0.003) blip(when, mod(k, perBar) === 0);
   }
   scheduleNotes(song, offset, rate, lag);
+  scheduleDrums(song, offset, rate, lag);
 }
 
 // ---------- Count-in ----------
@@ -2707,6 +2746,7 @@ function syncPracticeClick() {
     if (s.path !== practice.song.path) continue;
     if (s.chords !== practice.song.chords) { practice.song.chords = s.chords; loadPracticeChords(s); }
     if (s.notes !== practice.song.notes) { practice.song.notes = s.notes; loadPracticeNotes(s); }
+    if (s.drums !== practice.song.drums) { practice.song.drums = s.drums; loadPracticeDrums(s); }
     const before = JSON.stringify(practice.song.click), after = JSON.stringify(s.click);
     practice.song = s;
     if (after !== before && s.click) {
@@ -3132,6 +3172,178 @@ function scheduleNotes(song, offset, rate, lag) {
       if (when > ctx.currentTime + 0.003) noteTone(when, (n.to - n.from) / rate, n.midi + semitones() + (part === "bass" ? 12 : 0));
     });
   }
+}
+
+// ---------- Drums ----------
+// What the drums play ("<song>.drums.json", from "detect drums"), in a row under the chords: each
+// hit at its time, one line per drum. "listen" plays them with a drum kit made by the browser,
+// to compare by ear with the song (mute its drums to hear only what was detected); "print" opens
+// the drum sheet. The row shows when the song has its drums separated or detected.
+const DRUM_ROWS = [["crash"], ["ride"], ["hihat", "hhopen"], ["toms"], ["snare"], ["kick"]];
+const DRUMS_VOLUME_KEY = "song-wizard:drums-volume";
+const drumsState = { data: null, listen: false, bus: null, noise: null,
+  volume: (() => { try { const v = parseFloat(localStorage.getItem(DRUMS_VOLUME_KEY)); return isNaN(v) ? 0.8 : v; } catch { return 0.8; } })() };
+const drumsSheetUrl = (path) => `/drums?path=${encodeURIComponent(path)}&lang=${LANG}`;
+const hasDrumStem = (song) => song.files.some((f) => /\((drums|kick|snare)\)\.wav$/i.test(f.name));
+
+async function loadPracticeDrums(song) {
+  drumsState.data = null;
+  renderDrums();
+  try {
+    const { drums } = await api(`/api/drums?path=${encodeURIComponent(song.path)}`);
+    if (!practice.song || practice.song.path !== song.path) return;
+    drumsState.data = drums;
+  } catch {}
+  renderDrums();
+}
+
+function drumsBuild() {
+  const detect = el("button", { class: "small", id: "drums-detect", title: say("practice.detect_drums_title"),
+    onclick: () => start({ action: "drums", paths: [practice.song.path] }) });
+  const listen = el("button", { class: "small listen", id: "drums-listen", title: say("practice.listen_drums_title"),
+    onclick: () => { drumsState.listen = !drumsState.listen; resetSchedule(); renderDrums(); } }, say("practice.listen_notes"));
+  const vol = el("input", { type: "range", class: "vol", id: "drums-volume", min: 0, max: 100, step: 1, value: Math.round(drumsState.volume * 100),
+    "aria-label": say("practice.drums_volume"), title: say("practice.drums_volume"),
+    oninput: (e) => { drumsState.volume = e.target.value / 100; if (drumsState.bus) drumsState.bus.gain.value = drumsState.volume;
+                      try { localStorage.setItem(DRUMS_VOLUME_KEY, String(drumsState.volume)); } catch {} } });
+  const print = el("button", { class: "small", id: "drums-print", title: say("practice.print_drums_title"),
+    onclick: () => window.open(drumsSheetUrl(practice.song.path), "_blank") }, say("lyrics.print"));
+  const ctl = el("div", { class: "lane-ctl drum-ctl", id: "drum-ctl", hidden: true }, el("span", { class: "name" }, say("practice.drums")),
+    el("span", { class: "ms" }, detect, el("span", { class: "row-job", id: "drums-job", hidden: true }), listen, vol, print));
+  const canvas = el("canvas", { "aria-label": say("practice.drums") });
+  const lane = el("div", { class: "lane drum-lane", id: "drum-lane", hidden: true }, canvas);
+  lane.addEventListener("pointerdown", (e) => {
+    if (!practice.duration) return;
+    const r = lane.getBoundingClientRect(), [a, b] = practice.view || [0, practice.duration];
+    moveTo(a + (b - a) * (e.clientX - r.left) / r.width);
+  });
+  wheelZoom(lane, practiceZoom);
+  return [ctl, lane];
+}
+
+function showDrumsRow(busy = false) {
+  const on = !!(drumsState.data || busy || (practice.song && hasDrumStem(practice.song)));
+  for (const id of ["drum-ctl", "drum-lane"]) if ($(id)) $(id).hidden = !on;
+}
+
+function renderDrums() {
+  if (!$("drum-lane")) return;
+  const data = drumsState.data, hits = data && data.hits && data.hits.length;
+  $("drums-detect").textContent = data ? say("practice.detect_drums_again") : say("practice.detect_drums");
+  $("drums-listen").hidden = !hits;
+  $("drums-volume").hidden = !hits;
+  $("drums-print").hidden = !hits;
+  $("drums-listen").classList.toggle("on", drumsState.listen);
+  $("drums-listen").setAttribute("aria-pressed", String(drumsState.listen));
+  showDrumsRow();
+  practiceRowJobs();
+  drawDrums(now());
+}
+
+// One line per drum, a mark per hit (the open hi-hat hollow), and where the song is.
+function drawDrums(t) {
+  const lane = $("drum-lane");
+  if (!lane || lane.hidden) return;
+  const c = lane.querySelector("canvas"), dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const hits = drumsState.data ? drumsState.data.hits : [];
+  const d = practice.duration;
+  if (!d) return;
+  const [a, b] = practice.view || [0, d], x = (s) => (s - a) / (b - a || 1) * w;
+  const css = getComputedStyle(document.documentElement), ink = css.getPropertyValue("--ink").trim(), accent = css.getPropertyValue("--accent").trim();
+  const row = {}, step = h / DRUM_ROWS.length;
+  DRUM_ROWS.forEach((parts, i) => parts.forEach((p) => { row[p] = step * (i + 0.5); }));
+  // Hits from the first in view (they're in time order).
+  let lo = 0, hi = hits.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (hits[m].t < a - 0.05) lo = m + 1; else hi = m; }
+  const r = Math.max(1.5, Math.min(3, step / 2 - 0.5));
+  for (let i = lo; i < hits.length && hits[i].t <= b + 0.05; i++) {
+    const hit = hits[i], px = x(hit.t), y = row[hit.part];
+    g.fillStyle = g.strokeStyle = hit.t <= t ? accent : ink;
+    g.globalAlpha = hit.t <= t ? 0.95 : 0.6;
+    g.beginPath();
+    g.arc(px, y, r, 0, 2 * Math.PI);
+    if (hit.part === "hhopen") { g.lineWidth = 1; g.stroke(); } else g.fill();
+  }
+  g.globalAlpha = 1;
+  if (t >= a && t <= b) { g.fillStyle = ink; g.fillRect(Math.round(x(t)) - 1, 0, 2, h); }
+  // Which line is which drum, small, on the left.
+  g.font = "9px system-ui, sans-serif";
+  g.textBaseline = "middle";
+  const bg = css.getPropertyValue("--bg").trim(), muted = css.getPropertyValue("--muted").trim();
+  say("practice.drum_rows").split(",").forEach((name, i) => {
+    const y = step * (i + 0.5), label = name.trim();
+    g.globalAlpha = 0.85;
+    g.fillStyle = bg;
+    g.fillRect(1, y - 5, g.measureText(label).width + 4, 10);
+    g.globalAlpha = 1;
+    g.fillStyle = muted;
+    g.fillText(label, 3, y);
+  });
+}
+
+// A drum kit made in the browser: enough to tell by ear where each hit falls.
+function drumsOut() {
+  if (!drumsState.bus) { drumsState.bus = context().createGain(); drumsState.bus.connect(clickOut()); }
+  drumsState.bus.gain.value = drumsState.volume;
+  return drumsState.bus;
+}
+function noiseBuffer() {
+  if (!drumsState.noise) {
+    const ctx = context(), buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    drumsState.noise = buffer;
+  }
+  return drumsState.noise;
+}
+function drumHit(part, when) {
+  const ctx = context(), out = drumsOut();
+  const env = (peak, decay) => {
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(peak, when + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    g.connect(out);
+    return g;
+  };
+  const tone = (from, to, sweep, peak, decay, type = "sine") => {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.setValueAtTime(from, when);
+    o.frequency.exponentialRampToValueAtTime(to, when + sweep);
+    o.connect(env(peak, decay));
+    o.start(when); o.stop(when + decay + 0.02);
+    voices.push(o);
+  };
+  const noise = (type, freq, peak, decay, q = 0.7) => {
+    const n = ctx.createBufferSource(), f = ctx.createBiquadFilter();
+    n.buffer = noiseBuffer();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    n.connect(f).connect(env(peak, decay));
+    n.start(when, Math.random()); n.stop(when + decay + 0.02);
+    voices.push(n);
+  };
+  if (part === "kick") tone(130, 45, 0.12, 0.9, 0.32);
+  else if (part === "snare") { noise("bandpass", 2500, 0.5, 0.18, 0.6); tone(220, 180, 0.05, 0.3, 0.09, "triangle"); }
+  else if (part === "toms") tone(160, 100, 0.25, 0.6, 0.35);
+  else if (part === "hihat") noise("highpass", 7500, 0.22, 0.05);
+  else if (part === "hhopen") noise("highpass", 7000, 0.2, 0.35);
+  else if (part === "ride") { noise("bandpass", 6000, 0.1, 0.6, 1.5); tone(3200, 3150, 0.5, 0.04, 0.5); }
+  else if (part === "crash") noise("highpass", 3500, 0.3, 1.4);
+}
+function scheduleDrums(song, offset, rate, lag) {
+  if (!drumsState.listen || !drumsState.data) return;
+  const ctx = context(), hits = drumsState.data.hits;
+  hits.forEach((hit, i) => {
+    if (sched.drumsDone.has(i) || hit.t < song - 0.05 || hit.t > song + 0.25 * rate) return;
+    sched.drumsDone.add(i);
+    const when = (hit.t - offset) / rate - lag;
+    if (when > ctx.currentTime + 0.003) drumHit(hit.part, when);
+  });
 }
 
 $("practice-play").onclick = togglePlay;

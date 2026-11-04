@@ -123,6 +123,23 @@ def build_parser():
     p.add_argument("--part", choices=["bass", "vocals"], help="only this one (both by default)")
     p.add_argument("--force", action="store_true", help="detect again also the notes corrected by hand")
 
+    p = sub.add_parser("drums", help="detect what the drums play, to print it as a drum sheet",
+                       description="Finds the drums' hits (kick, snare, toms, hi-hat open and closed, ride, crash) "
+                                   "and saves them next to the song as \"<song>.drums.json\", which the practice "
+                                   "player of \"song-wizard ui\" plays and prints as a drum sheet. It uses ADTOF, a "
+                                   "model with its own license (CC BY-NC-SA 4.0: non-commercial use only), "
+                                   "downloaded once (2.2 MB) after asking. It needs the song's click (click.txt; found "
+                                   "first if missing) and its drum kit stems (separated first if missing). With "
+                                   "--sheet or --midi it writes what was detected as \"<song>.drums.html\" (to print) "
+                                   "or \"<song>.drums.mid\" (for REAPER or another program).")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--force", action="store_true", help="detect again also the hits put in by hand")
+    p.add_argument("--accept-model-license", action="store_true",
+                   help="download the model without asking (its license: CC BY-NC-SA 4.0, non-commercial use only)")
+    p.add_argument("--sheet", action="store_true", help='write the drum sheet, "<song>.drums.html"')
+    p.add_argument("--midi", action="store_true", help='write the hits as MIDI, "<song>.drums.mid"')
+    p.add_argument("--full", action="store_true", help="with --sheet: every bar written, none folded")
+
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
                                    "(32-bit float) next to the original.")
@@ -482,6 +499,12 @@ def dispatch(argv):
     elif args.command == "notes":
         from . import notes
         notes.run(args.paths, part=args.part, force=args.force)
+    elif args.command == "drums":
+        from . import drums
+        if args.full and not args.sheet:
+            sys.exit("song-wizard drums: --full goes with --sheet.")
+        drums.run(args.paths, force=args.force, accept=args.accept_model_license, sheet=args.sheet,
+                  as_midi=args.midi, full=args.full)
     elif args.command == "chords":
         from . import chords
         chords.run(args.paths, force=args.force)

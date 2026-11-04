@@ -1,6 +1,6 @@
 [project]
 name = "song-wizard"
-version = "0.36.1"
+version = "0.37.0"
 description = "Prepare songs for band practice: download, key and tempo detection, transposition and stem separation."
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -19,6 +19,10 @@ dependencies = [
     "audioread",
     # A song's data in WAV files (an ID3 chunk); yt-dlp brings it too.
     "mutagen",
+    # The drums: ADTOF's model (downloaded apart, see drums.py) runs on it.
+    "onnxruntime",
+    # The drum sheet, drawn from MusicXML (LGPL-3).
+    "verovio",
 ]
 
 [project.scripts]

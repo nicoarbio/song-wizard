@@ -929,7 +929,7 @@ wheels = [
 
 [[package]]
 name = "song-wizard"
-version = "0.36.1"
+version = "0.37.0"
 source = { editable = "." }
 dependencies = [
     { name = "audio-separator", extra = ["cpu"] },
@@ -938,8 +938,10 @@ dependencies = [
     { name = "librosa" },
     { name = "mutagen" },
     { name = "numpy" },
+    { name = "onnxruntime" },
     { name = "platformdirs" },
     { name = "soundfile" },
+    { name = "verovio" },
     { name = "yt-dlp", extra = ["default"] },
 ]
 
@@ -956,8 +958,10 @@ requires-dist = [
     { name = "librosa" },
     { name = "mutagen" },
     { name = "numpy" },
+    { name = "onnxruntime" },
     { name = "platformdirs" },
     { name = "soundfile" },
+    { name = "verovio" },
     { name = "yt-dlp", extras = ["default"] },
 ]
 
@@ -1086,6 +1090,16 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
+]
+
+[[package]]
+name = "verovio"
+version = "6.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/17/9e/e10d52df1fdd5f075f22ebed3ec687696e21247cdf9331cdae552ab70d75/verovio-6.4.1.tar.gz", hash = "sha256:101f8a984ce9edf27fb876075a12555cae4387776809daf84094fdba16a6a65e", size = 6238088, upload-time = "2026-11-03T18:27:07.008Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/dd/4a5f771772cafc05f899a5d8bdded89075d0b35d152d70b4f15a5a62fcd8/verovio-6.4.1-cp310-abi3-macosx_13_0_arm64.whl", hash = "sha256:d24cc20f7d24bfaeea75f6977ec8ebf11435db61a1d06f4d3765c642c0b7f4de", size = 7419449, upload-time = "2026-11-03T18:26:51.556Z" },
+    { url = "https://files.pythonhosted.org/packages/03/22/c98513dfe1d31681080ea742d8a9a8e7dc83e68d9528b35913298687824e/verovio-6.4.1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:c19311ec28b113e179b547792b608b901509bbd065615d85bf38b2ad31146e12", size = 8614166, upload-time = "2026-11-03T18:26:59.278Z" },
 ]
 
 [[package]]

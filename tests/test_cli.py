@@ -15,6 +15,7 @@ DISPATCH = {
     "transpose": (["--", "-2", "song.opus"], "transpose", "run"),
     "align": (["song.opus"], "align", "run"),
     "chords": (["song.opus"], "chords", "run"),
+    "drums": (["x.opus", "--sheet"], "drums", "run"),
     "notes": (["song.opus"], "notes", "run"),
     "speed": (["80", "song.opus"], "speed", "run"),
     "separate": (["--stem", "drums", "song.opus"], "separate", "run"),
