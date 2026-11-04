@@ -454,6 +454,8 @@
  "practice.click_waveform_go_there_wheel": "click a waveform to go there; the wheel zooms in and out",
  "practice.close": "close",
  "practice.count": "count-in…",
+ "practice.bar_now": "bar {n} · {beat}",
+ "practice.bar_now_title": "The bar and beat playing, by the click",
  "practice.count_2": "Count-in",
  "practice.detect_chords": "detect",
  "practice.detect_chords_again": "detect again",

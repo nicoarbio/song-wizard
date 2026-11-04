@@ -197,6 +197,7 @@ The player fills the whole window. The controls are at the top: play, speed, pit
 - "detect" finds them in the song (the same as `song-wizard align`, see below). If the tempo came out half or double the real one, ÷2 and ×2 fix it.
 - The zoomed view shows the start of the song with the click's lines on top (the marked one is the first beat of each bar): dragging over the picture moves them until they fall on the hits. For fine-tuning, −10 ms and +10 ms; if the first beat landed on another beat of the bar, −1 beat and +1 beat. "listen to the start" plays it with the click to check by ear. If the start is no good for lining it up (a song that starts with no clear beat), let it play until the rhythm comes in and press "look where it's playing": the view goes there, and since the lines are one grid for the whole song, lining them up there lines them up everywhere. "look at the start" goes back.
 - It's saved on its own, in `click.txt` in the song's folder (like `key.txt` and `bpm.txt`), and `rename` renames it with the song.
+- With the click adjusted, the bar and beat playing show next to the time ("bar 12 · 3"), counting from the first beat.
 
 **The count-in.** With the click on, pressing play from the start plays the count-in (one or two bars, or none) and the music comes in on time: if the song starts with silence, part of the count falls over that silence, so the music comes in exactly where it should. With "also when resuming", the count-in also plays when resuming from any point, to practice a part.
 

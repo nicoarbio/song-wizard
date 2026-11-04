@@ -175,6 +175,7 @@
   #pc-panel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
   #pc-panel summary { cursor: pointer; font-weight: 600; }
   #practice-count { color: var(--warn); }
+  #practice-bar { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 11ch; }
   .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
   .toast.show { opacity: .92; }
   .offline { position: sticky; top: 0; z-index: 5; background: var(--warn); color: #fff; padding: 8px 20px; font-size: 14px; }
@@ -566,6 +567,7 @@
     <div class="transport">
       <button class="primary" id="practice-play" disabled>▶</button>
       <span class="time" id="practice-time">0:00 / 0:00</span>
+      <span class="time" id="practice-bar" hidden data-text-title="practice.bar_now_title"></span>
       <b id="practice-count"></b>
       <span class="chord-now" id="chord-now" hidden data-text-title="practice.chord_now_title"><b id="chord-now-name"></b><span id="chord-next"> → <span id="chord-next-name"></span></span></span>
       <span class="ctl" data-text-title="practice.speed_changes_without_changing_pitch"><span data-text="practice.speed"></span> <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" data-text-aria-label="practice.speed"> <b id="practice-speed-value">100 %</b>
@@ -2244,12 +2246,24 @@ function applySpeed() {
   $("practice-speed-value").textContent = `${Math.round(speed() * 100)} %`;
 }
 
+// The bar and beat being heard, by the click (only once it's adjusted: before, the grid is a guess).
+function barAt(t) {
+  const { first, period, perBar } = grid(), k = Math.floor((t - first) / period + 1e-6);
+  return k < 0 ? null : { bar: Math.floor(k / perBar) + 1, beat: mod(k, perBar) + 1 };
+}
+function showBar(t) {
+  const at = practice.click && practice.click.saved && !practice.preroll ? barAt(t) : null;
+  $("practice-bar").hidden = !at;
+  if (at) $("practice-bar").textContent = say("practice.bar_now", { n: at.bar, beat: at.beat });
+}
+
 function renderPractice() {
   const t = now(), duration = practice.duration;
   $("practice-play").textContent = practice.playing ? "⏸" : "▶";
   $("practice-play").title = (practice.playing ? say("practice.pause") : say("practice.play")) + keyHint("play");
   $("practice-time").textContent = `${clockTime(t).replace(/\.\d$/, "")} / ${clockTime(duration).replace(/\.\d$/, "")}`;
   $("practice-count").textContent = practice.preroll ? say("practice.count") : "";
+  showBar(t);
   $("practice-a-time").textContent = clockTime(practice.a);
   $("practice-b-time").textContent = clockTime(practice.b);
   $("practice-loop").classList.toggle("on", practice.loop);

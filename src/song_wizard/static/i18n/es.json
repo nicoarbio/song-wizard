@@ -454,6 +454,8 @@
  "practice.click_waveform_go_there_wheel": "tocá una onda para ir ahí; la rueda acerca y aleja",
  "practice.close": "cerrar",
  "practice.count": "cuenta…",
+ "practice.bar_now": "compás {n} · {beat}",
+ "practice.bar_now_title": "Compás y tiempo que suenan, según el click",
  "practice.count_2": "Cuenta antes de empezar",
  "practice.detect_chords": "detectar",
  "practice.detect_chords_again": "volver a detectar",
