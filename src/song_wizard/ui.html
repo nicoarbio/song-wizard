@@ -105,7 +105,8 @@
   .song .head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .song .title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
   .song .fold { color: var(--muted); }
-  .song .title .meta { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .song .title .num { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; margin-right: 6px; }
+  .song .title .artist { display: block; color: var(--muted); font-size: 12px; }
   .badge { font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--accent); white-space: nowrap; }
   .badge.warn { color: var(--warn); }
   button.badge { border: 0; font: inherit; font-size: 11px; line-height: inherit; height: auto; cursor: pointer; }
@@ -246,6 +247,9 @@
   .chord-lane .chord.hand::after { content: "✍"; font-size: 10px; margin-left: 4px; opacity: .7; }
   .chord-lane .chord.unknown { border-style: dashed; border-color: var(--warn); }
   .chord-lane .chord.tight { color: transparent; padding: 0; }
+  .chord-lane .chord-edge { position: absolute; top: 0; bottom: 0; width: 12px; margin-left: -6px; cursor: col-resize; touch-action: none; z-index: 1; }
+  .chord-lane .chord-edge::after { content: ""; position: absolute; left: 5px; top: 6px; bottom: 6px; width: 2px; border-radius: 1px; background: var(--muted); opacity: 0; }
+  .chord-lane .chord-edge:hover::after, .chord-lane .chord-edge:active::after { opacity: .8; }
   .chord-lane .chord.tight::after { content: none; }
   .lanes .chord-ctl { grid-template-columns: minmax(0, 1fr); }
   .chord-lane .chord-empty { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
@@ -253,6 +257,7 @@
     font: 600 15px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
   .chord-now b { font-size: 26px; color: var(--ink); min-width: 1.6em; }
   .chord-edit[hidden] { display: none; }
+  #practice.no-chords .chord-ctl, #practice.no-chords .chord-lane, #practice.no-chords .chord-now, #practice.no-chords .chord-edit { display: none; }
   .chord-edit { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; margin: 2px 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
   .chord-edit input { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
   .chord-edit .warn-text { color: var(--warn); flex-basis: 100%; margin: 0; }
@@ -422,6 +427,7 @@
         <div class="row">
           <button data-needs="songs" id="do-key" data-text="library.key_2"></button>
           <button data-needs="songs" id="do-bpm" data-text="actions.tempo"></button>
+          <button data-needs="songs" id="do-chords" data-text="practice.chords"></button>
         </div>
         <p class="hint" data-text="actions.results_are_kept_key_txt"></p>
       </div>
@@ -530,6 +536,7 @@
       <label id="practice-set-row" hidden><span data-text="practice.tracks"></span> <select id="practice-set"></select></label>
       <span class="pr-spacer"></span>
       <button class="small" id="practice-monitor" data-text-title="monitor.hear_room_through_mic" data-text="monitor.monitor"></button>
+      <button class="small" id="practice-chords-toggle" data-text-title="keys.show_hide_chords"></button>
       <button class="small" id="practice-lyrics-toggle" data-text-title="keys.show_hide_lyrics" data-text="practice.lyrics"></button>
       <button class="small" id="practice-full" data-text-title="practice.full_screen_without_browsers_bars" data-text="practice.full_screen"></button>
       <button class="small" id="practice-close" data-text="practice.close"></button>
@@ -608,6 +615,8 @@
       <button class="small" id="pc-ms-fwd">+10 ms</button>
       <button class="small" id="pc-beat-fwd" data-text-title="practice.one_beat_later" data-text="practice.1_beat_2"></button>
       <button class="small" id="pc-listen" data-text-title="practice.from_start_click_count" data-text="practice.listen_start"></button>
+      <button class="small" id="pc-look-here" data-text-title="practice.look_here_title" data-text="practice.look_here"></button>
+      <button class="small" id="pc-look-start" hidden data-text="practice.look_start"></button>
     </div>
     <canvas class="wave zoom" id="pc-wave" data-text-aria-label="practice.start_song_drag_move_click"></canvas>
     <p class="hint" data-text="practice.drag_over_picture_so_lines"></p>
@@ -1044,9 +1053,13 @@ function renderSong(song) {
   state.shown.push(song.path);
   check.checked = state.selected.has(song.path);
   const badges = badgesFor(song, true);
-  const tags = song.tags || {};
-  const meta = [tags.album, tags.date, tags.genre].filter(Boolean).join(" · ");
-  const title = el("span", { class: "title", title: song.name }, song.name.replace(/\.[^.]+$/, ""), meta ? el("span", { class: "meta" }, meta) : null);
+  // The song's title, with its artist smaller below, read from its file name ("001 - Artist -
+  // Title", which song-wizard names from its data and rename corrects): a video uploaded by
+  // someone else has the uploader as its artist in the data. Album, year and genre stay in its data
+  // and in the filter.
+  const m = /^(?:(\d+)\s+-\s+)?(?:(.+?)\s+-\s+)?(.+?)(?:\.[^.]+)?$/.exec(song.name) || [];
+  const title = el("span", { class: "title", title: song.name }, m[1] ? el("span", { class: "num" }, m[1]) : null,
+    m[3] || song.name, m[2] ? el("span", { class: "artist" }, m[2]) : null);
   const li = el("li", { class: "song" + (state.cursor === song.path ? " cursor" : ""), "data-path": song.path,
     onpointerdown: () => setCursor(song.path, false) },
     el("div", { class: "head" }, check,
@@ -1076,14 +1089,17 @@ function moreMenu(song) {
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
                    title: say("library.more_actions_songs_data_lyrics"), onclick: toggleMenu },
-       say("library.more"), song.lyrics || song.reaper ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
+       say("library.more"), song.lyrics || song.reaper || song.chords ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
     item(say("library.song_data"), say("library.title_artist_album_artist_title"),
          { onclick: pick(() => openData(song)) }),
-    item(song.lyrics ? "Letra ✓" : say("library.lyrics"), song.lyrics ? say("library.their_colors_notes") : say("library.find_type_them_mark_them"),
+    item(song.lyrics ? say("library.lyrics") + " ✓" : say("library.lyrics"), song.lyrics ? say("library.their_colors_notes") : say("library.find_type_them_mark_them"),
          { onclick: pick(() => openLyrics(song)) }),
+    item(song.chords ? say("library.chords_again") : say("library.chords"),
+         song.chords ? say("library.chords_kept_by_hand") : say("library.chords_on_click"),
+         { onclick: pick(() => { start({ action: "chords", paths: [song.path] }); if (!song.click) toast(say("library.chords_check_click")); }) }),
     item(say("library.trim"), say("library.cut_start_end_add_silence"),
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
@@ -2491,7 +2507,17 @@ function renderClickPanel(reload) {
   }
   $("pc-summary").textContent = c.saved ? say("practice.bpm_first_beat_at", { v: c.bpm.toFixed(2), meter: c.meter, v2: c.first.toFixed(3) }) : say("practice.not_adjusted_yet");
   const end = Math.max(6, first + 2 * perBar * period + period);
-  if (reload || !clickWave.view || end > clickWave.view[1] + 0.01 || end < clickWave.view[1] - 4) {
+  if (reload) practice.clickLook = null;
+  $("pc-look-start").hidden = !practice.clickLook;
+  if (practice.clickLook) {
+    // Looking somewhere else in the song ("where it's playing"): the click's lines are one grid for
+    // the whole song, so lining them up here lines them up everywhere.
+    if (!clickWave.view || clickWave.view[0] !== practice.clickLook[0]) {
+      const view = practice.clickLook;
+      clickWave.view = view;
+      loadPeaks(practice.song.path, view).then((d) => { if (clickWave.view === view) clickWave.set(d); }).catch(() => {});
+    }
+  } else if (reload || !clickWave.view || clickWave.view[0] !== 0 || end > clickWave.view[1] + 0.01 || end < clickWave.view[1] - 4) {
     const view = [0, Math.ceil(end)];
     clickWave.view = view;
     loadPeaks(practice.song.path, view).then((d) => { if (clickWave.view === view) clickWave.set(d); }).catch(() => {});
@@ -2509,6 +2535,13 @@ $("pc-beat-fwd").onclick = () => setClick({ first: practice.click.first + grid()
 $("pc-ms-back").onclick = () => setClick({ first: practice.click.first - 0.01 });
 $("pc-ms-fwd").onclick = () => setClick({ first: practice.click.first + 0.01 });
 $("pc-detect").onclick = () => start({ action: "align", paths: [practice.song.path] });
+$("pc-look-here").onclick = () => {
+  const t = now(), length = Math.max(6, 3 * grid().period * grid().perBar);
+  const from = Math.max(0, Math.min(t - length * 0.3, (practice.duration || t + length) - length));
+  practice.clickLook = [Math.round(from * 100) / 100, Math.round((from + length) * 100) / 100];
+  renderClickPanel(false);
+};
+$("pc-look-start").onclick = () => { practice.clickLook = null; renderClickPanel(false); };
 $("pc-listen").onclick = async () => {
   if (practice.playing) await togglePlay();
   practice.clickTrack.mute = false;
@@ -2559,6 +2592,14 @@ const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 const noteIndex = (n) => { const i = SHARPS.indexOf(n); return i >= 0 ? i : FLATS.indexOf(n); };
 const chordUnderstood = (name) => name === NO_CHORD || CHORD_RE.test(name);
 const chordsSimple = () => { try { return localStorage.getItem(CHORDS_SIMPLE_KEY) === "1"; } catch { return false; } };
+const CHORDS_HIDDEN_KEY = "song-wizard:chords-hidden";
+const chordsShown = () => { try { return localStorage.getItem(CHORDS_HIDDEN_KEY) !== "1"; } catch { return true; } };
+function showChords(on) {
+  try { on ? localStorage.removeItem(CHORDS_HIDDEN_KEY) : localStorage.setItem(CHORDS_HIDDEN_KEY, "1"); } catch {}
+  $("practice").classList.toggle("no-chords", !on);
+  $("practice-chords-toggle").textContent = on ? say("practice.chords_toggle") : say("practice.chords_toggle_2");
+  if (!on) { chordsState.sel = null; renderChordEditor(); }
+}
 
 function shownChord(name, shift = semitones(), simple = chordsSimple()) {
   const m = CHORD_RE.exec(name);
@@ -2659,7 +2700,42 @@ function renderChords() {
     blocks.push({ block, chord: c });
   });
   chordsState.blocks = blocks;
-  lane.replaceChildren(...blocks.map((x) => x.block));
+  // The border between two chords that touch can be dragged: onto the beats, or free with Alt.
+  const edges = [];
+  data.chords.forEach((c, i) => {
+    const prev = data.chords[i - 1];
+    if (!prev || Math.abs(prev.to - c.from) > 0.01 || c.from <= a || c.from >= b) return;
+    if (prev.name === NO_CHORD && c.name === NO_CHORD) return;
+    const edge = el("div", { class: "chord-edge", style: `left:${((c.from - a) / span * 100).toFixed(3)}%`, title: say("practice.chord_drag_border") });
+    edge.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      edge.setPointerCapture(e.pointerId);
+      const r = lane.getBoundingClientRect(), beat = grid().period;
+      // Each chord keeps at least a beat (0.1 s when moving free, with Alt).
+      const at = (ev) => {
+        let t = a + span * (ev.clientX - r.left) / r.width;
+        if (ev.altKey) return Math.round(Math.max(prev.from + 0.1, Math.min(c.to - 0.1, t)) * 1000) / 1000;
+        t = snapBeat(Math.max(prev.from + beat, Math.min(c.to - beat, t)));
+        if (t <= prev.from + 0.05 || t >= c.to - 0.05) return c.from;  // no whole beat to give: stays
+        return Math.round(t * 1000) / 1000;
+      };
+      const move = (ev) => { const t = at(ev); edge.style.left = `${((t - a) / span * 100).toFixed(3)}%`; edge.dataset.t = t; };
+      const up = (ev) => {
+        edge.removeEventListener("pointermove", move);
+        edge.removeEventListener("pointerup", up);
+        const t = at(ev);
+        if (Math.abs(t - c.from) < 0.001) return;
+        data.chords[i - 1] = { ...prev, to: t, hand: true };
+        data.chords[i] = { ...c, from: t, hand: true };
+        saveChords();
+        renderChords();
+      };
+      edge.addEventListener("pointermove", move);
+      edge.addEventListener("pointerup", up);
+    });
+    edges.push(edge);
+  });
+  lane.replaceChildren(...blocks.map((x) => x.block), ...edges);
   renderChordEditor();
   followChords(now());
 }
@@ -2735,6 +2811,8 @@ $("chord-delete").onclick = () => editChord((list, i) => {
   chordsState.sel = null;
 });
 $("chord-done").onclick = () => { chordsState.sel = null; renderChords(); };
+$("practice-chords-toggle").onclick = () => showChords(!chordsShown());
+showChords(chordsShown());
 
 $("practice-play").onclick = togglePlay;
 $("practice-close").onclick = () => $("practice").close();
@@ -3674,6 +3752,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) refr
 window.addEventListener("focus", refreshOnReturn);
 $("do-key").onclick = () => start({ action: "key", paths: selectedPaths() });
 $("do-bpm").onclick = () => start({ action: "bpm", paths: selectedPaths() });
+$("do-chords").onclick = () => start({ action: "chords", paths: selectedPaths() });
 $("do-separate").onclick = () => {
   const stems = [...document.querySelectorAll("#stems input:checked")].map((i) => i.value);
   if (!stems.length) return toast(say("lyrics.pick_at_least_one_instrument"));
@@ -3875,6 +3954,7 @@ const ACTIONS = [
   ["zoomAll", "practice", say("keys.show_whole_song"), ["v"]],
   ["full", "practice", say("keys.full_screen"), ["f"]],
   ["lyrics", "practice", say("keys.show_hide_lyrics"), ["y"]],
+  ["chords", "practice", say("keys.show_hide_chords"), ["a"]],
   ["tap", "practice", say("keys.lyrics_times_mark_next_line"), ["t"]],
   ["sync", "practice", say("keys.see_how_far_apart_tracks"), ["d"]],
   ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", say("lyrics.marker_2", { v: i + 1 }), [String(i + 1)]]),
@@ -3981,6 +4061,7 @@ const RUN = {
   full: togglePracticeFull,
   monitor: () => { $("mon-panel").hidden = false; toggleMonitor(); },
   lyrics: () => showPracticeLyrics(!lyricsShown()),
+  chords: () => showChords(!chordsShown()),
   tap: tapNextLine,
   sync: () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
   ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, () => { if (lyr.data && lyr.colors[i]) pickTool(lyr.colors[i].id); }])),
