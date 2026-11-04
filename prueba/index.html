@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prueba en el celular</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#16161a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  :root { --bg: #f6f5f2; --card: #fff; --ink: #1d1d22; --soft: #6b6b75; --line: #e2e0da; --accent: #b07d12; --ok: #2f7d4a; --bad: #b2402f; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #16161a; --card: #212127; --ink: #ecebe6; --soft: #9c9ba5; --line: #33333b; --accent: #e8c26a; --ok: #6cc28a; --bad: #ec7b66; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, sans-serif;
+         padding: 12px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 640px; margin-inline: auto; }
+  h1 { font-size: 20px; margin: 4px 0 2px; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  p.lead, .hint { color: var(--soft); font-size: 14px; margin: 4px 0 10px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 0; }
+  button { font: inherit; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 44px; }
+  button.main { background: var(--accent); color: #16161a; border-color: transparent; font-weight: 600; }
+  button:disabled { opacity: .45; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+  .row > label { display: flex; gap: 6px; align-items: center; }
+  input[type=range] { flex: 1; min-width: 120px; }
+  input[type=number], input[type=text], select { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  input[type=number] { width: 80px; }
+  .track { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .track:first-child { border-top: 0; }
+  .track .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .time { font-variant-numeric: tabular-nums; min-width: 92px; }
+  #qr { background: #fff; padding: 8px; border-radius: 8px; max-width: 320px; margin: 8px 0; }
+  #qr svg { width: 100%; height: auto; display: block; }
+  video { width: 100%; max-width: 320px; border-radius: 8px; background: #000; }
+  textarea { width: 100%; font: 12px/1.3 ui-monospace, monospace; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 6px; }
+  pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.4 ui-monospace, monospace; margin: 0; }
+  #log { max-height: 220px; overflow: auto; color: var(--soft); }
+  .members div { padding: 4px 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .hidden { display: none !important; }
+  .big { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<h1>Prueba en el celular</h1>
+<p class="lead">song-wizard, prueba de riesgo: ¿suenan bien los stems juntos, cuánto tarda el monitor y se pueden sincronizar varios aparatos sin internet? Al final, "copiar resultados" y mandámelos.</p>
+
+<section>
+  <h2>1. Tema</h2>
+  <div class="row">
+    <button class="main" id="demo">Usar tema de prueba</button>
+    <label><button id="pick">Elegir archivos…</button></label>
+    <input type="file" id="files" accept="audio/*,.m4a,.opus,.webm,.mp3,.wav,.flac,.ogg" multiple class="hidden">
+  </div>
+  <p class="hint">El de prueba son 4 pistas (bombo, redoblante, bajo, guía) con golpes en el mismo instante: si se desfasan, se oye "flam". Para sincronizar, todos usan el mismo.</p>
+  <div id="tracks"></div>
+</section>
+
+<section>
+  <h2>2. Reproducir</h2>
+  <div class="row">
+    <button class="main" id="play" disabled>▶ Play</button>
+    <span class="time big" id="time">0:00.0</span>
+    <span id="mode" class="hint"></span>
+  </div>
+  <div class="row"><input type="range" id="seek" min="0" max="1" step="0.01" value="0" disabled></div>
+  <div class="row">
+    <label>Velocidad <input type="range" id="rate" min="50" max="120" step="5" value="100" style="min-width:140px"></label>
+    <span id="rateText">100 %</span>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="clickOn" checked> Click</label>
+    <input type="range" id="clickVol" min="0" max="100" value="60" style="max-width:140px">
+    <label>BPM <input type="number" id="bpm" value="120" min="30" max="300"></label>
+    <label>1.er tiempo (s) <input type="number" id="first" value="0" step="0.01" min="0"></label>
+  </div>
+  <p class="hint">Probar: dejarlo sonar todo el tema, cambiar la velocidad, saltar. Con la pantalla bloqueada también.</p>
+</section>
+
+<section>
+  <h2>3. Monitor</h2>
+  <div class="row">
+    <button id="micOn">Activar micrófono</button>
+    <select id="inputs" class="hidden"></select>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="monOn"> Escucharme</label>
+    <input type="range" id="monVol" min="0" max="150" value="100" style="max-width:160px">
+  </div>
+  <div class="row">
+    <button id="measure" disabled>Medir demora</button>
+    <span id="measured" class="big"></span>
+  </div>
+  <p class="hint">Medir: con los in-ears enchufados, apoyar un auricular sobre el micrófono del celu (o el mic que uses) y tocar "Medir demora". Suena un pip 5 veces y mide cuánto tarda en volver por el mic: eso es lo que tarda el monitor. Hacerlo también con el parlante del celu y con otra entrada si tenés.</p>
+</section>
+
+<section>
+  <h2>4. Sesión con otros aparatos</h2>
+  <div class="row">
+    <label>Nombre <input type="text" id="name" maxlength="20" style="width:140px"></label>
+  </div>
+  <div class="row">
+    <button class="main" id="invite">Invitar</button>
+    <button id="join">Unirme</button>
+  </div>
+  <p class="hint">Uno toca "Invitar" y muestra el QR; el otro "Unirme" y lo escanea; después el primero escanea el QR de respuesta. Para sumar un tercero, cualquiera de los dos lo invita. Sin internet: todos conectados al punto de acceso de un celu (o de la laptop).</p>
+  <div id="pair" class="hidden">
+    <p id="pairText"></p>
+    <div id="qr"></div>
+    <div class="row">
+      <button id="scanAnswer" class="hidden">Escanear su respuesta</button>
+      <button id="cancelPair">Cancelar</button>
+    </div>
+    <video id="cam" playsinline muted class="hidden"></video>
+    <details><summary class="hint">Sin cámara: copiar y pegar el código</summary>
+      <textarea id="code" rows="4"></textarea>
+      <div class="row"><button id="copyCode">Copiar</button><button id="useCode">Usar el código pegado</button></div>
+    </details>
+  </div>
+  <div class="members" id="members"></div>
+  <div class="row">
+    <label><input type="checkbox" id="slow"> Simular carga lenta (8 s)</label>
+    <button id="stall">Trabarlo 2 s</button>
+  </div>
+  <p class="hint">Para la prueba del aparato lento: en uno, tildar "carga lenta" y dar play desde otro. Los demás tienen que arrancar a los 3 s y el lento entrar después, en su lugar. "Trabarlo 2 s" frena este aparato un momento: tiene que volver solo al lugar justo.</p>
+</section>
+
+<section>
+  <h2>5. Resultados</h2>
+  <div class="row"><button class="main" id="copy">Copiar resultados</button><button id="share" class="hidden">Compartir</button></div>
+  <pre id="results"></pre>
+  <details><summary class="hint">Registro</summary><pre id="log"></pre></details>
+</section>
+
+<script src="vendor/qrcode.js"></script>
+<script src="vendor/jsQR.js"></script>
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const now = () => performance.now();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ID = (crypto.getRandomValues(new Uint32Array(1))[0] >>> 0).toString(36).padStart(7, "0");
+const fmt = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`; };
+const median = (a) => { if (!a.length) return NaN; const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+
+const logLines = [];
+function log(text) {
+  const line = `${(now() / 1000).toFixed(1)}  ${text}`;
+  logLines.push(line);
+  if (logLines.length > 300) logLines.shift();
+  $("#log").textContent = logLines.slice().reverse().join("\n");
+}
+window.addEventListener("error", (e) => log("ERROR " + e.message));
+window.addEventListener("unhandledrejection", (e) => log("ERROR " + (e.reason && (e.reason.message || e.reason.name) || e.reason)));
+
+// ---------- resultados ----------
+const R = { playRejected: 0, seeks: 0, nudges: 0, spreadMax: 0, spreadSamples: [], errSamples: [], lagRuns: [],
+            candidates: "", connected: 0, notes: [] };
+
+// ---------- audio ----------
+let ctx = null, clickGain = null;
+function audio() {
+  if (!ctx) {
+    const C = window.AudioContext || window.webkitAudioContext;
+    ctx = new C({ latencyHint: "interactive" });
+    clickGain = ctx.createGain();
+    clickGain.gain.value = $("#clickVol").value / 100;
+    clickGain.connect(ctx.destination);
+    log(`audio: ${ctx.sampleRate} Hz, base ${(ctx.baseLatency * 1000 || 0).toFixed(1)} ms, salida ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms`);
+  }
+  if (ctx.state !== "running") ctx.resume();
+  return ctx;
+}
+const outLat = () => ctx ? (ctx.baseLatency || 0) + (ctx.outputLatency || 0) : 0;
+if (navigator.audioSession) { try { navigator.audioSession.type = "playback"; } catch (e) {} }
+
+// ---------- pistas ----------
+let tracks = [], duration = 0, songName = "";
+function unload() {
+  for (const t of tracks) { t.el.pause(); URL.revokeObjectURL(t.el.src); t.src.disconnect(); }
+  tracks = []; duration = 0;
+}
+
+function loadTracks(list, name) {
+  const c = audio();
+  unload();
+  songName = name;
+  tracks = list.map(({ name, blob }) => {
+    const el = new Audio();
+    el.preload = "auto";
+    el.preservesPitch = true; el.webkitPreservesPitch = true; el.mozPreservesPitch = true;
+    el.playsInline = true;
+    el.src = URL.createObjectURL(blob);
+    const src = c.createMediaElementSource(el);
+    const g = c.createGain();
+    src.connect(g).connect(c.destination);
+    el.addEventListener("error", () => log(`${name}: no se puede reproducir (${el.error && el.error.code})`));
+    el.addEventListener("waiting", () => { if (S.mode === "playing") log(`${name}: esperando datos`); });
+    return { name, el, src, g, vol: 1, mute: false, type: blob.type || name.split(".").pop(), size: blob.size, unlocked: false };
+  });
+  unlock();
+  Promise.all(tracks.map((t) => new Promise((r) => {
+    if (t.el.readyState >= 1) r();
+    t.el.addEventListener("loadedmetadata", r, { once: true });
+    t.el.addEventListener("error", r, { once: true });
+  }))).then(() => {
+    const ds = tracks.map((t) => t.el.duration).filter((d) => isFinite(d));
+    duration = ds.length ? Math.max(...ds) : 0;
+    if (ds.length && Math.max(...ds) - Math.min(...ds) > 0.5) log("¡Ojo! las pistas no miden lo mismo");
+    $("#seek").max = duration; $("#seek").disabled = $("#play").disabled = !duration;
+    log(`tema: ${tracks.length} pistas, ${fmt(duration)}`);
+    renderTracks(); sendStatus(true);
+    if (S.mode === "preparing") prepare();
+  });
+  renderTracks();
+}
+
+// iOS deja reproducir por código (cuando llega el play de otro aparato) solo a lo que ya sonó
+// una vez tocando la pantalla: en cada toque, se "destraban" las pistas nuevas.
+function unlock() {
+  if (S && S.mode === "playing") return;
+  for (const t of tracks) {
+    if (t.unlocked) continue;
+    if (t.unlocking) continue;
+    t.unlocking = true;
+    t.g.gain.value = 0;
+    const p = t.el.play();
+    const done = (ok) => {
+      // Si mientras tanto le tocó sonar de verdad, no se la pausa.
+      if (t.unlocking) { t.el.pause(); t.unlocking = false; }
+      t.unlocked = t.unlocked || ok; applyVol(t);
+    };
+    if (p) p.then(() => done(true)).catch(() => done(false));
+  }
+}
+document.addEventListener("pointerdown", () => { if (ctx) { if (ctx.state !== "running") ctx.resume(); unlock(); } }, true);
+
+function applyVol(t) { t.g.gain.value = t.mute ? 0 : t.vol; }
+
+function renderTracks() {
+  const box = $("#tracks");
+  box.textContent = "";
+  for (const t of tracks) {
+    const row = document.createElement("div");
+    row.className = "track";
+    const name = document.createElement("div");
+    name.className = "name"; name.textContent = t.name;
+    const mute = document.createElement("button");
+    mute.textContent = t.mute ? "silenciada" : "suena";
+    mute.onclick = () => { t.mute = !t.mute; applyVol(t); mute.textContent = t.mute ? "silenciada" : "suena"; };
+    const vol = document.createElement("input");
+    vol.type = "range"; vol.min = 0; vol.max = 150; vol.value = Math.round(t.vol * 100);
+    vol.style.gridColumn = "1 / -1";
+    vol.oninput = () => { t.vol = vol.value / 100; applyVol(t); };
+    row.append(name, mute, vol);
+    box.append(row);
+  }
+}
+
+$("#pick").onclick = () => { audio(); $("#files").click(); };
+$("#files").onchange = () => {
+  const files = [...$("#files").files].sort((a, b) => a.name.localeCompare(b.name));
+  if (!files.length) return;
+  loadTracks(files.map((f) => ({ name: f.name, blob: f })), files.map((f) => f.name).join(", "));
+  R.notes.push(`archivos: ${files.map((f) => `${f.name} (${(f.size / 1e6).toFixed(1)} MB)`).join(", ")}`);
+};
+
+// Tema de prueba: 4 pistas con golpes en los mismos instantes (si se desfasan, se oye).
+function makeDemo() {
+  const sr = 44100, secs = 150, n = sr * secs, spb = 0.5; // 120 bpm
+  const parts = { "bombo": new Float32Array(n), "redoblante": new Float32Array(n), "bajo": new Float32Array(n), "guía": new Float32Array(n) };
+  let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296) * 2 - 1;
+  const roots = [55, 43.65, 65.41, 49];
+  for (let b = 0; b * spb < secs; b++) {
+    const at = Math.round(b * spb * sr), beat = b % 4;
+    if (beat === 0 || beat === 2) {
+      let ph = 0;
+      for (let i = 0; i < 0.18 * sr && at + i < n; i++) { const t = i / sr; ph += 2 * Math.PI * (45 + 80 * Math.exp(-t * 30)) / sr; parts.bombo[at + i] = 0.9 * Math.sin(ph) * Math.exp(-t * 18); }
+    } else {
+      for (let i = 0; i < 0.14 * sr && at + i < n; i++) { const t = i / sr; parts.redoblante[at + i] = 0.5 * rnd() * Math.exp(-t * 28); }
+    }
+    const f = beat === 0 ? 2000 : 1400;
+    for (let i = 0; i < 0.025 * sr && at + i < n; i++) { const t = i / sr; parts["guía"][at + i] = 0.35 * Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 120); }
+    const root = roots[Math.floor(b / 4) % 4];
+    for (let i = 0; i < spb * sr && at + i < n; i++) { const t = i / sr; parts.bajo[at + i] = 0.3 * Math.sin(2 * Math.PI * root * (at + i) / sr) * Math.min(1, t * 200) * Math.exp(-t * 3); }
+  }
+  return Object.entries(parts).map(([name, data]) => ({ name: `${name}.wav`, blob: wav(data, sr) }));
+}
+function wav(data, sr) {
+  const buf = new ArrayBuffer(44 + data.length * 2), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + data.length * 2, true); str(8, "WAVEfmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, data.length * 2, true);
+  const out = new Int16Array(buf, 44);
+  for (let i = 0; i < data.length; i++) out[i] = Math.max(-1, Math.min(1, data[i])) * 32767;
+  return new Blob([buf], { type: "audio/wav" });
+}
+$("#demo").onclick = () => {
+  audio();
+  $("#bpm").value = 120; $("#first").value = 0; readClick();
+  loadTracks(makeDemo(), "tema de prueba");
+};
+
+// ---------- estado compartido ----------
+// No se mandan órdenes sueltas sino el estado: "sonando desde el instante at (reloj de cada uno)
+// en la posición pos, a velocidad rate", "preparándose en pos" o "pausado en pos". Gana el más
+// nuevo (seq, y si empatan, el id): todos terminan en el mismo, sin esperar a nadie.
+let S = { seq: 0, by: "", mode: "paused", pos: 0, at: 0, rate: 1, deadline: 0 };
+const key = (s) => `${s.seq}:${s.by}`;
+const newer = (a, b) => a.seq > b.seq || (a.seq === b.seq && a.by > b.by);
+const readyBy = new Map(); // key del estado -> aparatos listos
+let localReady = false, startTimer = null, joining = false, stallUntil = 0, settleUntil = 0, nextBeat = null;
+
+function target(t) { return S.pos + Math.max(0, t - S.at) / 1000 * S.rate; }
+function position() { return S.mode === "playing" ? Math.min(target(now()), duration) : S.pos; }
+
+function command(change) {
+  const s = { ...S, ...change, seq: S.seq + 1, by: ID };
+  accept(s, null);
+}
+
+function accept(s, from) {
+  if (!newer(s, S) && !(from && from.adopt)) return;
+  if (from) from.adopt = false;
+  const before = S;
+  S = s;
+  clearTimeout(startTimer); startTimer = null; nextBeat = null;
+  if (S.mode !== "playing" || before.mode !== "playing" || before.pos !== S.pos || before.at !== S.at) settleUntil = now() + 3000;
+  relay({ type: "state", s: S }, from);
+  enter();
+}
+
+function enter() {
+  if (S.mode === "paused") { pauseAll(); seekAll(S.pos); }
+  if (S.mode === "preparing") prepare();
+  if (S.mode === "playing") wakeLock();
+  showState();
+}
+
+// Mientras carga no entra a sonar; si en el medio los demás arrancaron, al terminar entra en
+// el lugar donde va el tema (no avisa "listo": ese estado ya pasó).
+let loading = 0;
+async function prepare() {
+  const k = key(S);
+  localReady = false;
+  pauseAll();
+  if (!tracks.length || !duration) return;
+  loading++;
+  try {
+    await seekAll(S.pos);
+    if ($("#slow").checked) { log("simulando carga lenta…"); await sleep(8000); }
+  } finally { loading--; }
+  if (key(S) !== k) return;
+  localReady = true;
+  markReady(k, ID);
+  relay({ type: "ready", k, id: ID }, null);
+}
+
+function markReady(k, id) {
+  if (!readyBy.has(k)) readyBy.set(k, new Set());
+  readyBy.get(k).add(id);
+}
+
+function pauseAll() { for (const t of tracks) if (!t.el.paused) t.el.pause(); }
+function seekAll(p) {
+  return Promise.all(tracks.map((t) => new Promise((r) => {
+    const done = () => (t.el.readyState >= 3 ? r() : t.el.addEventListener("canplay", r, { once: true }));
+    if (Math.abs(t.el.currentTime - p) > 0.01) { t.el.currentTime = p; t.el.addEventListener("seeked", done, { once: true }); }
+    else done();
+    setTimeout(r, 15000);
+  })));
+}
+function playAll(list = tracks) {
+  return Promise.all(list.map((t) => {
+    if (t.unlocking) { t.unlocking = false; applyVol(t); }
+    t.el.playbackRate = S.rate;
+    const p = t.el.play();
+    return p && p.catch((e) => { R.playRejected++; log(`play() rechazado (${e.name}): tocar la pantalla`); });
+  }));
+}
+
+function tick() {
+  const t = now();
+  if (S.mode === "preparing") {
+    const alive = [ID, ...[...members.values()].filter((m) => t - m.seen < 4000).map((m) => m.id)];
+    const ready = readyBy.get(key(S)) || new Set();
+    const all = alive.every((id) => ready.has(id));
+    // El que dio play arranca cuando están todos o vence el plazo; si se cayó, cualquiera.
+    if ((S.by === ID && (all || t > S.deadline)) || t > S.deadline + 1500) {
+      if (!all) log(`arranca sin esperar a: ${alive.filter((id) => !ready.has(id)).map(nameOf).join(", ")}`);
+      command({ mode: "playing", at: t + 400 });
+    }
+  }
+  if (S.mode === "playing") { follow(t); scheduleClicks(t); }
+  showState();
+}
+setInterval(tick, 100);
+
+function follow(t) {
+  if (!tracks.length || !duration || t < stallUntil || loading) return;
+  const lat = outLat();
+  const want = target(t) + lat * S.rate; // lo que cada pista tiene que estar mandando ahora
+  if (want >= duration - 0.05) { pauseAll(); return; }
+  if (t < S.at - lat * 1000 - 20) {
+    if (!startTimer && localReady) startTimer = setTimeout(() => { startTimer = null; playAll(); }, S.at - lat * 1000 - now());
+    return;
+  }
+  const stopped = tracks.filter((x) => x.el.paused);
+  if (stopped.length) {
+    // Entra tarde (cargó después o se trabó): va directo a donde está el tema ahora.
+    if (joining) return;
+    joining = true;
+    const lead = 0.15;
+    for (const x of stopped) x.el.currentTime = target(now()) + outLat() * S.rate + lead;
+    log(`entra en ${fmt(target(now()))}`);
+    settleUntil = now() + 3000;
+    playAll(stopped).finally(() => { joining = false; });
+    return;
+  }
+  const errs = [];
+  for (const x of tracks) {
+    if (x.el.seeking) continue;
+    const err = x.el.currentTime - want;
+    errs.push(err);
+    if (Math.abs(err) > 0.25) {
+      x.el.currentTime = want + 0.05; R.seeks++; log(`${x.name}: salto (${(err * 1000).toFixed(0)} ms)`);
+    } else if (Math.abs(err) > 0.012) {
+      x.el.playbackRate = S.rate * (1 - Math.max(-0.04, Math.min(0.04, err * 0.6))); R.nudges++;
+    } else if (x.el.playbackRate !== S.rate) x.el.playbackRate = S.rate;
+  }
+  if (errs.length && t > settleUntil) {
+    R.errSamples.push(median(errs) * 1000);
+    if (R.errSamples.length > 600) R.errSamples.shift();
+    if (errs.length > 1) {
+      const spread = (Math.max(...errs) - Math.min(...errs)) * 1000;
+      R.spreadSamples.push(spread);
+      if (R.spreadSamples.length > 600) R.spreadSamples.shift();
+      R.spreadMax = Math.max(R.spreadMax, spread);
+    }
+  }
+}
+
+// ---------- click (de cada uno) ----------
+let bpm = 120, firstBeat = 0;
+function readClick() { bpm = Math.max(30, +$("#bpm").value || 120); firstBeat = Math.max(0, +$("#first").value || 0); nextBeat = null; }
+$("#bpm").onchange = $("#first").onchange = readClick;
+$("#clickVol").oninput = () => { if (clickGain) clickGain.gain.value = $("#clickVol").value / 100; };
+$("#clickOn").onchange = () => { nextBeat = null; };
+function scheduleClicks(t) {
+  if (!$("#clickOn").checked || !ctx || t < stallUntil) return;
+  const spb = 60 / bpm, here = target(t);
+  if (nextBeat === null || nextBeat < here - 0.05) nextBeat = firstBeat + Math.max(0, Math.ceil((here - firstBeat) / spb)) * spb;
+  for (;;) {
+    const heard = S.at + (nextBeat - S.pos) / S.rate * 1000; // instante en que se tiene que oír
+    if (heard > t + 250) break;
+    const when = ctx.currentTime + (heard - now()) / 1000 - outLat();
+    if (when > ctx.currentTime && nextBeat < duration) beep(when, Math.round((nextBeat - firstBeat) / spb) % 4 === 0);
+    nextBeat += spb;
+  }
+}
+function beep(when, accent) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = accent ? 1600 : 1100;
+  g.gain.setValueAtTime(0.0001, when);
+  g.gain.exponentialRampToValueAtTime(0.8, when + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
+  o.connect(g).connect(clickGain);
+  o.start(when); o.stop(when + 0.05);
+}
+
+// ---------- controles ----------
+$("#play").onclick = () => {
+  audio(); unlock();
+  if (S.mode === "paused") command({ mode: "preparing", pos: S.pos >= duration - 0.1 ? 0 : S.pos, deadline: now() + 3000 });
+  else command({ mode: "paused", pos: position() });
+};
+$("#seek").oninput = () => { seekDragging = true; $("#time").textContent = fmt(+$("#seek").value); };
+let seekDragging = false;
+$("#seek").onchange = () => {
+  seekDragging = false;
+  const p = +$("#seek").value;
+  if (S.mode === "paused") command({ mode: "paused", pos: p });
+  else command({ mode: "preparing", pos: p, deadline: now() + 3000 });
+};
+$("#rate").oninput = () => { $("#rateText").textContent = `${$("#rate").value} %`; };
+$("#rate").onchange = () => {
+  const r = $("#rate").value / 100, t = now();
+  if (S.mode === "playing") command({ pos: target(t), at: t, rate: r });
+  else command({ rate: r });
+};
+$("#stall").onclick = () => { stallUntil = now() + 2000; pauseAll(); log("trabado 2 s"); };
+
+let lock = null;
+async function wakeLock() {
+  if (lock || !navigator.wakeLock) return;
+  try { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } catch (e) {}
+}
+
+function showState() {
+  const p = position();
+  if (!seekDragging) { $("#time").textContent = fmt(p); $("#seek").value = p; }
+  $("#play").textContent = S.mode === "paused" ? "▶ Play" : "❚❚ Pausa";
+  const names = { paused: "pausado", preparing: "preparando…", playing: "sonando" };
+  $("#mode").textContent = names[S.mode] + (S.by && S.by !== ID ? ` (lo mandó ${nameOf(S.by)})` : "");
+  if (+$("#rate").value !== Math.round(S.rate * 100) && document.activeElement !== $("#rate")) {
+    $("#rate").value = Math.round(S.rate * 100); $("#rateText").textContent = `${$("#rate").value} %`;
+  }
+}
+
+// ---------- monitor ----------
+let mic = null, micSrc = null, monGain = null, recNode = null;
+async function getMic(deviceId) {
+  const c = audio();
+  if (mic) { mic.getTracks().forEach((t) => t.stop()); micSrc.disconnect(); }
+  mic = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: deviceId ? { exact: deviceId } : undefined,
+    echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1, latency: 0 } });
+  micSrc = c.createMediaStreamSource(mic);
+  if (!monGain) { monGain = c.createGain(); monGain.connect(c.destination); }
+  monGain.gain.value = $("#monOn").checked ? $("#monVol").value / 100 : 0;
+  micSrc.connect(monGain);
+  const track = mic.getAudioTracks()[0], set = track.getSettings ? track.getSettings() : {};
+  R.input = `${track.label || "?"}${set.latency ? `, demora declarada ${(set.latency * 1000).toFixed(1)} ms` : ""}${set.sampleRate ? `, ${set.sampleRate} Hz` : ""}`;
+  log(`entrada: ${R.input}`);
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  const sel = $("#inputs");
+  sel.textContent = "";
+  for (const d of devs) { const o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || "entrada"; o.selected = d.label === track.label; sel.append(o); }
+  sel.classList.toggle("hidden", devs.length < 2);
+  $("#measure").disabled = false;
+  $("#micOn").textContent = "Micrófono activo";
+  return mic;
+}
+$("#micOn").onclick = () => getMic().catch((e) => log(`micrófono: ${e.name}`));
+$("#inputs").onchange = () => getMic($("#inputs").value).catch((e) => log(`micrófono: ${e.name}`));
+navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener("devicechange", () => {
+  // Algo enchufado o desenchufado: se toma la entrada que el sistema elija.
+  if (mic) { log("cambió la entrada"); getMic().catch((e) => log(`micrófono: ${e.name}`)); }
+});
+const monLevel = () => { if (monGain) monGain.gain.value = $("#monOn").checked ? $("#monVol").value / 100 : 0; };
+$("#monOn").onchange = async () => { if (!mic) await getMic().catch((e) => log(`micrófono: ${e.name}`)); monLevel(); };
+$("#monVol").oninput = monLevel;
+
+$("#measure").onclick = async () => {
+  const c = audio();
+  $("#measure").disabled = true;
+  const monWas = $("#monOn").checked; $("#monOn").checked = false; monLevel();
+  try {
+    if (!recNode) {
+      await c.audioWorklet.addModule("rec.js");
+      recNode = new AudioWorkletNode(c, "rec");
+      const sink = c.createGain(); sink.gain.value = 0;
+      recNode.connect(sink).connect(c.destination);
+    }
+    micSrc.connect(recNode);
+    const runs = [];
+    for (let i = 0; i < 5; i++) {
+      $("#measured").textContent = `midiendo ${i + 1}/5…`;
+      const lag = await once(c);
+      if (lag !== null) runs.push(lag);
+      await sleep(250);
+    }
+    micSrc.disconnect(recNode);
+    if (runs.length) {
+      const m = median(runs);
+      $("#measured").textContent = `${m.toFixed(0)} ms`;
+      R.lagRuns.push({ input: R.input, runs: runs.map((x) => Math.round(x)) });
+      log(`demora: ${runs.map((x) => x.toFixed(1)).join(", ")} ms`);
+    } else $("#measured").textContent = "no se oyó el pip: acercar el auricular al mic o subir el volumen";
+  } finally {
+    $("#measure").disabled = false; $("#monOn").checked = monWas; monLevel();
+  }
+};
+function once(c) {
+  return new Promise((resolve) => {
+    const at = c.currentTime + 0.35;
+    recNode.port.onmessage = (e) => {
+      const { start, data } = e.data, sr = c.sampleRate;
+      let noise = 0, k = 0;
+      for (let i = 0; i < data.length && start + i / sr < at; i++) { noise += data[i] * data[i]; k++; }
+      noise = Math.sqrt(noise / Math.max(1, k));
+      const thr = Math.max(noise * 8, 0.02);
+      for (let i = k; i < data.length; i++) if (Math.abs(data[i]) > thr) return resolve((start + i / sr - at) * 1000);
+      resolve(null);
+    };
+    recNode.port.postMessage({ seconds: 1.0 });
+    const buf = c.createBuffer(1, Math.round(c.sampleRate * 0.006), c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.sin(2 * Math.PI * 2000 * i / c.sampleRate) * (1 - i / d.length);
+    const s = c.createBufferSource(); s.buffer = buf; s.connect(c.destination); s.start(at);
+  });
+}
+
+// ---------- sesión: WebRTC por QR, sin servidor ----------
+// Cada aparato conectado a uno o más; los mensajes se reenvían a los demás (sin "host").
+const links = new Set();      // conexiones directas
+const members = new Map();    // id -> {id, name, seen, st, err, dur}
+const seenStatus = new Map(); // id -> último n
+const seenReady = new Set();
+let statusN = 0;
+$("#name").value = (() => { try { return localStorage.getItem("prueba:name") || ""; } catch (e) { return ""; } })() || `aparato ${ID.slice(0, 3)}`;
+$("#name").onchange = () => { try { localStorage.setItem("prueba:name", $("#name").value); } catch (e) {} sendStatus(true); };
+const nameOf = (id) => id === ID ? $("#name").value : (members.get(id) || { name: id }).name;
+
+function makeLink(role) {
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  const dc = pc.createDataChannel("sync", { negotiated: true, id: 0, ordered: true });
+  const link = { pc, dc, role, off: null, samples: [], queue: [], id: null, adopt: role === "join" };
+  dc.onopen = () => {
+    links.add(link); R.connected++;
+    log(`conectado (${role === "join" ? "me uní" : "invité"})`);
+    for (let i = 0; i < 8; i++) setTimeout(() => ping(link), i * 120);
+    link.pinger = setInterval(() => ping(link), 2000);
+    hidePair();
+  };
+  dc.onclose = () => { links.delete(link); clearInterval(link.pinger); log(`se cortó la conexión con ${nameOf(link.id)}`); };
+  dc.onmessage = (e) => receive(link, JSON.parse(e.data));
+  pc.onconnectionstatechange = () => log(`conexión: ${pc.connectionState}`);
+  return link;
+}
+function send(link, msg) { if (link.dc.readyState === "open") link.dc.send(JSON.stringify(msg)); }
+function ping(link) { send(link, { type: "ping", t0: now() }); }
+
+// Los tiempos viajan en el reloj de quien manda; cada uno los pasa al suyo con la diferencia
+// medida (ping) contra el que se lo mandó, y al reenviarlos van en el propio.
+function relay(msg, from) {
+  for (const l of links) {
+    if (l === from || l.off === null) continue;
+    send(l, msg);
+  }
+}
+function toLocal(link, s) { return { ...s, at: s.at - link.off, deadline: s.deadline - link.off }; }
+
+function receive(link, m) {
+  if (m.type === "ping") return send(link, { type: "pong", t0: m.t0, t1: now() });
+  if (m.type === "pong") {
+    const t2 = now(), rtt = t2 - m.t0;
+    link.samples.push({ rtt, off: m.t1 - (m.t0 + t2) / 2 });
+    if (link.samples.length > 15) link.samples.shift();
+    const best = link.samples.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+    const first = link.off === null;
+    link.off = best.off; link.rtt = best.rtt;
+    if (first) {
+      if (link.role !== "join") send(link, { type: "state", s: S }); // el que se une toma el de la sesión
+      sendStatus(true);
+      for (const [k, ids] of readyBy) if (k === key(S)) for (const id of ids) send(link, { type: "ready", k, id });
+      const q = link.queue; link.queue = [];
+      q.forEach((x) => receive(link, x));
+    }
+    return;
+  }
+  if (link.off === null) { link.queue.push(m); return; }
+  if (m.type === "state") return accept(toLocal(link, m.s), link);
+  if (m.type === "ready") {
+    const k = `${m.k}/${m.id}`;
+    if (seenReady.has(k)) return;
+    seenReady.add(k); markReady(m.k, m.id); relay(m, link);
+    return;
+  }
+  if (m.type === "status") {
+    if (!link.id && m.hop === 0) link.id = m.id;
+    if ((seenStatus.get(m.id) || -1) >= m.n || m.id === ID) return;
+    seenStatus.set(m.id, m.n);
+    members.set(m.id, { ...m, seen: now() });
+    relay({ ...m, hop: m.hop + 1 }, link);
+    renderMembers();
+  }
+}
+
+function myStatus() {
+  const st = !tracks.length ? "sin tema" : loading ? "cargando" : S.mode === "playing" ? (tracks.some((t) => t.el.paused) ? "cargando" : "sonando")
+    : S.mode === "preparing" ? (localReady ? "listo" : "cargando") : "pausado";
+  const recent = R.errSamples.slice(-30);
+  return { type: "status", id: ID, name: $("#name").value, n: ++statusN, hop: 0, st, dur: duration,
+           err: recent.length ? Math.round(median(recent)) : null };
+}
+function sendStatus() { if (links.size) relay(myStatus(), null); renderMembers(); }
+setInterval(sendStatus, 1000);
+
+function renderMembers() {
+  const box = $("#members");
+  box.textContent = "";
+  if (!links.size && !members.size) return;
+  const t = now(), mine = myStatus();
+  const rows = [mine, ...[...members.values()].filter((m) => t - m.seen < 8000)];
+  for (const m of rows) {
+    const d = document.createElement("div");
+    const gone = m.id !== ID && t - m.seen > 4000;
+    const direct = [...links].find((l) => l.id === m.id);
+    const diff = m.dur && duration && Math.abs(m.dur - duration) > 0.5 ? ` · ¡otro largo: ${fmt(m.dur)}!` : "";
+    d.textContent = `${m.id === ID ? "● " : "○ "}${m.name}: ${gone ? "sin señal" : m.st}${m.err !== null && m.err !== undefined ? ` · desvío ${m.err} ms` : ""}${direct && direct.rtt ? ` · ida y vuelta ${direct.rtt.toFixed(0)} ms` : ""}${diff}`;
+    d.className = gone || diff ? "bad" : m.st === "cargando" ? "" : "ok";
+    box.append(d);
+  }
+}
+
+// --- emparejar ---
+let pending = null, scanning = null;
+const b64 = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+async function encode(obj) {
+  const json = JSON.stringify(obj);
+  if (window.CompressionStream) {
+    const z = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    return "Z" + b64(new Uint8Array(await new Response(z).arrayBuffer()));
+  }
+  return "J" + b64(new TextEncoder().encode(json));
+}
+async function decode(code) {
+  code = code.trim();
+  const bytes = unb64(code.slice(1));
+  if (code[0] === "Z") return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text());
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function gathered(pc) {
+  return new Promise((r) => {
+    if (pc.iceGatheringState === "complete") return r();
+    pc.addEventListener("icegatheringstatechange", () => pc.iceGatheringState === "complete" && r());
+    setTimeout(r, 5000);
+  });
+}
+function describeCandidates(sdp) {
+  const c = sdp.split(/\r?\n/).filter((l) => l.startsWith("a=candidate"));
+  const addr = c.map((l) => l.split(" ")[4]);
+  return `${c.length} candidatos: ${addr.map((a) => (a.endsWith(".local") ? "mDNS" : a)).join(", ") || "ninguno"}`;
+}
+async function showCode(kind, sdp, text) {
+  const code = await encode({ k: kind, s: sdp, id: ID });
+  const q = qrcode(0, "L"); q.addData(code); q.make();
+  $("#qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+  $("#code").value = code;
+  $("#pairText").textContent = text;
+  $("#pair").classList.remove("hidden");
+  R.candidates = describeCandidates(sdp);
+  log(`código de ${code.length} letras; ${R.candidates}`);
+}
+function hidePair() { $("#pair").classList.add("hidden"); stopScan(); $("#qr").textContent = ""; }
+
+// Con el micrófono abierto, el navegador muestra las direcciones reales de la red local (si no,
+// las esconde detrás de nombres .local que en un punto de acceso pueden no resolverse).
+async function forPairing() { audio(); if (!mic) await getMic().catch((e) => log(`sin micrófono (${e.name}): puede costar conectar`)); }
+
+$("#invite").onclick = async () => {
+  await forPairing();
+  pending = makeLink("invite");
+  await pending.pc.setLocalDescription(await pending.pc.createOffer());
+  await gathered(pending.pc);
+  await showCode("o", pending.pc.localDescription.sdp, "Que el otro toque \"Unirme\" y escanee esto. Después, escaneá su respuesta.");
+  $("#scanAnswer").classList.remove("hidden");
+};
+$("#scanAnswer").onclick = async () => { const code = await scan(); if (code) useCode(code); };
+$("#join").onclick = async () => {
+  await forPairing();
+  $("#pair").classList.remove("hidden"); $("#qr").textContent = ""; $("#scanAnswer").classList.add("hidden");
+  $("#pairText").textContent = "Escaneá el QR del que invita (o pegá su código abajo).";
+  const code = await scan();
+  if (code) useCode(code);
+};
+$("#useCode").onclick = () => useCode($("#code").value);
+$("#copyCode").onclick = () => copy($("#code").value);
+$("#cancelPair").onclick = () => { if (pending && !links.has(pending)) pending.pc.close(); pending = null; hidePair(); };
+
+async function useCode(code) {
+  let o;
+  try { o = await decode(code); } catch (e) { log("ese código no sirve"); return; }
+  if (o.id === ID) { log("es mi propio código"); return; }
+  if (o.k === "o") {
+    pending = makeLink("join");
+    await pending.pc.setRemoteDescription({ type: "offer", sdp: o.s });
+    await pending.pc.setLocalDescription(await pending.pc.createAnswer());
+    await gathered(pending.pc);
+    $("#scanAnswer").classList.add("hidden");
+    await showCode("a", pending.pc.localDescription.sdp, "Ahora el que invitó escanea esto (\"Escanear su respuesta\").");
+  } else if (o.k === "a" && pending && pending.role === "invite") {
+    await pending.pc.setRemoteDescription({ type: "answer", sdp: o.s });
+    $("#pairText").textContent = "Conectando…";
+    setTimeout(() => { if (pending && pending.pc.connectionState !== "connected") log(`no conecta (${pending.pc.connectionState}): ¿están en la misma red?`); }, 10000);
+  } else log("ese código no corresponde a este paso");
+}
+
+async function scan() {
+  stopScan();
+  const video = $("#cam");
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); }
+  catch (e) { log(`cámara: ${e.name}; usar copiar y pegar`); return null; }
+  video.srcObject = stream; video.classList.remove("hidden");
+  await video.play();
+  const canvas = document.createElement("canvas"), g = canvas.getContext("2d", { willReadFrequently: true });
+  return new Promise((resolve) => {
+    scanning = { stream, resolve };
+    const look = () => {
+      if (!scanning) return resolve(null);
+      if (video.videoWidth) {
+        const w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+        canvas.width = w; canvas.height = h; g.drawImage(video, 0, 0, w, h);
+        const found = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
+        if (found && found.data) { stopScan(); return resolve(found.data); }
+      }
+      requestAnimationFrame(look);
+    };
+    look();
+  });
+}
+function stopScan() {
+  if (!scanning) return;
+  scanning.stream.getTracks().forEach((t) => t.stop());
+  const r = scanning.resolve; scanning = null;
+  $("#cam").classList.add("hidden"); $("#cam").srcObject = null;
+  r(null);
+}
+
+// ---------- resultados ----------
+function results() {
+  const c = ctx;
+  const errs = R.errSamples, abs = errs.map(Math.abs);
+  const lines = [
+    `song-wizard · prueba en el celular · ${new Date().toLocaleString()}`,
+    `aparato: ${navigator.userAgent}`,
+    `nombre: ${$("#name").value} (${ID})`,
+    c ? `audio: ${c.sampleRate} Hz, base ${((c.baseLatency || 0) * 1000).toFixed(1)} ms, salida ${((c.outputLatency || 0) * 1000).toFixed(1)} ms, estado ${c.state}` : "audio: sin iniciar",
+    `soporta: preservesPitch ${"preservesPitch" in HTMLMediaElement.prototype}, AudioWorklet ${!!window.AudioWorkletNode}, WakeLock ${!!navigator.wakeLock}, CompressionStream ${!!window.CompressionStream}, audioSession ${!!navigator.audioSession}`,
+    `tema: ${songName || "-"} · ${tracks.length} pistas · ${fmt(duration)}${tracks.length ? " · " + tracks.map((t) => t.type).join("/") : ""}`,
+    `stems: separación máx ${R.spreadMax.toFixed(1)} ms, típica ${median(R.spreadSamples).toFixed(1)} ms (${R.spreadSamples.length} medidas)`,
+    `contra el reloj: desvío típico ${median(abs).toFixed(1)} ms, máx ${abs.length ? Math.max(...abs).toFixed(1) : "-"} ms · saltos ${R.seeks} · ajustes de velocidad ${R.nudges} · play() rechazados ${R.playRejected}`,
+    `velocidad: ${Math.round(S.rate * 100)} %`,
+    `entrada: ${R.input || "-"}`,
+    ...R.lagRuns.map((l) => `demora monitor (ida y vuelta): ${l.runs.join(", ")} ms → ${median(l.runs)} ms · ${l.input}`),
+    `sesión: ${R.candidates || "sin emparejar"} · conexiones ${R.connected} · ahora ${links.size}`,
+    ...[...links].map((l) => `  con ${nameOf(l.id)}: ida y vuelta ${l.rtt ? l.rtt.toFixed(1) : "-"} ms`),
+    ...[...members.values()].map((m) => `  ${m.name}: ${m.st}, desvío ${m.err ?? "-"} ms`),
+    ...R.notes,
+  ];
+  return lines.join("\n");
+}
+setInterval(() => { $("#results").textContent = results(); }, 1000);
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); log("copiado"); }
+  catch (e) { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); log("copiado"); }
+}
+$("#copy").onclick = () => copy(results() + "\n\nregistro:\n" + logLines.join("\n"));
+if (navigator.share) { $("#share").classList.remove("hidden"); $("#share").onclick = () => navigator.share({ text: results() + "\n\nregistro:\n" + logLines.join("\n") }).catch(() => {}); }
+
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+log(`id ${ID}`);
+</script>
+</body>
+</html>

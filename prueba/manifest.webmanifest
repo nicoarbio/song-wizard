@@ -1,0 +1,10 @@
+{
+  "name": "song-wizard · prueba",
+  "short_name": "Prueba",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#16161a",
+  "theme_color": "#16161a",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
