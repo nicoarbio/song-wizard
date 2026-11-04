@@ -199,6 +199,7 @@ def test_first_page_shorter_same_size():
     split = drumsheet.render(xml, first_height=1500)
     count = lambda pages: [len(re.findall(r'class="measure"', p)) for p in pages]
     assert sum(count(split)) == sum(count(whole)) == 160
+    assert not any("<title" in p for p in split)
     assert count(split)[0] < count(whole)[0] and len(split) >= len(whole)
     size = lambda svg: tuple(map(float, re.match(r'<svg viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).groups()))
     assert size(split[0])[0] == size(split[1])[0] and size(split[0])[1] < size(split[1])[1]

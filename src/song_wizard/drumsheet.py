@@ -191,7 +191,8 @@ def render(xml, first_height=None):
 
 def scalable(svg):
     """Verovio's page with a viewBox instead of a fixed size, so it fills the room it's given
-    (keeping its shape, at the top)."""
+    (keeping its shape, at the top), and without its own titles: the page's is the only one."""
+    svg = re.sub(r"<title\b[^>]*>.*?</title>", "", svg, flags=re.S)  # Verovio's labels ("[selectionScore]")
     m = re.match(r'\s*<svg width="([\d.]+)px" height="([\d.]+)px"', svg)
     if not m:
         return svg
