@@ -6,11 +6,14 @@ equal to the one before are folded by default: the first is written and the rest
 "repeat the bar" sign with "×N" over it; bars where the drums don't play become one rest with
 how many bars it lasts. The bars keep their numbers."""
 
+import base64
+import re
 from collections import defaultdict
 from html import escape
+from importlib import resources
 
 from .i18n import say
-from .sheet import CONTROLS_STYLE, WATERMARK, WATERMARK_STYLE
+from .sheet import WATERMARK, WATERMARK_STYLE
 
 # Where each part goes on the staff, and its notehead.
 POSITION = {"crash": ("A", 5, "x"), "hihat": ("G", 5, "x"), "hhopen": ("G", 5, "circle-x"), "ride": ("F", 5, "x"),
@@ -156,56 +159,97 @@ def render(xml):
     toolkit.setOptions(PAGE)
     if not toolkit.loadData(xml):
         raise ValueError("verovio couldn't read the sheet")
-    return [toolkit.renderToSVG(page) for page in range(1, toolkit.getPageCount() + 1)]
+    return [scalable(toolkit.renderToSVG(page)) for page in range(1, toolkit.getPageCount() + 1)]
+
+
+def scalable(svg):
+    """Verovio's page with a viewBox instead of a fixed size, so it fills the room it's given
+    (keeping its shape, at the top)."""
+    m = re.match(r'\s*<svg width="([\d.]+)px" height="([\d.]+)px"', svg)
+    if not m:
+        return svg
+    return (f'<svg viewBox="0 0 {m[1]} {m[2]}" preserveAspectRatio="xMidYMin meet"' + svg[m.end():])
+
+
+def logo():
+    """song-wizard's icon, inside the page (a saved page has nothing else to load it from)."""
+    data = resources.files("song_wizard").joinpath("static", "logo.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
+
+
+def file_title(title, artist):
+    """The page's title, which the browser offers as the PDF's name."""
+    return f"{artist} - {title} - drum tab by song-wizard" if artist else f"{title} - drum tab by song-wizard"
 
 
 STYLE = """
-  .pages svg { display: block; width: 100%; height: auto; }
-  .pages .page + .page { break-before: page; margin-top: 24px; }
-  /* Each of Verovio's pages fits on a sheet (the first one with the legend above it). */
-  @media print { .pages svg { width: auto; max-width: 100%; max-height: 262mm; margin: 0 auto; }
-                 .pages .page:first-child svg { max-height: 245mm; } .pages .page + .page { margin-top: 0; } }
-  .mRptNum { display: none; }
-  h1 { font-size: 18pt; margin: 0 0 4px; }
-  .legend { font-size: 9pt; color: #444; margin: 0 0 6px; }
-  .notice { font-size: 11pt; background: #fff4d6; border: 1px solid #e8cf87; border-radius: 6px; padding: 8px 12px; }
-  @media print { .notice { display: none; } }
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #e9e9e4; margin: 0; }
+  .bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; justify-content: center;
+         padding: 10px 16px; background: #f6f6f3; border-bottom: 1px solid #ccc; font-size: 11pt; }
+  .bar .print { padding: 7px 18px; font-size: 12pt; cursor: pointer; font-weight: 600; }
+  .bar label { display: inline-flex; gap: 5px; align-items: center; }
+  .bar .off { color: #888; font-size: 10pt; }
+  .notice { max-width: 210mm; margin: 14px auto 0; font-size: 10.5pt; background: #fff4d6; border: 1px solid #e8cf87; border-radius: 6px; padding: 8px 12px; }
+  /* Each sheet is an A4 page: on screen, a sheet of paper; printed, exactly one page (with no
+     margins of its own, the browser adds no date or address). */
+  .sheet { width: 210mm; height: 297mm; margin: 16px auto; padding: 12mm 12mm 8mm; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+           display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .sheet .music { flex: 1 1 0; min-height: 0; }
+  .sheet .wm { position: absolute; z-index: 0; }
+  .sheet > :not(.wm) { position: relative; z-index: 1; }
+  .sheet .music svg { display: block; width: 100%; height: 100%; }
+  .sheet .mRptNum { display: none; }
+  header { display: grid; grid-template-columns: 22mm 1fr 22mm; align-items: center; margin-bottom: 3mm; }
+  header img { width: 14mm; height: 14mm; }
+  header .titles { text-align: center; }
+  header h1 { font: 600 21pt/1.15 Georgia, "Times New Roman", serif; margin: 0; }
+  header .artist { font: italic 13pt/1.3 Georgia, "Times New Roman", serif; margin-top: 1mm; }
+  .legend { font-size: 8pt; color: #555; margin: 0 0 2mm; text-align: center; }
+  footer { display: flex; justify-content: space-between; font-size: 8pt; color: #888; padding-top: 2mm; }
+  @media print {
+    body { background: #fff; }
+    .bar, .notice { display: none; }
+    .sheet { margin: 0; box-shadow: none; break-after: page; }
+    .sheet:last-child { break-after: auto; }
+  }
 """
 
 
-def page(title, data, lang="es", fold=True, hidden=None):
-    """The printable drum sheet. hidden: the form's fixed values ([(name, value)]), to show the
+def page(title, data, lang="es", fold=True, hidden=None, artist=None):
+    """The printable drum sheet: A4 pages, the first with the title (and the artist under it)
+    centered and the icon. hidden: the form's fixed values ([(name, value)]), to show the
     choices; None for a page saved to a file."""
     pages = render(musicxml(title, data, fold)) if data.get("hits") else []
-    form = ""
+    bar = ""
     if hidden is not None:
+        from urllib.parse import quote
         fields = "".join(f'<input type="hidden" name="{escape(k)}" value="{escape(str(v))}">' for k, v in hidden)
         path = dict(hidden).get("path", "")
-        from urllib.parse import quote
-        form = (f'<form class="opts" method="get" action="/drums">{fields}<input type="hidden" name="fold" value="0">'
-                f'<label><input type="checkbox" name="fold" value="1"{" checked" if fold else ""} onchange="this.form.submit()"> '
-                f'{escape(say(lang, "drums.fold"))}</label>'
-                f'<a href="/drums.mid?path={quote(path)}" download>{escape(say(lang, "drums.midi"))}</a>'
-                f'<span class="off">{escape(say(lang, "sheet.not_printed"))}</span></form>')
-    notice = (f'<p class="notice">{escape(say(lang, "drums.detected_notice"))}</p>' if hidden is not None else "")
-    body = ("".join(f'<div class="page">{svg}</div>' for svg in pages) if pages
-            else f"<p>{escape(say(lang, 'drums.none'))}</p>")
+        bar = (f'<form class="bar" method="get" action="/drums">{fields}<input type="hidden" name="fold" value="0">'
+               f'<button type="button" class="print" onclick="print()">{escape(say(lang, "print.print"))}</button>'
+               f'<label><input type="checkbox" name="fold" value="1"{" checked" if fold else ""} onchange="this.form.submit()"> '
+               f'{escape(say(lang, "drums.fold"))}</label>'
+               f'<a href="/drums.mid?path={quote(path)}" download>{escape(say(lang, "drums.midi"))}</a>'
+               f'<span class="off">{escape(say(lang, "sheet.not_printed"))}</span></form>'
+               f'<p class="notice">{escape(say(lang, "drums.detected_notice"))}</p>')
+    elif pages:
+        bar = f'<div class="bar"><button type="button" class="print" onclick="print()">{escape(say(lang, "print.print"))}</button></div>'
+    header = (f'<header><img src="{logo()}" alt=""><div class="titles"><h1>{escape(title)}</h1>'
+              + (f'<div class="artist">{escape(artist)}</div>' if artist else "") + "</div><span></span></header>"
+              f'<p class="legend">{escape(say(lang, "drums.legend"))}</p>')
+    foot = lambda n: (f"<footer><span>drum tab by song-wizard</span><span>{n} / {len(pages)}</span></footer>")
+    sheets = "".join(f'<section class="sheet">{WATERMARK}{header if n == 1 else ""}<div class="music">{svg}</div>{foot(n)}</section>'
+                     for n, svg in enumerate(pages, 1))
+    if not pages:
+        sheets = f'<section class="sheet">{WATERMARK}{header}<p>{escape(say(lang, "drums.none"))}</p></section>'
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(say(lang, "drums.title", name=title))}</title>
-<style>
-  @page {{ size: A4; margin: 12mm; }}
-  body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 820px; padding: 0 16px; }}
-  .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print, .opts {{ display: none; }} }}
-{CONTROLS_STYLE}{WATERMARK_STYLE}{STYLE}</style></head>
+<title>{escape(file_title(title, artist))}</title>
+<style>{WATERMARK_STYLE}{STYLE}</style></head>
 <body>
-{WATERMARK}
-{form}
-{notice}
-<h1>{escape(title)}</h1>
-<p class="legend">{escape(say(lang, "drums.legend"))}</p>
-<div class="pages">{body}</div>
-<button class="print" onclick="print()">{say(lang, "print.print")}</button>
+{bar}
+{sheets}
 </body></html>
 """

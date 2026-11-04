@@ -601,8 +601,7 @@ def make_handler(token, root, runner, port):
                 title, artist = tags.title_artist(path)
                 fold = query.get("fold", ["1"])[-1] != "0"
                 hidden = [("path", query["path"][0]), ("lang", self.lang)]
-                return self.send(HTTPStatus.OK, drumsheet.page(f"{title} ({artist})" if artist else title, data, self.lang,
-                                                               fold, hidden).encode(), "text/html; charset=utf-8")
+                return self.send(HTTPStatus.OK, drumsheet.page(title, data, self.lang, fold, hidden, artist).encode(), "text/html; charset=utf-8")
             if url.path in ("/api/lyrics", "/lyrics"):
                 # The lyrics of a song with their marks (for the page), or printable.
                 from . import lyrics, tags

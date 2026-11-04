@@ -279,7 +279,9 @@ def export(song, what, fold=True, lang="en"):
     if what == "midi":
         out.write_bytes(midi(data))
     else:
-        out.write_text(drumsheet.page(base_of(Path(song).name), data, lang, fold), encoding="utf-8")
+        from . import tags
+        title, artist = tags.title_artist(song)
+        out.write_text(drumsheet.page(title, data, lang, fold, artist=artist), encoding="utf-8")
     return out
 
 

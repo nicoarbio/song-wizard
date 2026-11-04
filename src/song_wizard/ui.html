@@ -273,8 +273,11 @@
   .lanes .drum-lane { height: 66px; background: var(--bg); border-radius: 6px; overflow: hidden; cursor: pointer; }
   .drum-lane canvas { display: block; width: 100%; height: 100%; }
   .lanes .drum-ctl { grid-template-columns: minmax(0, 1fr); }
-  .lanes .drum-ctl .ms { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .lanes .drum-ctl .ms { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: flex-end; }
   .lanes .drum-ctl .vol { width: 70px; }
+  .drum-tools { display: inline-flex; gap: 4px; align-items: center; }
+  .drum-tools[hidden] { display: none; }
+  button.icon { min-width: 26px; padding-left: 4px; padding-right: 4px; }
   .lanes .drum-ctl[hidden], .lanes .drum-lane[hidden] { display: none; }
   /* Notes over their stem's lane, at the height of their pitch. */
   .note-layer { position: absolute; inset: 2px 0; pointer-events: none; }
@@ -1516,8 +1519,7 @@ function practiceRowJobs() {
   if ($("drums-job")) {
     const job = find((j) => j.action === "drums");
     rowJob($("drums-job"), job);
-    $("drums-detect").hidden = !!job;
-    showDrumsRow(!!job);
+    if (job) { $("drums-detect").hidden = true; $("drums-again").hidden = true; }
   }
   for (const ui of practice.lanes || []) {
     const part = partOf(ui.track);
@@ -2227,6 +2229,7 @@ function buildTracks() {
     if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) { ui.overview = d; showPracticeView(); } }).catch(() => {});
     practice.lanes.push(ui);
   });
+  placeDrums();
   renderTracks();
   renderChords();
   renderNotes();
@@ -2856,7 +2859,10 @@ function renderChords() {
   if (!lane) return;
   practiceRowJobs();
   const data = chordsState.data, d = practice.duration;
-  $("chords-detect").textContent = data ? say("practice.detect_chords_again") : say("practice.detect_chords");
+  // Once there are chords, detecting again is a small ↻ (what was corrected by hand is kept).
+  $("chords-detect").textContent = data ? "↻" : say("practice.detect_chords");
+  $("chords-detect").classList.toggle("icon", !!data);
+  $("chords-detect").title = data ? say("practice.detect_again_title") : say("practice.chords_detect_title");
   $("chords-simple").classList.toggle("on", chordsSimple());
   $("chords-simple").setAttribute("aria-pressed", String(chordsSimple()));
   $("chords-simple").hidden = !data;
@@ -3175,16 +3181,26 @@ function scheduleNotes(song, offset, rate, lag) {
 }
 
 // ---------- Drums ----------
-// What the drums play ("<song>.drums.json", from "detect drums"), in a row under the chords: each
-// hit at its time, one line per drum. "listen" plays them with a drum kit made by the browser,
-// to compare by ear with the song (mute its drums to hear only what was detected); "print" opens
-// the drum sheet. The row shows when the song has its drums separated or detected.
+// What the drums play ("<song>.drums.json", from "detect drums"): a row that unfolds under the
+// drums' track ("detected" next to its name; with no drums track in the set, next to the song's
+// name), with each hit at its time, one line per drum. "listen" plays them with a drum kit made
+// by the browser, to compare by ear with the song (mute its drums to hear only what was
+// detected); the printer opens the drum sheet; ↻ detects again.
 const DRUM_ROWS = [["crash"], ["ride"], ["hihat", "hhopen"], ["toms"], ["snare"], ["kick"]];
 const DRUMS_VOLUME_KEY = "song-wizard:drums-volume";
+const DRUMS_OPEN_KEY = "song-wizard:drums-open";
 const drumsState = { data: null, listen: false, bus: null, noise: null,
+  open: (() => { try { return localStorage.getItem(DRUMS_OPEN_KEY) === "1"; } catch { return false; } })(),
   volume: (() => { try { const v = parseFloat(localStorage.getItem(DRUMS_VOLUME_KEY)); return isNaN(v) ? 0.8 : v; } catch { return 0.8; } })() };
 const drumsSheetUrl = (path) => `/drums?path=${encodeURIComponent(path)}&lang=${LANG}`;
 const hasDrumStem = (song) => song.files.some((f) => /\((drums|kick|snare)\)\.wav$/i.test(f.name));
+// The drums' track; in the drum kit's set, its last piece.
+const drumsHost = () => {
+  const lanes = (practice.lanes || []).filter((ui) => ui.track.file);
+  return lanes.find((ui) => /\(drums\)\.wav$/i.test(ui.track.file.name))
+    || lanes.filter((ui) => /\((kick|snare|toms|hihat|ride|crash)\)\.wav$/i.test(ui.track.file.name)).pop() || null;
+};
+const detectDrums = () => start({ action: "drums", paths: [practice.song.path] });
 
 async function loadPracticeDrums(song) {
   drumsState.data = null;
@@ -3198,19 +3214,19 @@ async function loadPracticeDrums(song) {
 }
 
 function drumsBuild() {
-  const detect = el("button", { class: "small", id: "drums-detect", title: say("practice.detect_drums_title"),
-    onclick: () => start({ action: "drums", paths: [practice.song.path] }) });
   const listen = el("button", { class: "small listen", id: "drums-listen", title: say("practice.listen_drums_title"),
     onclick: () => { drumsState.listen = !drumsState.listen; resetSchedule(); renderDrums(); } }, say("practice.listen_notes"));
   const vol = el("input", { type: "range", class: "vol", id: "drums-volume", min: 0, max: 100, step: 1, value: Math.round(drumsState.volume * 100),
     "aria-label": say("practice.drums_volume"), title: say("practice.drums_volume"),
     oninput: (e) => { drumsState.volume = e.target.value / 100; if (drumsState.bus) drumsState.bus.gain.value = drumsState.volume;
                       try { localStorage.setItem(DRUMS_VOLUME_KEY, String(drumsState.volume)); } catch {} } });
-  const print = el("button", { class: "small", id: "drums-print", title: say("practice.print_drums_title"),
-    onclick: () => window.open(drumsSheetUrl(practice.song.path), "_blank") }, say("lyrics.print"));
-  const ctl = el("div", { class: "lane-ctl drum-ctl", id: "drum-ctl", hidden: true }, el("span", { class: "name" }, say("practice.drums")),
-    el("span", { class: "ms" }, detect, el("span", { class: "row-job", id: "drums-job", hidden: true }), listen, vol, print));
-  const canvas = el("canvas", { "aria-label": say("practice.drums") });
+  const print = el("button", { class: "small icon", title: say("practice.print_drums_title"), "aria-label": say("practice.print_drums_title"),
+    onclick: () => window.open(drumsSheetUrl(practice.song.path), "_blank") }, "🖨");
+  const again = el("button", { class: "small icon", id: "drums-again", title: say("practice.detect_again_title"), "aria-label": say("practice.detect_again_title"),
+    onclick: detectDrums }, "↻");
+  const ctl = el("div", { class: "lane-ctl drum-ctl", id: "drum-ctl", hidden: true },
+    el("span", { class: "ms" }, listen, vol, print, again));
+  const canvas = el("canvas", { "aria-label": say("practice.drums_detected") });
   const lane = el("div", { class: "lane drum-lane", id: "drum-lane", hidden: true }, canvas);
   lane.addEventListener("pointerdown", (e) => {
     if (!practice.duration) return;
@@ -3221,21 +3237,45 @@ function drumsBuild() {
   return [ctl, lane];
 }
 
-function showDrumsRow(busy = false) {
-  const on = !!(drumsState.data || busy || (practice.song && hasDrumStem(practice.song)));
-  for (const id of ["drum-ctl", "drum-lane"]) if ($(id)) $(id).hidden = !on;
+// The row goes right under the drums' track, and "detect" / "detected ▸" next to its name.
+function placeDrums() {
+  const ctl = $("drum-ctl"), lane = $("drum-lane");
+  if (!ctl) return;
+  const host = drumsHost();
+  if (host) host.lane.after(ctl, lane);
+  const tools = el("span", { class: "drum-tools", id: "drums-tools" },
+    el("button", { class: "small", id: "drums-detect", title: say("practice.detect_drums_title"), onclick: detectDrums }, say("practice.detect_drums")),
+    el("button", { class: "small", id: "drums-toggle", title: say("practice.drums_toggle_title"),
+      onclick: () => { drumsState.open = !drumsState.open; try { localStorage.setItem(DRUMS_OPEN_KEY, drumsState.open ? "1" : ""); } catch {} renderDrums(); } }),
+    el("span", { class: "row-job", id: "drums-job", hidden: true }));
+  if (host) {
+    const label = host.ctl.querySelector(".name");
+    const box = el("span", { class: "name-box" });
+    label.replaceWith(box);
+    box.append(label, tools);
+  } else {
+    const main = document.querySelector("#practice-tracks .lane-ctl.main-lane");
+    if (main) main.append(tools);
+  }
 }
 
 function renderDrums() {
   if (!$("drum-lane")) return;
-  const data = drumsState.data, hits = data && data.hits && data.hits.length;
-  $("drums-detect").textContent = data ? say("practice.detect_drums_again") : say("practice.detect_drums");
-  $("drums-listen").hidden = !hits;
-  $("drums-volume").hidden = !hits;
-  $("drums-print").hidden = !hits;
+  const data = drumsState.data, hits = !!(data && data.hits && data.hits.length);
+  const job = practiceJobs().some((j) => j.action === "drums" && JOB_ACTIVE.includes(j.status));
+  const wanted = !!(data || drumsHost() || (practice.song && hasDrumStem(practice.song)));
+  $("drums-tools").hidden = !wanted;
+  $("drums-detect").hidden = !!data || job;
+  $("drums-toggle").hidden = !data;
+  $("drums-toggle").textContent = `${drumsState.open ? "▾" : "▸"} ${say("practice.drums_toggle")}`;
+  $("drums-toggle").setAttribute("aria-expanded", String(drumsState.open));
+  $("drums-again").hidden = job;
+  for (const id of ["drums-listen", "drums-volume"]) $(id).hidden = !hits;
   $("drums-listen").classList.toggle("on", drumsState.listen);
   $("drums-listen").setAttribute("aria-pressed", String(drumsState.listen));
-  showDrumsRow();
+  const open = !!data && drumsState.open;
+  $("drum-ctl").hidden = !open;
+  $("drum-lane").hidden = !open;
   practiceRowJobs();
   drawDrums(now());
 }

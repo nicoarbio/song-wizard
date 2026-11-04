@@ -182,7 +182,12 @@ def test_sheet():
     page = drumsheet.page("Song", data, "en", hidden=[("path", "Show/a.wav"), ("lang", "en")])
     assert 'class="wm"' in page and 'name="fold" value="1" checked' in page and "/drums.mid?path=Show/a.wav" in page
     assert "ADTOF" in page and "<svg" in page
-    assert '<form class="opts"' not in drumsheet.page("Song", data, "en")  # saved to a file: no choices
+    assert '<form class="bar"' not in drumsheet.page("Song", data, "en")  # saved to a file: no choices
+    # The browser offers the title as the PDF's name; no page margins, so it adds no date or address.
+    page = drumsheet.page("Song", data, "en", artist="Band")
+    assert "<title>Band - Song - drum tab by song-wizard</title>" in page and "margin: 0;" in page
+    assert '<div class="artist">Band</div>' in page and "1 / 1" in page and "data:image/png;base64," in page
+    assert 'viewBox="0 0 ' in page and 'preserveAspectRatio="xMidYMin meet"' in page
 
 
 def test_goes_along(song):
