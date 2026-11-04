@@ -213,7 +213,7 @@ Las pistas se escuchan desde la carpeta de música a medida que suenan, sin carg
 - "ocultar acordes" (o `A`) oculta la fila y el "ahora → sigue", para el que no los necesita (el baterista, por ejemplo); el navegador lo recuerda.
 - Acercá con la rueda para leerlos: con el tema entero a la vista, los acordes muy cortos muestran su nombre solo al pasar el mouse.
 
-**Las notas.** En las filas del bajo y de la voz (con esos instrumentos separados), sus notas, a la altura de su tono, así también se ve el dibujo de la línea, con sus nombres cuando entran (acercá para leerlos; la octava aparece al pasar el mouse). "detectar notas" en la fila las encuentra (ver [Notas](#notas)). "♪" las hace sonar con un tono suave, siguiendo la velocidad y el tono: para aprender la melodía o la línea de bajo, más lento si hace falta. Para corregir una, tocala y escribí la nota (E, Eb, F#2: sin el número mantiene su octava), o borrala; lo corregido se mantiene al volver a detectar. "ocultar notas" (o `N`) las oculta. Siguen al tono como los acordes.
+**Las notas.** En las filas del bajo y de la voz (con esos instrumentos separados), sus notas, a la altura de su tono, así también se ve el dibujo de la línea, con sus nombres cuando entran (acercá para leerlos; la octava aparece al pasar el mouse). "detectar notas" en la fila las encuentra (ver [Notas](#notas)); también "detectar" en la fila de acordes, que detecta acordes y notas juntos, y "más › Detectar las notas" en la biblioteca. Cada parte necesita solo su pista: con "Bajo y el resto", las notas del bajo. "♪" las hace sonar con un tono suave, siguiendo la velocidad y el tono: para aprender la melodía o la línea de bajo, más lento si hace falta. Para corregir una, tocala y escribí la nota (E, Eb, F#2: sin el número mantiene su octava), o borrala; lo corregido se mantiene al volver a detectar. "ocultar notas" (o `N`) las oculta. Siguen al tono como los acordes.
 
 **El monitor.** "🎤 monitor" abre una barra para escuchar un micrófono (la sala, la banda) en los auriculares, mezclado con las pistas: para ensayar con in-ears puestos sin sacarte uno. "prender" le pide el micrófono al navegador (la primera vez pide permiso) y lo prende; arranca apagado y bajo cada vez. Tiene:
 
@@ -267,7 +267,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
 | Apartado Reaper: la preferencia de las tomas, restaurarla | `song-wizard reaper --setting show` (`restore`, `apply`) |
 | Acordes: "más › Detectar los acordes", "Acordes" en Analizar (los temas elegidos), "detectar" en Practicar | `song-wizard chords TEMA` (`--force`); corregirlos se hace en el navegador |
-| Notas en Practicar: "detectar notas" | `song-wizard notes TEMA` (`--part`, `--force`); corregirlas se hace en el navegador |
+| Notas: "detectar notas" en la fila, "detectar" en la fila de acordes (acordes y notas), "más › Detectar las notas" | `song-wizard notes TEMA` (`--part`, `--force`); corregirlas se hace en el navegador |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas

@@ -1100,6 +1100,9 @@ function renderSong(song) {
   return li;
 }
 
+// Whether the song has its bass or voice separated (what `song-wizard notes` reads).
+const hasNoteStems = (song) => song.files.some((f) => /\((bass|vocals)\)\.wav$/i.test(f.name));
+
 // "más": the song's data, lyrics, trim and the REAPER project, in a menu. One open at a time (state.menu is
 // that song's path), kept open across redraws; a click elsewhere or Escape closes it.
 function moreMenu(song) {
@@ -1110,7 +1113,7 @@ function moreMenu(song) {
   const box = el("span", { class: "more" },
     el("button", { class: "small" + (open ? " open" : ""), "aria-haspopup": "menu", "aria-expanded": String(open),
                    title: say("library.more_actions_songs_data_lyrics"), onclick: toggleMenu },
-       say("library.more"), song.lyrics || song.reaper || song.chords ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
+       say("library.more"), song.lyrics || song.reaper || song.chords || song.notes ? el("span", { class: "dot", title: say("library.has_lyrics_reaper_project") }) : null));
   if (!open) return box;
   const reaper = state.reaperInstalled;
   const menu = el("div", { class: "more-menu", role: "menu", onclick: (e) => e.stopPropagation() },
@@ -1121,6 +1124,10 @@ function moreMenu(song) {
     item(song.chords ? say("library.chords_again") : say("library.chords"),
          song.chords ? say("library.chords_kept_by_hand") : say("library.chords_on_click"),
          { onclick: pick(() => { start({ action: "chords", paths: [song.path] }); if (!song.click) toast(say("library.chords_check_click")); }) }),
+    hasNoteStems(song)
+      ? item(song.notes ? say("library.notes_again") : say("library.notes"), say("library.notes_from_stems"),
+             { onclick: pick(() => start({ action: "notes", paths: [song.path] })) })
+      : null,
     item(say("library.trim"), say("library.cut_start_end_add_silence"),
          { onclick: pick(() => openTrim(song)) }),
     el("hr"),
@@ -2691,6 +2698,8 @@ function detectChords() {
     return;
   }
   start({ action: "chords", paths: [practice.song.path] });
+  // One button leaves the song complete: the notes too, where the bass or the voice is separated.
+  if (hasNoteStems(practice.song)) start({ action: "notes", paths: [practice.song.path] });
 }
 
 function renderChords() {
