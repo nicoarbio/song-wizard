@@ -175,7 +175,7 @@
   #pc-panel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
   #pc-panel summary { cursor: pointer; font-weight: 600; }
   #practice-count { color: var(--warn); }
-  #practice-bar { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 11ch; }
+  #practice-bar { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 15ch; }
   .toast { position: fixed; right: 20px; bottom: 80px; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 4; max-width: 70vw; }
   .toast.show { opacity: .92; }
   .offline { position: sticky; top: 0; z-index: 5; background: var(--warn); color: #fff; padding: 8px 20px; font-size: 14px; }
@@ -265,7 +265,10 @@
   .chord-lane .chord-empty { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
   .chord-now { display: inline-flex; align-items: baseline; gap: 6px; padding-left: 12px; border-left: 1px solid var(--line);
     font: 600 15px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
-  .chord-now b { font-size: 26px; color: var(--ink); min-width: 1.6em; }
+  /* Room kept for long names (C#m7b5) and for the next one, so the controls beside don't move. */
+  .chord-now b { font-size: 26px; color: var(--ink); min-width: 6ch; }
+  #chord-next-name { display: inline-block; min-width: 6ch; }
+  #chord-next.none { visibility: hidden; }
   .chord-edit[hidden] { display: none; }
   /* Notes over their stem's lane, at the height of their pitch. */
   .note-layer { position: absolute; inset: 2px 0; pointer-events: none; }
@@ -2899,7 +2902,7 @@ function followChords(t) {
   box.hidden = false;
   $("chord-now-name").textContent = current ? shownChord(current.name) : "–";
   $("chord-next-name").textContent = next ? shownChord(next.name) : "";
-  $("chord-next").hidden = !next;
+  $("chord-next").classList.toggle("none", !next);
   for (const { block, chord } of chordsState.blocks) block.classList.toggle("now", chord === current);
 }
 
