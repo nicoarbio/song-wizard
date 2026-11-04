@@ -770,6 +770,7 @@
   <p class="hint" id="setlist-hint" data-text="setlist.drag_songs_change_order_use"></p>
   <ol id="setlist-list"></ol>
   <label><input type="checkbox" id="setlist-lyrics"> <span id="setlist-lyrics-text" data-text="setlist.lyrics"></span></label>
+  <label class="setlist-chords"><input type="checkbox" id="setlist-chords"> <span id="setlist-chords-text" data-text="setlist.chords"></span></label>
   <div class="row" style="justify-content:flex-end"><button id="setlist-save" hidden data-text="setlist.save_order" data-text-title="setlist.save_order_title"></button><button id="setlist-cancel" data-text="library.cancel"></button><button class="open" id="setlist-open" data-text="setlist.open_print"></button></div>
 </dialog>
 
@@ -2706,7 +2707,7 @@ function syncPracticeClick() {
 // saved is always the name in the song's own key. A name song-wizard doesn't read as a chord is
 // still kept as written (a warning, never a block): it just isn't transposed or simplified.
 const CHORDS_SIMPLE_KEY = "song-wizard:chords-simple";
-const CHORD_RE = /^([A-G][#b]?)(m|min|maj|dim|aug|\+|°|ø|sus[24]?|add)?([0-9b#()majdsu+]*)(?:\/([A-G][#b]?))?$/;
+const CHORD_RE = /^([A-G][#b]?)(maj|min|m|dim|aug|\+|°|ø|sus[24]?|add)?([0-9b#()majdsu+]*)(?:\/([A-G][#b]?))?$/;
 const NO_CHORD = "N.C.";
 const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
@@ -2763,8 +2764,12 @@ function chordsBuild() {
   const simple = el("button", { class: "small", id: "chords-simple", title: say("practice.simplify_title"),
     onclick: () => { try { localStorage.setItem(CHORDS_SIMPLE_KEY, chordsSimple() ? "" : "1"); } catch {} renderChords(); } },
     say("practice.simplify"));
+  // The chords over the lyrics, to print, in the pitch and with the "simplify" of now.
+  const print = el("button", { class: "small", id: "chords-print", title: say("practice.print_chords_title"),
+    onclick: () => window.open(`/lyrics?path=${encodeURIComponent(practice.song.path)}&with=chords&shift=${semitones()}`
+      + `${chordsSimple() ? "&simple=1" : ""}&lang=${LANG}`, "_blank") }, say("lyrics.print"));
   const ctl = el("div", { class: "lane-ctl chord-ctl" }, el("span", { class: "name" }, say("practice.chords")),
-    el("span", { class: "ms" }, detect, el("span", { class: "row-job", id: "chords-job", hidden: true }), simple));
+    el("span", { class: "ms" }, detect, el("span", { class: "row-job", id: "chords-job", hidden: true }), simple, print));
   const lane = el("div", { class: "lane chord-lane", id: "chord-lane" });
   lane.addEventListener("pointerdown", (e) => {
     if (e.target !== lane || !practice.duration) return;
@@ -2798,6 +2803,7 @@ function renderChords() {
   $("chords-simple").classList.toggle("on", chordsSimple());
   $("chords-simple").setAttribute("aria-pressed", String(chordsSimple()));
   $("chords-simple").hidden = !data;
+  $("chords-print").hidden = !data || !data.chords || !data.chords.length;
   chordsState.blocks = [];
   if (!data || !d) {
     lane.replaceChildren(el("span", { class: "chord-empty" }, data ? "" : say("practice.no_chords_yet")));
@@ -3454,7 +3460,16 @@ function renderSetlist() {
   $("setlist-lyrics-text").textContent = withLyrics
     ? say("setlist.lyrics_their_marks_one_per", { which: withLyrics === items.length ? (items.length === 1 ? say("setlist.song_has_them") : say("setlist.all_songs_have_them", { n: items.length })) : say("setlist.songs_have_them", { some: withLyrics, n: items.length }) })
     : say("setlist.lyrics_none_these_songs_has");
+  // The chords over the words (or in bars, for a song with chords and no lyrics): it goes with the lyrics.
+  const withChords = items.filter((i) => i.song.chords).length;
+  if (withChords && !withLyrics) $("setlist-lyrics").disabled = false;
+  $("setlist-chords").disabled = !withChords || !$("setlist-lyrics").checked;
+  if ($("setlist-chords").disabled) $("setlist-chords").checked = false;
+  $("setlist-chords-text").textContent = withChords
+    ? say("setlist.chords_some", { some: withChords, n: items.length })
+    : say("setlist.chords_none");
 }
+$("setlist-lyrics").addEventListener("change", () => renderSetlist());
 
 $("setlist-cancel").onclick = () => $("setlist").close();
 $("setlist-save").onclick = () => {
@@ -3468,6 +3483,7 @@ $("setlist-open").onclick = () => {
   for (const { song } of setlistState.items) query.append("path", song.path);
   query.set("title", $("setlist-title").value.trim() || "Setlist");
   if ($("setlist-lyrics").checked) query.set("lyrics", "1");
+  if ($("setlist-chords").checked) { query.set("with", "chords"); if (chordsSimple()) query.set("simple", "1"); }
   query.set("lang", LANG);
   window.open(`/setlist?${query}`, "_blank");
   $("setlist").close();
@@ -4034,7 +4050,8 @@ $("lyr-save").onclick = async () => {
     renderLyrics(); renderLibrary();
   } catch (e) { toast(e.message, 6000); }
 };
-$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}&lang=${LANG}`, "_blank");
+$("lyr-print").onclick = () => window.open(`/lyrics?path=${encodeURIComponent(lyr.song.path)}&lang=${LANG}`
+  + (practice.song && practice.song.path === lyr.song.path ? `&shift=${semitones()}${chordsSimple() ? "&simple=1" : ""}` : ""), "_blank");
 $("lyr-close").onclick = () => $("lyrics").close();
 $("report-close").onclick = () => $("report").close();
 $("report-folder").onclick = () => api("/api/report/open", {}).catch((e) => toast(say("library.couldnt_opened", { message: e.message })));

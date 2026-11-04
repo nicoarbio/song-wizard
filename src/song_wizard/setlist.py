@@ -105,10 +105,12 @@ def text(name, items):
     return "\n".join(lines) + "\n"
 
 
-def page(name, items, with_lyrics=False, lang="es"):
+def page(name, items, with_lyrics=False, lang="es", with_chords=False, simple=False, bars=4, hidden=None):
     """The printable page; with the lyrics of the songs that have them, one song per page after
-    the list. Everything shown is escaped: names come from downloaded titles."""
-    from . import lyrics
+    the list, and with_chords their chords over the words (a song with chords and no lyrics: its
+    chords in rows of bars). hidden: the choices' fixed values, to show them (None: a page saved
+    to a file). Everything shown is escaped: names come from downloaded titles."""
+    from . import lyrics, sheet
     from .i18n import say
 
     total = sum(r["seconds"] or 0 for r in items)
@@ -119,13 +121,23 @@ def page(name, items, with_lyrics=False, lang="es"):
         + (f" <span class=a>{html.escape(r['artist'])}</span>" if r["artist"] else "")
         + f"</td><td class=k>{html.escape(r['key'])}</td><td class=b>{r['bpm']}</td><td class=d>{clock(r['seconds'])}</td></tr>"
         for r in items)
-    sheets = []
+    sheets, some_chords = [], False
     for r in items if with_lyrics else []:
         data = lyrics.load(r["path"])
-        if data:
-            sheets.append(f'<section class="song"><h2><span class=n>{r["n"]}.</span> {html.escape(r["title"])}'
-                          + (f' <span class=a>{html.escape(r["artist"])}</span>' if r["artist"] else "")
-                          + f'</h2>\n{lyrics.section(data)}\n</section>')
+        has_chords = "chords" in sheet.available(r["path"], None)
+        some_chords = some_chords or has_chords
+        if with_chords and has_chords:
+            content = sheet.body(r["path"], data, "chords", 0, simple, bars)[0]
+        elif data:
+            content = lyrics.section(data)
+        else:
+            continue
+        sheets.append(f'<section class="song"><h2><span class=n>{r["n"]}.</span> {html.escape(r["title"])}'
+                      + (f' <span class=a>{html.escape(r["artist"])}</span>' if r["artist"] else "")
+                      + f'</h2>\n{content}\n</section>')
+    form = (sheet.controls(hidden, lang, None, {"chords"} if some_chords else set(), None, simple, bars,
+                           action="/setlist", chords_on=with_chords)
+            if with_lyrics and hidden is not None else "")
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Setlist: {html.escape(name)}</title>
@@ -146,8 +158,10 @@ def page(name, items, with_lyrics=False, lang="es"):
   .song h2 .n {{ font-weight: 400; }}
   .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
   @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} .song {{ margin-top: 0; }} }}
-{lyrics.STYLE}</style></head>
+{lyrics.STYLE}{sheet.STYLE}{sheet.CONTROLS_STYLE}{sheet.WATERMARK_STYLE}</style></head>
 <body>
+{sheet.WATERMARK}
+{form}
 <h1>{html.escape(name)}</h1>
 <div class="meta">{html.escape(say(lang, "print.songs", n=len(items), total=clock(total)))}</div>
 <table><thead><tr><th class=n>#</th><th>{say(lang, "print.song")}</th><th class=k>{say(lang, "print.key")}</th><th class=b>BPM</th><th class=d>{say(lang, "print.length")}</th></tr></thead>
@@ -160,7 +174,7 @@ def page(name, items, with_lyrics=False, lang="es"):
 """
 
 
-def run(paths=(), name=None, with_lyrics=False, out=None):
+def run(paths=(), name=None, with_lyrics=False, out=None, with_chords=False, simple=False, bars=4):
     """One folder: its setlist, saved in it (or in out). Songs: theirs, in that order, shown and
     saved only to out."""
     paths = [paths] if isinstance(paths, (str, Path)) else list(paths) or ["."]
@@ -181,11 +195,11 @@ def run(paths=(), name=None, with_lyrics=False, out=None):
     print(text(name, items), end="")
     if out:
         out = Path(system.local_path(str(out)))
-        out.write_text(page(name, items, with_lyrics), encoding="utf-8")
+        out.write_text(page(name, items, with_lyrics, with_chords=with_chords, simple=simple, bars=bars), encoding="utf-8")
         print(f"\nSaved {system.shown_path(out)} (to print: open it in the browser)")
     elif here:
         (here / "Setlist.txt").write_text(text(name, items), encoding="utf-8")
-        (here / "Setlist.html").write_text(page(name, items, with_lyrics), encoding="utf-8")
+        (here / "Setlist.html").write_text(page(name, items, with_lyrics, with_chords=with_chords, simple=simple, bars=bars), encoding="utf-8")
         print(f"\nSaved Setlist.txt and Setlist.html (to print: open it in the browser) in {system.shown_path(here)}")
     else:
         print("\nTo print it: --out setlist.html saves it as a page, or use the interface.")

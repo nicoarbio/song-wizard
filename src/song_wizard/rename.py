@@ -14,7 +14,7 @@ NUMBER = re.compile(r"^\d+ - ")
 
 # Files that go with a song without being audio: its lyrics and their printable page, and its
 # REAPER project and the backup REAPER keeps of it.
-COMPANIONS = (".lyrics.json", ".lyrics.html", ".chords.json", ".notes.json", ".rpp", ".rpp-bak")
+COMPANIONS = (".lyrics.json", ".lyrics.html", ".chords.json", ".chords.html", ".bass.html", ".notes.json", ".rpp", ".rpp-bak")
 # REAPER's waveform cache, next to each audio file it opened: "Title (drums).wav.reapeaks".
 PEAKS = ".reapeaks"
 

@@ -37,7 +37,7 @@ NO_CHORD = "N.C."
 NOTE = r"[A-G](?:#|b)?"
 # What the page and the terminal understand as a chord (anything else is still saved, with a
 # warning: it just isn't transposed or simplified).
-CHORD = re.compile(rf"^(?P<root>{NOTE})(?P<quality>m|min|maj|dim|aug|\+|°|ø|sus[24]?|add)?"
+CHORD = re.compile(rf"^(?P<root>{NOTE})(?P<quality>maj|min|m|dim|aug|\+|°|ø|sus[24]?|add)?"
                    rf"(?P<extra>[0-9b#()majdsu+]*)(?:/(?P<bass>{NOTE}))?$")
 
 

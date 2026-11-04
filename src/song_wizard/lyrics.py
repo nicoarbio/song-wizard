@@ -154,13 +154,13 @@ def fetch(song):
         raise OSError(f"couldn't reach the lyrics database ({getattr(e, 'reason', e)})") from e
 
 
-def run(paths, text_from=None, force=False, export_page=False):
+def run(paths, text_from=None, force=False, export_page=False, kind="lyrics", shift=0, simple=False, bars=4):
     songs = list(expand(paths, skip_generated=True))
     if not songs:
         die("No songs given.")
     if export_page:
         for song in songs:
-            print(f"  saved  {export(song)}  (open it in the browser to print it)")
+            print(f"  saved  {export(song, kind, shift, simple, bars)}  (open it in the browser to print it)")
         return
     if text_from is not None:
         text = sys.stdin.read() if text_from == "-" else Path(text_from).read_text(encoding="utf-8")
@@ -254,38 +254,23 @@ def section(data):
             f'<div class="lyrics{" long" if len(lines) > 40 else ""}">\n' + "\n".join(body) + "\n</div>")
 
 
-def page(title, data, lang="es"):
-    """The lyrics with their highlights, notes and legend, as a page to print or keep."""
-    from html import escape
-
-    from .i18n import say
-
-    return f"""<!doctype html>
-<html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(say(lang, "lyrics.lyrics", v=title))}</title>
-<style>
-  @page {{ size: A4; margin: 14mm; }}
-  body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 760px; padding: 0 16px; }}
-  h1 {{ font-size: 20pt; margin: 0 0 6px; }}
-  .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} }}
-{STYLE}</style></head>
-<body>
-<h1>{escape(title)}</h1>
-{section(data)}
-<button class="print" onclick="print()">{say(lang, "print.print")}</button>
-</body></html>
-"""
-
-
-def export(song):
-    """Write the printable page next to the song; returns its path."""
+def export(song, kind="lyrics", shift=0, simple=False, bars=4):
+    """Write the printable page next to the song (with the chords or the bass's notes over the
+    lyrics, if asked); returns its path."""
+    from . import sheet
     from .tags import title_artist
 
     data = load(song)
-    if not data:
+    have = sheet.available(song, data)
+    if kind == "lyrics" and not data:
         die(f"{os.path.basename(song)} has no lyrics yet: song-wizard lyrics finds them.")
+    if kind == "chords" and kind not in have:
+        die(f"{os.path.basename(song)} has no chords yet: song-wizard chords finds them.")
+    if kind == "bass" and kind not in have:
+        die(f"{os.path.basename(song)} has no bass notes yet: song-wizard notes --part bass finds them.")
     title, artist = title_artist(song)
-    out = Path(song).parent / f"{base_of(Path(song).name)}.lyrics.html"
-    out.write_text(page(f"{title} ({artist})" if artist else title, data), encoding="utf-8")
+    name = {"lyrics": "lyrics", "chords": "chords", "bass": "bass"}[kind]
+    out = Path(song).parent / f"{base_of(Path(song).name)}.{name}.html"
+    out.write_text(sheet.page(f"{title} ({artist})" if artist else title, song, data, kind=kind, shift=shift,
+                              simple=simple, bars=bars), encoding="utf-8")
     return out

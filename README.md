@@ -264,8 +264,9 @@ Everything the interface does can also be done from the terminal; it's almost al
 | "shut down" | `song-wizard ui --stop` (`--restart` closes it and opens it again) |
 | The version, at the top, and "update to …" | `song-wizard upgrade` (`--check` only tells you if there's a new one; `--list` (`--all` includes the retired ones) and `--to VERSION`, only in the terminal) |
 | "save the order in the folder" (a folder's setlist) | `song-wizard order FOLDER SONG SONG...` |
-| A folder's "setlist", or "setlist of the picked songs" | `song-wizard setlist FOLDER`, or `song-wizard setlist SONG SONG...` (`--lyrics`, `--out FILE.html`) |
+| A folder's "setlist", or "setlist of the picked songs" | `song-wizard setlist FOLDER`, or `song-wizard setlist SONG SONG...` (`--lyrics`, `--chords`, `--out FILE.html`) |
 | "more › Lyrics": find, write or paste, print | `song-wizard lyrics SONG` (`--from FILE`, `--export`); colors and notes are marked in the browser |
+| Chord sheet: "print" on Practice's chords' row, and its choices | `song-wizard lyrics --export --chords SONG` (`--bass`, `--shift N`, `--simple`, `--bars 2`) |
 | "more › Create REAPER project", "Open in REAPER", "Redo" | `song-wizard reaper SONG` (`--redo`, `--no-open`) |
 | REAPER box: the takes preference, putting it back | `song-wizard reaper --setting show` (`restore`, `apply`) |
 | Chords: "more › Detect the chords", "Chords" in Analyze (the picked songs), "detect" in Practice | `song-wizard chords SONG` (`--force`); correcting them is done in the browser |
@@ -424,6 +425,21 @@ song-wizard notes --force "song.opus"         # detect again also what was corre
 Follows the notes of the separated bass and voice (separate them first with `song-wizard separate --stem bass` / `--stem vocals`) and saves them next to the song as `<song>.notes.json`, which the practice player shows, plays and lets you correct (see [Practice](#practice)). Renaming, trimming and deleting the song take them along.
 
 The bass's come out solid. The voice's do well with a clear, upfront voice; a rough voice or backing vocals singing over it throw it off: it follows one line at a time. The bass is followed with pYIN (in librosa), and the voice with [CREPE](https://github.com/maxrmorrison/torchcrepe), a model made for following a voice's pitch, copied into song-wizard (`third_party/crepe`, with its MIT license) like the chords' model; its model (89 MB) is downloaded the first time from a fixed address, used only if its SHA-256 matches and opened as numbers only.
+
+### Chord sheet
+
+```bash
+song-wizard lyrics --export --chords "song.opus"            # the chords over the words: Song.chords.html
+song-wizard lyrics --export --chords --shift -2 --simple "song.opus"
+song-wizard lyrics --export --bass "song.opus"              # the bass's notes instead: Song.bass.html
+song-wizard setlist "Music/Show" --lyrics --chords          # every song's sheet after the list
+```
+
+The lyrics to print, with each chord over the word being sung when it changes, like the sheets found online. In the interface: "print" on the chords' row in Practice (in the pitch and with the "simplify" you have on), or "print" in the lyrics window. At the top of the page, choices that aren't printed: **lyrics only / with chords / with the bass's notes** (the bass's notes are for the bass player; the same note played again goes once: E E E C# → E C#), the pitch (−6 to +6 semitones), "simplify" (only major or minor) and **bars per row** (2 or 4). Each change shows the page again.
+
+To put each chord over its word it needs the times of the lyrics' lines (from the lyrics database, or set with "times" in Practice): the chords during each line are spread over its letters. It's approximate: if one lands wrong, correct the time of that lyrics line. Where nobody sings (intro, solos, the end) the chords go in rows of bars on the click's grid, all rows the same length, with the time each one starts: `0:12 | E | C#m | B | B |`. Without times in the lyrics, the whole song goes that way, before the lyrics, and the page says how to have them over the words; you can print it like that anyway. A song with chords and no lyrics prints its chords in bars.
+
+Every printed page (lyrics, chords, setlist) carries "song-wizard" small and very light in the background.
 
 ### Changing the key
 
@@ -599,7 +615,7 @@ In the interface, "more › Lyrics" ("Lyrics ✓" if the song already has them) 
 - **Note** (N): click a line to write it a comment ("drums come in", "break", "repeat twice"). Clicking the note changes it, and leaving it empty deletes it.
 - Esc lets go of the tool and Ctrl+Z (or "undo") goes back.
 - **Write or paste**: to correct the lyrics or enter them by hand. The lines you don't change keep their colors and notes.
-- **Print**: opens the lyrics with their colors, notes and legend in another tab, to print them or save them as PDF; if they're long, they go in two columns. `lyrics --export` saves the same page as `Song.lyrics.html`.
+- **Print**: opens the lyrics with their colors, notes and legend in another tab, to print them or save them as PDF; if they're long, they go in two columns. `lyrics --export` saves the same page as `Song.lyrics.html`. At the top, "with chords" or "with the bass's notes" puts them over the words (see [Chord sheet](#chord-sheet)).
 
 Everything is saved on its own. Looking up the lyrics again replaces them and the colors and notes are lost (the legend stays), which is why it asks first.
 
@@ -654,7 +670,7 @@ Shows the list in that order and saves nothing in the folders (the folders stay 
 
 **In the interface**, each folder's "setlist" button opens the list of its songs; to make one with loose songs, pick them with their checkboxes (in the order you pick them) and click "setlist of the picked songs", below. Either way a window opens where you change the title, put the songs in order by dragging them (or with ↑ ↓), drop the ones that don't go with ×, and "open to print" opens the page in another tab. Nothing is saved from the interface: to have it as a file, print it as PDF. Opened from a folder, "save the order in the folder" renumbers its files in the order of the list (see [Songs added by hand and the folder's order](#songs-added-by-hand-and-the-folders-order)).
 
-- `--lyrics` (or "with lyrics" in the window) adds, after the list, the lyrics of each song that has them, with their colors and notes, one per page and with its setlist number. Songs without lyrics are skipped.
+- `--lyrics` (or "with lyrics" in the window) adds, after the list, the lyrics of each song that has them, with their colors and notes, one per page and with its setlist number. Songs without lyrics are skipped. `--chords` (or "with chords over the lyrics") puts each song's chords over its words (see [Chord sheet](#chord-sheet)), and a song with chords and no lyrics gets its chords in bars.
 - The key and tempo come from what you already detected with `key` and `bpm` (or set by hand); missing ones are left blank. A `?` marks a doubtful key.
 - The title and artist come from the [song's data](#song-data) (if it has none, from the file name, "Artist - Song"), without extras like "(Official Video)" or "[HD]". The artist goes smaller next to it. If something came out wrong, fix it in the song's data.
 - `--title` changes the title at the top (by default, the playlist's or folder's name; with loose songs, "Setlist").
@@ -723,6 +739,7 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `convert`: turns down only what goes over 0 dB; in a folder it skips compressed files; it doesn't overwrite files without `--overwrite`.
 - `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records (also the one each playlist keeps in its folder: taken by another computer, updated by downloading and deleting, removed when forgetting, a copy that doesn't take over, and a damaged or odd record ignored).
 - `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
+- `sheet`: chord names moved and simplified, each chord over the right word, bars where nobody sings and for lyrics without times (rows of the same length), the bass's notes without repeats, the page's choices (and the defaults for unexpected ones), names escaped, the export and rename, the setlist with chords and the watermark.
 - `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).
 - `chords`: BTC's names written as on a chord sheet (Am7, C#m7b5, N.C.), the changes moved onto the click's beats (flickers under half a beat dropped), what was corrected by hand kept when detecting again, any name saved with its quotes escaped (and shapes that don't fit refused), the chords following a rename and a trim, the page reading and saving them, and the model used only if its SHA-256 matches (and not downloaded again). Detecting with the real model needs to download it (12 MB): `uv run pytest -m network` checks that a synthetic I-IV-V-I in G gives G, C and D.
 - `notes`: a synthetic bass line followed with pYIN gives its exact notes on time (±50 ms), with the same note across a tiny gap joined; notes corrected by hand kept when detecting again (and not with `--force`); a song without stems says so; shapes that don't fit refused; the notes following a trim and a rename; the page reading and saving them and asking for one part. With the voice model (`-m network`): a synthetic sung melody with vibrato gives its notes within 40 ms.

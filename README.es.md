@@ -264,8 +264,9 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
 | La versión, arriba, y "actualizar a …" | `song-wizard upgrade` (`--check` solo dice si hay una nueva; `--list` (`--all` incluye las retiradas) y `--to VERSIÓN`, solo en la terminal) |
 | "guardar el orden en la carpeta" (setlist de una carpeta) | `song-wizard order CARPETA TEMA TEMA...` |
-| "setlist" de una carpeta, o "setlist con lo elegido" | `song-wizard setlist CARPETA`, o `song-wizard setlist TEMA TEMA...` (`--lyrics`, `--out ARCHIVO.html`) |
+| "setlist" de una carpeta, o "setlist con lo elegido" | `song-wizard setlist CARPETA`, o `song-wizard setlist TEMA TEMA...` (`--lyrics`, `--chords`, `--out ARCHIVO.html`) |
 | "más › Letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
+| Hoja con acordes: "imprimir" en la fila de acordes de Practicar, y sus opciones | `song-wizard lyrics --export --chords TEMA` (`--bass`, `--shift N`, `--simple`, `--bars 2`) |
 | "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
 | Apartado Reaper: la preferencia de las tomas, restaurarla | `song-wizard reaper --setting show` (`restore`, `apply`) |
 | Acordes: "más › Detectar los acordes", "Acordes" en Analizar (los temas elegidos), "detectar" en Practicar | `song-wizard chords TEMA` (`--force`); corregirlos se hace en el navegador |
@@ -424,6 +425,21 @@ song-wizard notes --force "tema.opus"         # volver a detectar también lo co
 Sigue las notas del bajo y de la voz separados (separalos antes con `song-wizard separate --stem bass` / `--stem vocals`) y las guarda al lado del tema, como `<tema>.notes.json`, que el reproductor de práctica muestra, hace sonar y deja corregir (ver [Practicar](#practicar)). Renombrar, recortar y borrar el tema las llevan con él.
 
 Las del bajo salen sólidas. Las de la voz andan bien con una voz clara y al frente; una voz rasposa o coros cantando encima la confunden: sigue una sola línea a la vez. El bajo se sigue con pYIN (de librosa), y la voz con [CREPE](https://github.com/maxrmorrison/torchcrepe), un modelo hecho para seguir la altura de una voz, copiado dentro de song-wizard (`third_party/crepe`, con su licencia MIT) como el modelo de acordes; su modelo (89 MB) se baja la primera vez de una dirección fija, se usa solo si su SHA-256 coincide y se abre solo como números.
+
+### Hoja con acordes
+
+```bash
+song-wizard lyrics --export --chords "tema.opus"             # los acordes sobre las palabras: Tema.chords.html
+song-wizard lyrics --export --chords --shift -2 --simple "tema.opus"
+song-wizard lyrics --export --bass "tema.opus"               # las notas del bajo en su lugar: Tema.bass.html
+song-wizard setlist "Música/Show" --lyrics --chords          # la hoja de cada tema después de la lista
+```
+
+La letra para imprimir, con cada acorde sobre la palabra que se canta cuando cambia, como las hojas de internet. En la interfaz: "imprimir" en la fila de acordes de Practicar (en el tono y con el "simplificar" que tengas puestos), o "imprimir" en la ventana de la letra. Arriba de la hoja, opciones que no salen impresas: **solo la letra / con acordes / con las notas del bajo** (las notas del bajo son para el bajista; la misma nota repetida va una vez: E E E C# → E C#), el tono (−6 a +6 semitonos), "simplificar" (solo mayor o menor) y **compases por renglón** (2 o 4). Cada cambio vuelve a mostrar la hoja.
+
+Para poner cada acorde sobre su palabra hacen falta los tiempos de los renglones de la letra (de la base de letras, o marcados con "tiempos" en Practicar): los acordes de cada renglón se reparten sobre sus letras. Es aproximado: si uno cae mal, corregí el tiempo de ese renglón de la letra. Donde no se canta (intro, solos, el final) los acordes van en renglones de compases sobre la grilla del click, todos del mismo largo, con el tiempo en que empieza cada uno: `0:12 | E | C#m | B | B |`. Sin tiempos en la letra, todo el tema va así, antes de la letra, y la hoja dice cómo tenerlos sobre las palabras; igual se puede imprimir así. Un tema con acordes y sin letra imprime sus acordes en compases.
+
+Toda hoja impresa (letra, acordes, setlist) lleva "song-wizard" chico y muy claro de fondo.
 
 ### Cambiar el tono
 
@@ -599,7 +615,7 @@ En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene)
 - **Nota** (N): clic en una línea para escribirle un comentario ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
 - Esc suelta la herramienta y Ctrl+Z (o "deshacer") vuelve atrás.
 - **Escribir o pegar**: para corregir la letra o cargarla a mano. Las líneas que no cambies conservan sus colores y notas.
-- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`.
+- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`. Arriba, "con acordes" o "con las notas del bajo" los pone sobre las palabras (ver [Hoja con acordes](#hoja-con-acordes)).
 
 Todo se guarda solo. Buscar la letra de nuevo la reemplaza y se pierden los colores y las notas (la leyenda queda), por eso pregunta antes.
 
@@ -654,7 +670,7 @@ Muestra la lista en ese orden y no guarda nada en las carpetas (las carpetas sig
 
 **En la interfaz**, el botón "setlist" de cada carpeta abre la lista de sus temas; para armar una con temas sueltos, elegilos con sus casillas (en el orden en que los vas eligiendo) y tocá "setlist con lo elegido", abajo. En los dos casos se abre una ventana donde cambiás el título, ordenás los temas arrastrándolos (o con ↑ ↓), sacás los que no van con ×, y "abrir para imprimir" abre la hoja en otra pestaña. Desde la interfaz no se guarda nada: para tenerla en un archivo, imprimila como PDF. Abierta desde una carpeta, "guardar el orden en la carpeta" renumera sus archivos en el orden de la lista (ver [Temas agregados a mano y el orden de la carpeta](#temas-agregados-a-mano-y-el-orden-de-la-carpeta)).
 
-- `--lyrics` (o "con las letras" en la ventana) suma, después de la lista, la letra de cada tema que la tenga, con sus colores y notas, una por página y con su número del setlist. Los temas sin letra se saltean.
+- `--lyrics` (o "con las letras" en la ventana) suma, después de la lista, la letra de cada tema que la tenga, con sus colores y notas, una por página y con su número del setlist. Los temas sin letra se saltean. `--chords` (o "con acordes sobre la letra") pone los acordes de cada tema sobre sus palabras (ver [Hoja con acordes](#hoja-con-acordes)), y un tema con acordes y sin letra lleva sus acordes en compases.
 - La tonalidad y el tempo salen de lo que ya detectaste con `key` y `bpm` (o pusiste a mano); los que falten quedan en blanco. Un `?` marca una tonalidad dudosa.
 - El título y el artista salen de los [datos del tema](#datos-del-tema) (si no tiene, del nombre del archivo, "Artista - Tema"), sin agregados como "(Official Video)" o "[HD]". El artista va más chico al lado. Si algo quedó mal, se corrige en los datos del tema.
 - `--title` cambia el título de arriba (por defecto, el nombre de la playlist o de la carpeta; con temas sueltos, "Setlist").
@@ -723,6 +739,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives` (también el que cada playlist guarda en su carpeta: lo toma otra compu, se actualiza al bajar y al borrar, se quita al olvidarla, una copia no se adueña, y uno dañado o raro se ignora).
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
+- `sheet`: nombres de acordes transpuestos y simplificados, cada acorde sobre la palabra justa, compases donde no se canta y para letras sin tiempos (renglones del mismo largo), las notas del bajo sin repeticiones, las opciones de la hoja (y las de por defecto ante algo inesperado), nombres escapados, exportar y renombrar, el setlist con acordes y la marca de agua.
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
 - `chords`: los nombres de BTC escritos como en una hoja de acordes (Am7, C#m7b5, N.C.), los cambios ubicados sobre los tiempos del click (los parpadeos de menos de medio tiempo se descartan), lo corregido a mano se mantiene al volver a detectar, cualquier nombre se guarda con sus comillas escapadas (y lo que no tiene la forma esperada se rechaza), los acordes siguen al renombrar y al recortar, la página los lee y los guarda, y el modelo se usa solo si su SHA-256 coincide (y no se vuelve a bajar). Detectar con el modelo real necesita bajarlo (12 MB): `uv run pytest -m network` comprueba que un I-IV-V-I sintético en G da G, C y D.
 - `notes`: una línea de bajo sintética seguida con pYIN da sus notas exactas a tiempo (±50 ms), y la misma nota cortada por un hueco mínimo queda unida; lo corregido a mano se mantiene al volver a detectar (y no con `--force`); un tema sin stems lo avisa; lo que no tiene la forma esperada se rechaza; las notas siguen al recortar y al renombrar; la página las lee, las guarda y pide una sola parte. Con el modelo de voz (`-m network`): una melodía cantada sintética con vibrato da sus notas a menos de 40 ms.

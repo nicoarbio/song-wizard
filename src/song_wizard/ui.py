@@ -70,6 +70,22 @@ def percent_of(progress):
     return min(float(match.group(1)), 100.0) if match else None
 
 
+def sheet_options(query):
+    """The printed sheet's choices in a page's address: what goes over the lyrics, the pitch shift,
+    simplified chords, bars per row. Anything unexpected falls back to the default."""
+    from . import sheet
+
+    kind = query.get("with", ["lyrics"])[0]
+    kind = kind if kind in sheet.KINDS else "lyrics"
+    try:
+        shift = max(-6, min(6, int(query.get("shift", ["0"])[0])))
+    except ValueError:
+        shift = 0
+    bars = query.get("bars", ["4"])[0]
+    bars = int(bars) if bars.isdigit() and int(bars) in sheet.BARS_PER_ROW else 4
+    return kind, shift, query.get("simple", [""])[0] == "1", bars
+
+
 class Runner:
     """Runs jobs one at a time: separation alone can use the whole GPU."""
 
@@ -569,15 +585,24 @@ def make_handler(token, root, runner, port):
                 if url.path == "/api/lyrics":
                     return self.json({"lyrics": data, "title": title, "artist": artist,
                                       "colors": [{"id": c, "shade": lyrics.SHADES[c], "name": self.say(lyrics.NAMES[c])} for c in lyrics.COLORS]})
-                if not data:
-                    return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_lyrics_yet")
+                # What to print (lyrics, with chords, with the bass's notes) and how, from the
+                # choices at the top of the page, which ask for it again.
+                from . import sheet
+                kind, shift, simple, bars = sheet_options(query)
+                if not data and kind == "lyrics":
+                    if not sheet.available(path, data):
+                        return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_lyrics_yet")
+                    kind = "chords" if "chords" in sheet.available(path, data) else "bass"
                 page_title = f"{title} ({artist})" if artist else title
-                return self.send(HTTPStatus.OK, lyrics.page(page_title, data, self.lang).encode(), "text/html; charset=utf-8")
+                hidden = [("path", query["path"][0]), ("lang", self.lang)]
+                return self.send(HTTPStatus.OK, sheet.page(page_title, path, data, self.lang, kind, shift, simple, bars,
+                                                           hidden).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
                 # The printable setlist, in its own tab: of a folder, or of songs from any folders
                 # in the order given (?path=...&path=...). Shown only: nothing is saved.
                 from . import setlist
                 with_lyrics = query.get("lyrics", [""])[0] == "1"
+                kind, _, simple, bars = sheet_options(query)
                 title = query.get("title", [""])[0].strip()
                 try:
                     if "path" in query:
@@ -594,7 +619,9 @@ def make_handler(token, root, runner, port):
                         return self.error(HTTPStatus.NOT_FOUND, "server.folder_has_no_songs")
                     items = setlist.rows(folder, here)
                     title = title or (folder["playlist"]["title"] if folder["playlist"] else (here.name if here != root.resolve() else "Setlist"))
-                return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics, self.lang).encode(), "text/html; charset=utf-8")
+                hidden = [(k, v) for k in ("path", "folder", "title", "lyrics") for v in query.get(k, [])] + [("lang", self.lang)]
+                return self.send(HTTPStatus.OK, setlist.page(title or "Setlist", items, with_lyrics, self.lang, kind == "chords",
+                                                             simple, bars, hidden).encode(), "text/html; charset=utf-8")
             if url.path == "/api/peaks":
                 try:
                     path = self.resolve(query.get("path", [""])[0])

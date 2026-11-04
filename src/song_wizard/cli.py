@@ -269,6 +269,16 @@ def build_parser():
     p.add_argument("--force", action="store_true", help="look them up again (highlights and notes are lost)")
     p.add_argument("--export", action="store_true",
                    help='save the lyrics with highlights and notes as "<song>.lyrics.html", to print or share')
+    what = p.add_mutually_exclusive_group()
+    what.add_argument("--chords", action="store_true",
+                      help='with --export: the chords over the words, as "<song>.chords.html" (needs song-wizard chords; '
+                           "without timed lyrics, in rows of bars)")
+    what.add_argument("--bass", action="store_true",
+                      help='with --export: the bass\'s notes over the words, as "<song>.bass.html" (needs song-wizard notes)')
+    p.add_argument("--shift", type=int, default=0, choices=range(-6, 7), metavar="N",
+                   help="with --chords or --bass: names moved N semitones (-6 to 6), like the practice player's pitch")
+    p.add_argument("--simple", action="store_true", help="with --chords: only major or minor (A7 -> A, C#m7 -> C#m)")
+    p.add_argument("--bars", type=int, default=4, choices=(2, 4), help="bars per row where nobody sings (2 or 4; default 4)")
 
     p = sub.add_parser("setlist", help="a printable setlist of a folder, or of songs from any folders",
                        description="Lists songs with their key and tempo (from key.txt and bpm.txt: run key "
@@ -280,6 +290,11 @@ def build_parser():
     p.add_argument("--title", help="title on top (default: the playlist's or the folder's name; for songs, Setlist)")
     p.add_argument("--lyrics", action="store_true",
                    help="add the lyrics of the songs that have them, with their marks, one per page after the list")
+    p.add_argument("--chords", action="store_true",
+                   help="with --lyrics: the chords over the words, for the songs that have them (songs with chords "
+                        "but no lyrics get their chords in rows of bars)")
+    p.add_argument("--simple", action="store_true", help="with --chords: only major or minor")
+    p.add_argument("--bars", type=int, default=4, choices=(2, 4), help="with --chords: bars per row where nobody sings")
     p.add_argument("--out", metavar="FILE.html", help="save the page here (for a folder: instead of in it)")
 
     p = sub.add_parser("order", help="put a folder's songs in another order (renumbering their files)",
@@ -418,10 +433,17 @@ def dispatch(argv):
                    foreground=args.foreground)
     elif args.command == "lyrics":
         from . import lyrics
-        lyrics.run(args.paths, text_from=args.text_from, force=args.force, export_page=args.export)
+        if (args.chords or args.bass or args.shift or args.simple) and not args.export:
+            sys.exit("song-wizard lyrics: --chords, --bass, --shift and --simple go with --export.")
+        kind = "chords" if args.chords else "bass" if args.bass else "lyrics"
+        lyrics.run(args.paths, text_from=args.text_from, force=args.force, export_page=args.export,
+                   kind=kind, shift=args.shift, simple=args.simple, bars=args.bars)
     elif args.command == "setlist":
         from . import setlist
-        setlist.run(args.paths, name=args.title, with_lyrics=args.lyrics, out=args.out)
+        if args.chords and not args.lyrics:
+            sys.exit("song-wizard setlist: --chords goes with --lyrics.")
+        setlist.run(args.paths, name=args.title, with_lyrics=args.lyrics, out=args.out,
+                    with_chords=args.chords, simple=args.simple, bars=args.bars)
     elif args.command == "order":
         from . import numbering, system
         numbering.reorder(system.local_path(args.folder), args.songs)
