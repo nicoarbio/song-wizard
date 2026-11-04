@@ -206,8 +206,10 @@ def logo():
 
 def file_title(title, artist):
     """The page's title, which the browser offers as the PDF's name: without the characters a
-    file name can't have (a "/" in it makes the browser offer something else)."""
+    file name can't have (a "/" in it makes the browser offer something else), and "&" as
+    "and". Only the name: the heading on the page keeps the title as it is."""
     name = f"{artist} - {title} - drum tab by song-wizard" if artist else f"{title} - drum tab by song-wizard"
+    name = re.sub(r"\s*&\s*", " and ", name)  # some browsers give up on it too
     return re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|]+', "-", name)).strip()
 
 

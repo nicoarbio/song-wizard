@@ -203,6 +203,9 @@ def test_first_page_shorter_same_size():
     size = lambda svg: tuple(map(float, re.match(r'<svg viewBox="0 0 ([\d.]+) ([\d.]+)"', svg).groups()))
     assert size(split[0])[0] == size(split[1])[0] and size(split[0])[1] < size(split[1])[1]
     assert drumsheet.file_title("A/B: C?", "X") == "X - A-B- C- - drum tab by song-wizard"
+    assert drumsheet.file_title("Song", "Ann & Bob") == "Ann and Bob - Song - drum tab by song-wizard"
+    page = drumsheet.page("Song", {"hits": beat(1), "click": CLICK}, "en", artist="Ann & Bob")
+    assert "<title>Ann and Bob - Song" in page and '<div class="artist">Ann &amp; Bob</div>' in page
 
 
 def test_goes_along(song):
