@@ -236,6 +236,26 @@
   .lanes canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--bg); border-radius: 6px; cursor: pointer; }
   .lanes .main-lane { grid-row: span 2; }
   .lanes .silent canvas, .lanes .silent.lane-ctl .name { opacity: .35; }
+  /* Chords: a block per chord on the shared timeline; the one sounding now is lit. */
+  .lanes .chord-lane { min-height: 34px; background: var(--bg); border-radius: 6px; overflow: hidden; cursor: pointer; }
+  .chord-lane .chord { position: absolute; top: 3px; bottom: 3px; margin: 0; padding: 0 6px; border: 1px solid var(--line); border-radius: 5px;
+    background: var(--panel); color: var(--ink); font: 600 13px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    text-align: left; overflow: hidden; white-space: nowrap; text-overflow: clip; box-sizing: border-box; cursor: pointer; }
+  .chord-lane .chord.now { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .chord-lane .chord.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .chord-lane .chord.hand::after { content: "✍"; font-size: 10px; margin-left: 4px; opacity: .7; }
+  .chord-lane .chord.unknown { border-style: dashed; border-color: var(--warn); }
+  .chord-lane .chord.tight { color: transparent; padding: 0; }
+  .chord-lane .chord.tight::after { content: none; }
+  .lanes .chord-ctl { grid-template-columns: minmax(0, 1fr); }
+  .chord-lane .chord-empty { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+  .chord-now { display: inline-flex; align-items: baseline; gap: 6px; padding-left: 12px; border-left: 1px solid var(--line);
+    font: 600 15px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
+  .chord-now b { font-size: 26px; color: var(--ink); min-width: 1.6em; }
+  .chord-edit[hidden] { display: none; }
+  .chord-edit { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; margin: 2px 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+  .chord-edit input { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
+  .chord-edit .warn-text { color: var(--warn); flex-basis: 100%; margin: 0; }
   @media (max-width: 900px) {
     .pr-main { display: block; overflow: auto; }
     .pr-left { overflow: visible; }
@@ -518,6 +538,7 @@
       <button class="primary" id="practice-play" disabled>▶</button>
       <span class="time" id="practice-time">0:00 / 0:00</span>
       <b id="practice-count"></b>
+      <span class="chord-now" id="chord-now" hidden data-text-title="practice.chord_now_title"><b id="chord-now-name"></b><span id="chord-next"> → <span id="chord-next-name"></span></span></span>
       <span class="ctl" data-text-title="practice.speed_changes_without_changing_pitch"><span data-text="practice.speed"></span> <input type="range" id="practice-speed" min="50" max="150" step="5" value="100" data-text-aria-label="practice.speed"> <b id="practice-speed-value">100 %</b>
         <button class="small" id="practice-speed-reset">100 %</button></span>
       <span class="ctl"><span data-text="practice.pitch"></span> <input type="range" id="practice-pitch" min="-6" max="6" step="1" value="0" data-text-aria-label="practice.pitch_semitones"> <b id="practice-pitch-value">0</b>
@@ -561,6 +582,16 @@
         <canvas class="wave" id="practice-nav" data-text-aria-label="practice.whole_song_box_what_tracks"></canvas>
       </div>
       <div class="lanes" id="practice-tracks"></div>
+      <div class="chord-edit" id="chord-edit" hidden>
+        <span class="muted" id="chord-edit-where"></span>
+        <label><span data-text="practice.chord_name"></span> <input type="text" id="chord-name" maxlength="24" size="9" autocomplete="off" spellcheck="false"></label>
+        <span class="muted" id="chord-original" data-text="practice.chord_original_key"></span>
+        <button class="small" id="chord-split"></button>
+        <button class="small" id="chord-join" data-text="practice.chord_join"></button>
+        <button class="small" id="chord-delete" data-text="practice.chord_delete"></button>
+        <button class="small" id="chord-done" data-text="practice.chord_done"></button>
+        <p class="hint warn-text" id="chord-unknown" hidden data-text="practice.chord_unknown"></p>
+      </div>
       <details id="pc-panel">
     <summary><span data-text="practice.adjust_click"></span> <span id="pc-summary" class="muted"></span></summary>
     <div class="row" style="margin-top:8px">
@@ -1926,6 +1957,7 @@ function openPractice(song) {
   loadSet(0);
   renderClickPanel(true);
   loadPracticeLyrics(song);
+  loadPracticeChords(song);
   $("practice").showModal();
   // The browser would put the focus on the first control (the track sets), which keeps the
   // arrows to itself: the shortcuts start on the player.
@@ -2002,7 +2034,8 @@ function buildTracks() {
   box.replaceChildren(
     el("div", { class: "lane-ctl main-lane" }, el("span", { class: "name", title: practice.song.name }, say("practice.song")),
       el("span", { class: "muted", style: "grid-column: 1 / -1; font-size: 12px" }, say("practice.click_waveform_go_there_wheel"))),
-    el("div", { class: "lane main-lane" }, practiceWave.canvas));
+    el("div", { class: "lane main-lane" }, practiceWave.canvas),
+    ...chordsBuild());
   practice.mixer.forEach((t, i) => {
     const pct = el("span", { class: "pct" }, `${Math.round(t.volume * 100)} %`);
     const vol = el("input", { type: "range", class: "vol", min: 0, max: 100, step: 1, value: Math.round(t.volume * 100), "aria-label": say("practice.volume", { name: t.name }),
@@ -2022,6 +2055,7 @@ function buildTracks() {
     practice.lanes.push(ui);
   });
   renderTracks();
+  renderChords();
 }
 
 function renderTracks() {
@@ -2088,6 +2122,7 @@ function renderPractice() {
   $("practice-loop").setAttribute("aria-pressed", String(practice.loop));
   $("practice-loop").disabled = practice.a === null || practice.b === null;
   followLyrics(t);
+  followChords(t);
   followPlayhead(t);
   practiceNav.update({ position: t, a: practice.a, b: practice.b });
   $("practice-zoom-loop").disabled = practice.a === null || practice.b === null;
@@ -2123,6 +2158,7 @@ function showPracticeView() {
   }
   practiceNav.view = [0, d];
   practiceNav.update({ box: practice.view });
+  renderChords();
   $("practice-view").textContent = practice.view ? `${clockTime(a).replace(/\.\d$/, "")}–${clockTime(b).replace(/\.\d$/, "")}` : "";
   clearTimeout(practice.zoomTimer);
   if (span > d * 0.6) return;
@@ -2276,6 +2312,7 @@ async function applyPitch() {
   $("practice-pitch-value").textContent = st > 0 ? `+${st}` : String(st);
   const key = practice.song && practice.song.key, from = key && key.split(/\s+/)[0], to = shiftedKey(key, st);
   $("practice-pitch-hint").textContent = st && to ? say("practice.semitones", { from, to }) : say("practice.semitones_2");
+  if (typeof renderChords === "function" && $("chord-lane")) renderChords();
   if (st && !pitchNode) {
     try {
       pitchLoading = pitchLoading || ctx.audioWorklet.addModule("/static/pitch.js");
@@ -2497,6 +2534,7 @@ function syncPracticeClick() {
   if (!$("practice").open || !practice.song) return;
   for (const f of state.folders) for (const s of f.songs) {
     if (s.path !== practice.song.path) continue;
+    if (s.chords !== practice.song.chords) { practice.song.chords = s.chords; loadPracticeChords(s); }
     const before = JSON.stringify(practice.song.click), after = JSON.stringify(s.click);
     practice.song = s;
     if (after !== before && s.click) {
@@ -2506,6 +2544,197 @@ function syncPracticeClick() {
     }
   }
 }
+
+// ---------- Chords ----------
+// The song's chords (<song>.chords.json, from `song-wizard chords`), as a lane on the same timeline
+// as the tracks, plus the chord sounding now and the next one in big letters over the transport.
+// Names are shown transposed by the live pitch and, if asked, simplified to major/minor; what's
+// saved is always the name in the song's own key. A name song-wizard doesn't read as a chord is
+// still kept as written (a warning, never a block): it just isn't transposed or simplified.
+const CHORDS_SIMPLE_KEY = "song-wizard:chords-simple";
+const CHORD_RE = /^([A-G][#b]?)(m|min|maj|dim|aug|\+|°|ø|sus[24]?|add)?([0-9b#()majdsu+]*)(?:\/([A-G][#b]?))?$/;
+const NO_CHORD = "N.C.";
+const SHARPS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLATS = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const noteIndex = (n) => { const i = SHARPS.indexOf(n); return i >= 0 ? i : FLATS.indexOf(n); };
+const chordUnderstood = (name) => name === NO_CHORD || CHORD_RE.test(name);
+const chordsSimple = () => { try { return localStorage.getItem(CHORDS_SIMPLE_KEY) === "1"; } catch { return false; } };
+
+function shownChord(name, shift = semitones(), simple = chordsSimple()) {
+  const m = CHORD_RE.exec(name);
+  if (!m) return name;
+  let [, root, quality = "", extra = "", bass] = m;
+  const move = (n) => {
+    const i = noteIndex(n);
+    if (i < 0 || !shift) return n;
+    return (n.includes("b") ? FLATS : SHARPS)[(i + shift % 12 + 12) % 12];
+  };
+  if (simple) {
+    const minor = ["m", "min", "dim", "°", "ø"].includes(quality);
+    return move(root) + (minor ? "m" : "");
+  }
+  return move(root) + quality + extra + (bass ? "/" + move(bass) : "");
+}
+
+const chordsState = { data: null, sel: null, splitAt: null, saving: Promise.resolve(), blocks: [] };
+
+async function loadPracticeChords(song) {
+  chordsState.data = null; chordsState.sel = null;
+  renderChords();
+  try {
+    const { chords } = await api(`/api/chords?path=${encodeURIComponent(song.path)}`);
+    if (!practice.song || practice.song.path !== song.path) return;
+    chordsState.data = chords;
+  } catch {}
+  renderChords();
+}
+
+function saveChords() {
+  const song = practice.song, data = chordsState.data;
+  chordsState.saving = chordsState.saving.then(() => api("/api/chords", { path: song.path, chords: data }))
+    .catch((e) => toast(say("practice.chords_couldnt_save", { message: e.message })));
+}
+
+function chordsBuild() {
+  const detect = el("button", { class: "small", id: "chords-detect", title: say("practice.chords_detect_title"),
+    onclick: detectChords });
+  const simple = el("button", { class: "small", id: "chords-simple", title: say("practice.simplify_title"),
+    onclick: () => { try { localStorage.setItem(CHORDS_SIMPLE_KEY, chordsSimple() ? "" : "1"); } catch {} renderChords(); } },
+    say("practice.simplify"));
+  const ctl = el("div", { class: "lane-ctl chord-ctl" }, el("span", { class: "name" }, say("practice.chords")),
+    el("span", { class: "ms" }, detect, simple));
+  const lane = el("div", { class: "lane chord-lane", id: "chord-lane" });
+  lane.addEventListener("pointerdown", (e) => {
+    if (e.target !== lane || !practice.duration) return;
+    const r = lane.getBoundingClientRect(), [a, b] = practice.view || [0, practice.duration];
+    moveTo(a + (b - a) * (e.clientX - r.left) / r.width);
+  });
+  wheelZoom(lane, practiceZoom);
+  return [ctl, lane];
+}
+
+function detectChords() {
+  if (!practice.click || !practice.click.saved) {
+    // The chords go on the click's beats: adjust it first.
+    $("pc-panel").open = true;
+    renderClickPanel(true);
+    $("pc-panel").scrollIntoView({ block: "nearest" });
+    toast(say("practice.chords_need_click"));
+    return;
+  }
+  start({ action: "chords", paths: [practice.song.path] });
+}
+
+function renderChords() {
+  const lane = $("chord-lane");
+  if (!lane) return;
+  const data = chordsState.data, d = practice.duration;
+  $("chords-detect").textContent = data ? say("practice.detect_chords_again") : say("practice.detect_chords");
+  $("chords-simple").classList.toggle("on", chordsSimple());
+  $("chords-simple").setAttribute("aria-pressed", String(chordsSimple()));
+  $("chords-simple").hidden = !data;
+  chordsState.blocks = [];
+  if (!data || !d) {
+    lane.replaceChildren(el("span", { class: "chord-empty" }, data ? "" : say("practice.no_chords_yet")));
+    renderChordEditor();
+    followChords(now());
+    return;
+  }
+  const [a, b] = practice.view || [0, d], span = b - a, width = lane.clientWidth || 600;
+  const blocks = [];
+  data.chords.forEach((c, i) => {
+    if (c.to <= a || c.from >= b || c.name === NO_CHORD) return;
+    const left = Math.max(0, (c.from - a) / span), right = Math.min(1, (c.to - a) / span);
+    const tight = (right - left) * width < 22;  // no room for the name: it shows on hover, or zooming in
+    const block = el("button", { type: "button", class: "chord" + (c.hand ? " hand" : "") + (chordUnderstood(c.name) ? "" : " unknown") + (chordsState.sel === i ? " sel" : "") + (tight ? " tight" : ""),
+      style: `left:${(left * 100).toFixed(3)}%;width:${((right - left) * 100).toFixed(3)}%`,
+      title: c.name + (c.hand ? " · " + say("practice.chord_hand") : ""),
+      onclick: (e) => {
+        const r = lane.getBoundingClientRect();
+        chordsState.sel = i;
+        chordsState.splitAt = snapBeat(a + span * (e.clientX - r.left) / r.width);
+        renderChords();
+        $("chord-name").focus();
+      } }, shownChord(c.name));
+    blocks.push({ block, chord: c });
+  });
+  chordsState.blocks = blocks;
+  lane.replaceChildren(...blocks.map((x) => x.block));
+  renderChordEditor();
+  followChords(now());
+}
+
+function snapBeat(t) {
+  const g = grid();
+  return Math.max(0, g.first + Math.round((t - g.first) / g.period) * g.period);
+}
+
+// The chord sounding now and the next one, big, over the transport; the block now is lit.
+function followChords(t) {
+  const box = $("chord-now");
+  const list = chordsState.data ? chordsState.data.chords.filter((c) => c.name !== NO_CHORD) : [];
+  if (!list.length) { box.hidden = true; return; }
+  const i = list.findIndex((c) => c.from <= t && t < c.to);
+  const current = i >= 0 ? list[i] : null, next = list.find((c) => c.from > t + 0.01);
+  box.hidden = false;
+  $("chord-now-name").textContent = current ? shownChord(current.name) : "–";
+  $("chord-next-name").textContent = next ? shownChord(next.name) : "";
+  $("chord-next").hidden = !next;
+  for (const { block, chord } of chordsState.blocks) block.classList.toggle("now", chord === current);
+}
+
+function renderChordEditor() {
+  const box = $("chord-edit"), data = chordsState.data, i = chordsState.sel;
+  const c = data && i !== null ? data.chords[i] : null;
+  box.hidden = !c;
+  if (!c) return;
+  const g = grid(), bar = Math.floor((c.from - g.first) / (g.period * g.perBar)) + 1;
+  $("chord-edit-where").textContent = say("practice.chord_bar", { n: Math.max(1, bar), time: clockTime(c.from).replace(/\.\d$/, "") });
+  if (document.activeElement !== $("chord-name")) $("chord-name").value = c.name;
+  $("chord-unknown").hidden = chordUnderstood($("chord-name").value.trim() || c.name);
+  $("chord-original").hidden = !semitones();
+  const at = chordsState.splitAt;
+  const canSplit = at !== null && at > c.from + 0.05 && at < c.to - 0.05;
+  $("chord-split").hidden = !canSplit;
+  if (canSplit) $("chord-split").textContent = say("practice.chord_split", { time: clockTime(at) });
+  $("chord-join").disabled = i >= data.chords.length - 1;
+}
+
+function editChord(change) {
+  const data = chordsState.data, i = chordsState.sel;
+  if (!data || i === null) return;
+  change(data.chords, i);
+  saveChords();
+  renderChords();
+}
+
+$("chord-name").addEventListener("input", () => {
+  const name = $("chord-name").value.trim();
+  $("chord-unknown").hidden = !name || chordUnderstood(name);
+});
+$("chord-name").addEventListener("change", () => {
+  const name = $("chord-name").value.trim().slice(0, 24);
+  if (!name) return;
+  editChord((list, i) => { if (list[i].name !== name) list[i] = { ...list[i], name, hand: true }; });
+});
+$("chord-name").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("chord-name").blur(); } });
+$("chord-split").onclick = () => editChord((list, i) => {
+  const c = list[i], at = Math.round(chordsState.splitAt * 1000) / 1000;
+  list.splice(i, 1, { ...c, to: at, hand: true }, { ...c, from: at, hand: true });
+  chordsState.splitAt = null;
+});
+$("chord-join").onclick = () => editChord((list, i) => {
+  const next = list[i + 1];
+  list.splice(i, 2, { ...list[i], to: next.to, hand: true });
+});
+$("chord-delete").onclick = () => editChord((list, i) => {
+  // The chord before takes its time (or the next one, if it's the first).
+  if (i > 0) list[i - 1] = { ...list[i - 1], to: list[i].to, hand: true };
+  else if (list[1]) list[1] = { ...list[1], from: list[0].from, hand: true };
+  list.splice(i, 1);
+  chordsState.sel = null;
+});
+$("chord-done").onclick = () => { chordsState.sel = null; renderChords(); };
 
 $("practice-play").onclick = togglePlay;
 $("practice-close").onclick = () => $("practice").close();

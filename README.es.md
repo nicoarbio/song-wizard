@@ -127,6 +127,7 @@ Conviene hacerlo seguido: los sitios cambian a menudo y las descargas pueden dej
 |---|---|---|
 | song-wizard y sus librerías | `~/.local/share/uv/tools/song-wizard` | ~6 GB en Linux/WSL (incluye las librerías de NVIDIA para usar la placa de video); bastante menos en Mac |
 | Modelos de separación | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB si usás los cuatro instrumentos (el piano sale del mismo modelo que la guitarra), y 0.4 GB más para la batería en partes; se bajan la primera vez que se usa cada uno |
+| Modelo de acordes | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB, se baja la primera vez que se detectan acordes |
 | Registro de temas ya bajados | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | unos pocos KB |
 | Log (qué comandos corrieron y los errores, para resolver problemas) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB como máximo: lo más viejo se borra solo |
 | Reportes de `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | unos pocos KB cada uno; se pueden borrar |
@@ -157,7 +158,7 @@ song-wizard ui
 Abre una página en el navegador (en WSL, el navegador de Windows) con todo lo que hace song-wizard, sin escribir comandos:
 
 - **Biblioteca**: las carpetas de tu carpeta de música con sus temas, la tonalidad y el tempo de cada uno si ya los detectaste, y los archivos generados de cada tema (stems, versiones transpuestas o con otra velocidad, MP3), cada uno con su casilla para usarlo en las acciones (con Shift, la casilla elige o saca todo lo que hay entre la última que tocaste y esa). Los archivos de cada tema arrancan plegados ("▸ 5 archivos") para que la lista no se haga larga; "desplegar todo" y "plegar todo" los abren y cierran de una vez, y el navegador recuerda cuáles dejaste abiertos. Con ▶ se escucha cualquiera. Cada tema se ve con el nombre de su archivo sin la extensión ("001 - Artista - Título"; el nombre completo, al pasar el mouse), y al lado, en gris, su álbum, año y género si los tiene. "más" abre las otras acciones del tema: sus datos, la letra, recortar y el proyecto de Reaper (el puntito en "más" indica que el tema ya tiene letra o proyecto). "más › Datos del tema…" muestra y cambia el título, el artista, el álbum y todo lo que guarda el archivo, y corregir el artista o el título le cambia el nombre (ver [Datos del tema](#datos-del-tema)). El filtro de arriba busca palabras sueltas, en cualquier orden y sin importar tildes ni mayúsculas, en el nombre, la carpeta y los datos de cada tema: "rock ultimo" encuentra los temas de género rock del álbum "Último show". Tocando la tonalidad o el tempo se corrige a mano lo que detectó el sistema (ver [Corregir la tonalidad o el tempo](#corregir-la-tonalidad-o-el-tempo-a-mano)). "más › Letra" muestra la letra del tema para marcarla con colores y notas (ver [Letras](#letras)), y "más › Crear proyecto de Reaper" o "Abrir en Reaper" lo lleva a Reaper (ver [Reaper](#reaper)). "setlist" arma la lista de la carpeta para imprimir, y "setlist con lo elegido" (abajo, junto a la selección) la arma con los temas que elegiste, de cualquier carpeta (ver [Setlist](#setlist)). "abrir" muestra la carpeta en el Explorador de archivos (o el Finder en Mac). Si cambiás archivos por fuera (los copiás, renombrás o borrás), la biblioteca se actualiza sola al volver a la página, o con "↻ actualizar".
-- **Practicar**: el botón "practicar" de cada tema abre, en toda la ventana, un reproductor con la forma de onda de cada pista y la letra al costado, con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) la repetición de un tramo entre dos marcas A y B, y un monitor para escuchar un micrófono (la sala, la banda) en los auriculares. Ver [Practicar](#practicar).
+- **Practicar**: el botón "practicar" de cada tema abre, en toda la ventana, un reproductor con la forma de onda de cada pista y la letra al costado, con una pista por instrumento separado (con volumen, silencio y solo para cada una), un click que acompaña al tema con cuenta antes de entrar, la velocidad en vivo sin cambiar el tono (de 50 % a 150 %), el tono en vivo sin cambiar la velocidad (6 semitonos para cada lado) la repetición de un tramo entre dos marcas A y B, y un monitor para escuchar un micrófono (la sala, la banda) en los auriculares, y los acordes del tema compás por compás, para corregir a mano. Ver [Practicar](#practicar).
 - **Bajar**: pegás el link de un tema o de una playlist arriba de todo. "en Música" elige otra carpeta para las playlists nuevas (escribiendo la ruta o con "elegir…", que abre el selector de carpetas del sistema).
 - **Borrar**: "borrar archivos seleccionados", al lado de lo elegido, muestra exactamente qué archivos se van y los manda a la papelera del sistema. Ver [Borrar](#borrar).
 - **Pista de click**: con un tema elegido se completan su tempo (si ya lo detectaste), su duración y los compases que la cubren; para un compás más, le sumás 1.
@@ -202,6 +203,13 @@ El reproductor ocupa toda la ventana. Arriba están los controles: reproducir, v
 Medido en Edge: el click cae a ~1 ms del tema, también después de saltar y a 125 %; la cuenta y la entrada de la música, a 3 ms. Por debajo de 100 % el navegador demora un poco el tema al estirarlo y song-wizard lo compensa en Brave, Chrome y Edge (en Firefox y Safari, todavía no); a esas velocidades el tema estirado igual "baila" unos ±15 ms de golpe a golpe, por cómo lo estira el navegador.
 
 Las pistas se escuchan desde la carpeta de música a medida que suenan, sin cargarlas enteras en memoria.
+
+**Los acordes.** Debajo de la onda del tema hay una fila de acordes, en la misma línea de tiempo que las pistas: un bloque por acorde, ubicado sobre los tiempos del click, con el que suena resaltado. Al lado del botón de reproducir, en grande, el acorde que suena y el que sigue, para leerlo mientras tocás. "detectar" los encuentra (ver [Acordes](#acordes)); necesita primero el click ajustado, porque los acordes van sobre sus tiempos, así que si el tema no lo tiene abre "Ajustar el click".
+
+- Siguen al tono: si subís el tema 2 semitonos, Am se lee Bm, para probar el tema en otro tono para la cantante.
+- "simplificar" muestra solo mayor y menor (A7 → A, Am7 → Am), para el que quiere la versión fácil; el navegador lo recuerda.
+- Para corregir uno, tocalo: cambiale el nombre, partilo en el tiempo que tocaste, unilo con el siguiente o borralo. Lo corregido queda marcado con ✍ y volver a detectar no lo pisa. Un nombre que song-wizard no lee como acorde ("riff", "ver tab") se guarda igual, con un aviso: solo que no se transporta ni se simplifica.
+- Acercá con la rueda para leerlos: con el tema entero a la vista, los acordes muy cortos muestran su nombre solo al pasar el mouse.
 
 **El monitor.** "🎤 monitor" abre una barra para escuchar un micrófono (la sala, la banda) en los auriculares, mezclado con las pistas: para ensayar con in-ears puestos sin sacarte uno. "prender" le pide el micrófono al navegador (la primera vez pide permiso) y lo prende; arranca apagado y bajo cada vez. Tiene:
 
@@ -254,6 +262,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | "más › Letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
 | "más › Crear proyecto de Reaper", "Abrir en Reaper", "Rehacer" | `song-wizard reaper TEMA` (`--redo`, `--no-open`) |
 | Apartado Reaper: la preferencia de las tomas, restaurarla | `song-wizard reaper --setting show` (`restore`, `apply`) |
+| Acordes en Practicar: "detectar" | `song-wizard chords TEMA` (`--force`); corregirlos se hace en el navegador |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
 ### Bajar temas
@@ -382,6 +391,20 @@ song-wizard align "Música/Show"                     # todos los temas de la car
 ```
 
 Busca el tempo exacto (con decimales) y dónde cae el primer golpe, y lo guarda en `click.txt`, que el click del reproductor de práctica usa para acompañar al tema. `--meter` cambia el compás (4/4 si no se dice). Como cualquier detector de tempo, puede dar la mitad o el doble del real: se corrige con `--bpm` o con ÷2 y ×2 en la interfaz. Si el tempo del tema varía (grabado sin click), lo avisa: un click fijo se va a ir desfasando.
+
+### Acordes
+
+```bash
+song-wizard chords "tema.opus"
+song-wizard chords "Música/Show"        # todos los temas de la carpeta
+song-wizard chords --force "tema.opus"  # volver a detectar también lo corregido a mano
+```
+
+Detecta los acordes del tema y los guarda al lado, como `<tema>.chords.json`, que el reproductor de práctica muestra y deja corregir (ver [Practicar](#practicar)). Los cambios se ubican sobre los tiempos del tema, según su click (`click.txt`, ver [Tempo y primer golpe para el click](#tempo-y-primer-golpe-para-el-click)); un tema sin click lo recibe primero. Los acordes corregidos a mano se mantienen, salvo con `--force`. Renombrar, recortar y borrar el tema llevan sus acordes con él.
+
+Es una guía para corregir de oído, no una transcripción: en temas de rock y pop, en nuestras pruebas, acertó la nota base del acorde cerca del 95 % de las veces (comparando con lo que toca el bajo), y mayor o menor casi siempre. También nombra acordes más ricos (7, maj7, m7, sus...) cuando los escucha; "simplificar" en el reproductor los oculta.
+
+La detección es [BTC](https://github.com/jayg996/BTC-ISMIR19) (un modelo entrenado para reconocer acordes, de un trabajo de investigación de 2019). Su código está copiado dentro de song-wizard (`third_party/btc`, con su licencia MIT), no instalado como una librería que se actualiza sola. Su modelo (12 MB) se baja la primera vez de una dirección fija y se usa solo si su huella digital (SHA-256) coincide, y se abre solo como números, así que un archivo alterado no puede ejecutar nada.
 
 ### Cambiar el tono
 
@@ -654,6 +677,7 @@ song-wizard es una capa fina sobre el trabajo de otros proyectos libres:
 - BS-Roformer SW, de jarredou: el modelo de 6 instrumentos que da la guitarra y el piano.
 - MDX23C DrumSep, de aufr33 y jarredou (con la arquitectura MDX23C, de ZFTurbo): la batería en partes.
 - [Essentia](https://essentia.upf.edu), del Music Technology Group de la Universitat Pompeu Fabra: tonalidad, tempo y pulsos.
+- [BTC](https://github.com/jayg996/BTC-ISMIR19), de Jonggwon Park, Kyoyun Choi, Sungwook Jeon, Dokyun Kim y Jonghun Park (ISMIR 2019): los acordes. Su código está en `src/song_wizard/third_party/btc`, con su licencia MIT.
 - [LRCLIB](https://lrclib.net): base de letras abierta y comunitaria.
 - [Rubber Band](https://breakfastquay.com/rubberband/), de Breakfast Quay: cambio de tono y de velocidad.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): descargas.
@@ -679,6 +703,7 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives` (también el que cada playlist guarda en su carpeta: lo toma otra compu, se actualiza al bajar y al borrar, se quita al olvidarla, una copia no se adueña, y uno dañado o raro se ignora).
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).
+- `chords`: los nombres de BTC escritos como en una hoja de acordes (Am7, C#m7b5, N.C.), los cambios ubicados sobre los tiempos del click (los parpadeos de menos de medio tiempo se descartan), lo corregido a mano se mantiene al volver a detectar, cualquier nombre se guarda con sus comillas escapadas (y lo que no tiene la forma esperada se rechaza), los acordes siguen al renombrar y al recortar, la página los lee y los guarda, y el modelo se usa solo si su SHA-256 coincide (y no se vuelve a bajar). Detectar con el modelo real necesita bajarlo (12 MB): `uv run pytest -m network` comprueba que un I-IV-V-I sintético en G da G, C y D.
 - `trim`: el mismo corte en el tema y sus stems, exacto a la muestra (un pulso a los 3 s queda donde tiene que quedar), el `.opus` vuelto a codificar alineado con los stems (menos de medio milisegundo), las versiones a otra velocidad en proporción, el silencio agregado, las tomas de Reaper sin tocar, los WAV de 32 bits float que siguen siendo float, el link de la descarga que se conserva, el click y la letra que se corren, y que si un archivo falla no cambie nada.
 - `reaper`: qué pistas entran (todos los stems, un instrumento con el resto o el tema solo, y el resto silenciado), el primer golpe en la raya de un compás con tempos con decimales, nombres con comillas, que un proyecto existente no se pise (y `--redo`), la preferencia de las tomas (con Reaper abierto no la toca; restaurarla vuelve solo esa línea, sin tocar lo que cambió después, y song-wizard no la vuelve a cambiar), los fines de línea de Windows intactos, y que el proyecto, sus nombres de archivo adentro y las tomas sigan al tema al renombrarlo y borrarlo. Reaper no se abre ni se toca en las pruebas.
 - `tag`: los datos leídos y escritos en `.opus`, `.wav` y `.mp3` (también con saltos de línea y nombres propios), en el tema y sus stems y versiones pero no en las tomas, el audio intacto, el renombrado al cambiar artista o título (con los caracteres que Windows no acepta), `--only`, el link de la descarga que no se borra, el nombre de lo que se baja, el filtro por palabras sin tildes, el archivo de configuración creado por cualquier comando, y la ventana de la interfaz.

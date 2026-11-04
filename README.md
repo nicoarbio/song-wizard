@@ -127,6 +127,7 @@ It's worth doing often: sites change a lot, and downloads can stop working until
 |---|---|---|
 | song-wizard and its libraries | `~/.local/share/uv/tools/song-wizard` | ~6 GB on Linux/WSL (it includes NVIDIA's libraries to use the graphics card); much less on a Mac |
 | Separation models | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | ~2 GB if you use all four instruments (piano comes from the same model as the guitar), and 0.4 GB more for the drum kit; each is downloaded the first time it's used |
+| Chord model | Linux/WSL: `~/.local/share/song-wizard/models`<br>Mac: `~/Library/Application Support/song-wizard/models` | 12 MB, downloaded the first time chords are detected |
 | Record of songs already downloaded | Linux/WSL: `~/.local/share/song-wizard/archives`<br>Mac: `~/Library/Application Support/song-wizard/archives` | a few KB |
 | Log (which commands ran and the errors, to solve problems) | Linux/WSL: `~/.local/share/song-wizard/logs`<br>Mac: `~/Library/Application Support/song-wizard/logs` | 2 MB at most: the oldest is deleted on its own |
 | Reports from `song-wizard report` | Linux/WSL: `~/.local/share/song-wizard/reports`<br>Mac: `~/Library/Application Support/song-wizard/reports` | a few KB each; they can be deleted |
@@ -157,7 +158,7 @@ song-wizard ui
 Opens a page in the browser (on WSL, the Windows browser) with everything song-wizard does, without typing commands:
 
 - **Library**: the folders in your music folder with their songs, each one's key and tempo if you already detected them, and the files made from each song (stems, versions transposed or at another speed, MP3s), each with its checkbox to use it in the actions (with Shift, the checkbox picks or drops everything between the last one you clicked and this one). Each song's files start folded ("▸ 5 files") so the list doesn't get long; "expand all" and "collapse all" open and close them at once, and the browser remembers which ones you left open. ▶ plays any of them. Each song shows its file name without the extension ("001 - Artist - Title"; the full name on hover), and next to it, in gray, its album, year and genre if it has them. "more" opens the song's other actions: its data, lyrics, trimming and the REAPER project (the dot on "more" means the song already has lyrics or a project). "more › Song data…" shows and changes the title, artist, album and everything the file keeps, and correcting the artist or title renames it (see [Song data](#song-data)). The filter at the top looks for loose words, in any order and regardless of accents and case, in each song's name, folder and data: "rock ultimo" finds the rock songs of the album "Último show". Clicking the key or tempo corrects by hand what was detected (see [Fixing the key or tempo by hand](#fixing-the-key-or-tempo-by-hand)). "more › Lyrics" shows the song's lyrics to mark them with colors and notes (see [Lyrics](#lyrics)), and "more › Create REAPER project" or "Open in REAPER" takes it to REAPER (see [REAPER](#reaper)). "setlist" makes the folder's list to print, and "setlist of the picked songs" (below, next to the selection) makes it with the songs you picked, from any folder (see [Setlist](#setlist)). "open" shows the folder in the File Explorer (or the Finder on a Mac). If you change files outside (copy, rename or delete them), the library updates on its own when you come back to the page, or with "↻ refresh".
-- **Practice**: each song's "practice" button opens, in the whole window, a player with each track's waveform and the lyrics on the side, with a track per separated instrument (with volume, mute and solo for each), a click that follows the song with a count-in, the speed live without changing the pitch (from 50 % to 150 %), the pitch live without changing the speed (6 semitones each way) looping a section between two marks, A and B, and a monitor to hear a mic (the room, the band) in your headphones. See [Practice](#practice).
+- **Practice**: each song's "practice" button opens, in the whole window, a player with each track's waveform and the lyrics on the side, with a track per separated instrument (with volume, mute and solo for each), a click that follows the song with a count-in, the speed live without changing the pitch (from 50 % to 150 %), the pitch live without changing the speed (6 semitones each way) looping a section between two marks, A and B, and a monitor to hear a mic (the room, the band) in your headphones, and the song's chords bar by bar, to correct by hand. See [Practice](#practice).
 - **Download**: paste the link of a song or a playlist at the very top. "in Music" picks another folder for new playlists (typing the path or with "choose…", which opens the system's folder picker).
 - **Delete**: "delete selected files", next to the selection, shows exactly which files go and sends them to the system's trash. See [Deleting](#deleting).
 - **Click track**: with a song picked, its tempo (if you already detected it), its length and the bars that cover it are filled in; for one more bar, add 1.
@@ -202,6 +203,13 @@ The player fills the whole window. The controls are at the top: play, speed, pit
 Measured in Edge: the click falls within ~1 ms of the song, also after jumping and at 125 %; the count-in and the music coming in, within 3 ms. Below 100 % the browser delays the song a bit while stretching it, and song-wizard makes up for it in Brave, Chrome and Edge (not yet in Firefox and Safari); at those speeds the stretched song still "wobbles" about ±15 ms from hit to hit, because of how the browser stretches it.
 
 The tracks are streamed from the music folder as they play, without loading them whole into memory.
+
+**The chords.** Below the song's waveform there's a row of chords, on the same timeline as the tracks: a block per chord, placed on the click's beats, with the one playing now lit. Next to the play button, in big letters, the chord playing now and the next one, to read while you play. "detect" finds them (see [Chords](#chords)); it needs the song's click adjusted first, since the chords go on its beats, so if the song has none it opens "Adjust the click".
+
+- They follow the pitch: raise the song 2 semitones and Am reads Bm, to try the song in another key for the singer.
+- "simplify" shows only major and minor (A7 → A, Am7 → Am), for whoever wants the easy version; the browser remembers it.
+- To correct one, click it: change its name, split it at the beat you clicked, join it with the next one or delete it. What you correct is marked ✍ and detecting again doesn't overwrite it. A name song-wizard doesn't read as a chord ("riff", "see tab") is saved anyway, with a warning: it just isn't transposed or simplified.
+- Zoom in with the wheel to read them: with the whole song in view, chords too short to fit show their name only when you hover over them.
 
 **The monitor.** "🎤 monitor" opens a bar to hear a microphone (the room, the band) in your headphones, mixed with the tracks: to practice with in-ears on without taking one out. "turn on" asks the browser for the mic (the first time it asks for permission) and turns it on; it starts off and low every time. It has:
 
@@ -254,6 +262,7 @@ Everything the interface does can also be done from the terminal; it's almost al
 | "more › Lyrics": find, write or paste, print | `song-wizard lyrics SONG` (`--from FILE`, `--export`); colors and notes are marked in the browser |
 | "more › Create REAPER project", "Open in REAPER", "Redo" | `song-wizard reaper SONG` (`--redo`, `--no-open`) |
 | REAPER box: the takes preference, putting it back | `song-wizard reaper --setting show` (`restore`, `apply`) |
+| Chords in Practice: "detect" | `song-wizard chords SONG` (`--force`); correcting them is done in the browser |
 | Practice | It's a player, so it lives in the browser: `song-wizard ui --practice SONG` opens it straight on that song |
 
 ### Downloading songs
@@ -382,6 +391,20 @@ song-wizard align "Music/Show"                             # every song in the f
 ```
 
 Finds the exact tempo (with decimals) and where the first beat falls, and saves them in `click.txt`, which the practice player's click uses to follow the song. `--meter` changes the meter (4/4 if not given). Like any tempo detector, it can give half or double the real one: fix it with `--bpm` or with ÷2 and ×2 in the interface. If the song's tempo varies (recorded without a click), it says so: a steady click will drift away.
+
+### Chords
+
+```bash
+song-wizard chords "song.opus"
+song-wizard chords "Music/Show"         # every song in the folder
+song-wizard chords --force "song.opus"  # detect again also what was corrected by hand
+```
+
+Detects the song's chords and saves them next to it as `<song>.chords.json`, which the practice player shows and lets you correct (see [Practice](#practice)). The changes are moved onto the song's beats, from its click (`click.txt`, see [Tempo and first beat for the click](#tempo-and-first-beat-for-the-click)); a song without one gets it first. Chords corrected by hand are kept, unless `--force`. Renaming, trimming and deleting the song take its chords along.
+
+It's a guide to correct by ear, not a transcription: on rock and pop songs, in our tests, it got the chord's root right about 95 % of the time (checked against what the bass plays), and major or minor almost always. It names richer chords too (7, maj7, m7, sus...) when it hears them; "simplify" in the player hides them.
+
+The detection is [BTC](https://github.com/jayg996/BTC-ISMIR19) (a model trained to recognize chords, from a 2019 research paper). Its code is copied into song-wizard (`third_party/btc`, with its MIT license), not installed as a library that updates on its own. Its model (12 MB) is downloaded the first time from a fixed address and used only if its fingerprint (SHA-256) matches, and it's opened as numbers only, so a tampered file can't run anything.
 
 ### Changing the key
 
@@ -654,6 +677,7 @@ song-wizard is a thin layer over the work of other free projects:
 - BS-Roformer SW, by jarredou: the 6-instrument model that gives guitar and piano.
 - MDX23C DrumSep, by aufr33 and jarredou (with the MDX23C architecture, by ZFTurbo): the drum kit.
 - [Essentia](https://essentia.upf.edu), by the Music Technology Group of Universitat Pompeu Fabra: key, tempo and beats.
+- [BTC](https://github.com/jayg996/BTC-ISMIR19), by Jonggwon Park, Kyoyun Choi, Sungwook Jeon, Dokyun Kim and Jonghun Park (ISMIR 2019): chords. Its code is in `src/song_wizard/third_party/btc`, under its MIT license.
 - [LRCLIB](https://lrclib.net): an open, community lyrics database.
 - [Rubber Band](https://breakfastquay.com/rubberband/), by Breakfast Quay: pitch and speed changes.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp): downloads.
@@ -679,6 +703,7 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records (also the one each playlist keeps in its folder: taken by another computer, updated by downloading and deleting, removed when forgetting, a copy that doesn't take over, and a damaged or odd record ignored).
 - `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
 - `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).
+- `chords`: BTC's names written as on a chord sheet (Am7, C#m7b5, N.C.), the changes moved onto the click's beats (flickers under half a beat dropped), what was corrected by hand kept when detecting again, any name saved with its quotes escaped (and shapes that don't fit refused), the chords following a rename and a trim, the page reading and saving them, and the model used only if its SHA-256 matches (and not downloaded again). Detecting with the real model needs to download it (12 MB): `uv run pytest -m network` checks that a synthetic I-IV-V-I in G gives G, C and D.
 - `trim`: the same cut in the song and its stems, sample-exact (a pulse at 3 s stays where it should), the `.opus` encoded again lined up with the stems (under half a millisecond), versions at another speed in proportion, the silence added, REAPER takes untouched, 32-bit float WAVs that stay float, the download's link kept, the click and lyrics moving along, and that if one file fails nothing changes.
 - `reaper`: which tracks go in (every stem, an instrument with the rest or the song alone, and the rest muted), the first beat on a bar line with tempos with decimals, names with quotes, that an existing project isn't overwritten (and `--redo`), the takes preference (with REAPER open it isn't touched; restoring puts back only that line, without touching what changed afterwards, and song-wizard doesn't change it again), Windows line endings intact, and that the project, the file names inside it and the takes follow the song when renaming and deleting it. REAPER isn't opened or touched in the tests.
 - `tag`: data read and written in `.opus`, `.wav` and `.mp3` (also with line breaks and your own field names), in the song and its stems and versions but not in the takes, the audio intact, a WAV that stays a WAV (and one damaged by 0.22.0–0.22.3 mended), renaming when the artist or title changes (with the characters Windows doesn't allow), `--only`, the download's link that isn't removed, what's made later carrying the song's data and song-wizard's mark, the name of what's downloaded, the filter by words without accents, the settings file created by any command, and the interface's window.

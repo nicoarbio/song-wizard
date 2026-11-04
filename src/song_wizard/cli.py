@@ -102,6 +102,16 @@ def build_parser():
     p.add_argument("--meter", default="4/4", help="time signature (default: 4/4)")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
+    p = sub.add_parser("chords", help="detect the chords of songs, to read them in the practice player",
+                       description="Detects each song's chords and saves them next to it as "
+                                   "\"<song>.chords.json\", which the practice player of \"song-wizard ui\" shows "
+                                   "and lets you correct. The chords are moved onto the song's beats, so it needs its "
+                                   "click (click.txt); a song without one gets it first, as with song-wizard align. "
+                                   "Chords corrected by hand are kept unless --force. The first time, it downloads "
+                                   "its model (12 MB).")
+    p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
+    p.add_argument("--force", action="store_true", help="detect again also the chords corrected by hand")
+
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
                        description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
                                    "(32-bit float) next to the original.")
@@ -436,6 +446,9 @@ def dispatch(argv):
         from . import click
         click.run(args.bpm, meter=args.meter, duration=args.duration, bars=args.bars, like=args.like,
                   subdivide=args.subdivide, output=args.output, song=args.song)
+    elif args.command == "chords":
+        from . import chords
+        chords.run(args.paths, force=args.force)
     elif args.command == "align":
         from . import align
         align.run(args.paths, bpm=args.bpm, meter=args.meter, first=args.first)

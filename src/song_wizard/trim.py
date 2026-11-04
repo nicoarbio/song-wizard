@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from . import align, lyrics, reaper, results, system
 from .audio import AUDIO_EXTS, GENERATED, base_of, die, require_ffmpeg
@@ -161,6 +162,30 @@ def shift_lyrics(song, start, pad_start):
     return True
 
 
+def shift_chords(song, start, pad_start, length):
+    """The chords' times, moved by the cut; what was cut off goes, what's left is clipped to the
+    song's new length. The click they were placed with moves the same way."""
+    from . import chords
+    data = chords.load(song)
+    if not data:
+        return False
+    delta = pad_start - start
+    moved = []
+    for c in data.get("chords") or []:
+        a, b = max(0.0, c["from"] + delta), min(length, c["to"] + delta)
+        if b - a > 0.05:
+            moved.append({**c, "from": round(a, 3), "to": round(b, 3)})
+    data["chords"] = moved
+    if data.get("click"):
+        beat = 60 / data["click"]["bpm"]
+        first = data["click"]["first"] + delta
+        while first < 0:
+            first += beat
+        data["click"] = {**data["click"], "first": round(first, 3)}
+    chords.save(song, data)
+    return True
+
+
 def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     require_ffmpeg()
     song = system.local_path(str(song))
@@ -231,6 +256,9 @@ def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
         print(f"  moved the practice click's first beat ({n} file{'s' if n != 1 else ''})")
     if shift_lyrics(os.path.join(folder, files[0][0]), start, pad_start):
         print("  moved the lyrics' times")
+    from .ui import duration
+    if shift_chords(os.path.join(folder, files[0][0]), start, pad_start, duration(Path(folder) / files[0][0]) or 36000):
+        print("  moved the chords' times")
     if reaper.existing(os.path.join(folder, files[0][0])):
         print("  the REAPER project is out of step now: remake it (song-wizard reaper --redo, or "
               "más › Rehacer proyecto de Reaper)")
