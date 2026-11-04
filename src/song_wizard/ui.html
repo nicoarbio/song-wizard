@@ -228,7 +228,7 @@
   .lanes { user-select: none; flex: 1 0 auto; grid-auto-rows: minmax(30px, 1fr); min-height: 160px; margin-bottom: 8px; }
   .lanes .lane-ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 2px 6px; align-items: center; align-self: center; }
   .lanes .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lanes .name-box { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .lanes .name-box { display: flex; gap: 4px 6px; align-items: center; flex-wrap: wrap; min-width: 0; }
   .lanes .ms { display: flex; gap: 4px; }
   .lanes .vol { width: 100%; margin: 0; }
   .lanes .pct { color: var(--muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -258,7 +258,6 @@
     font: 600 15px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; color: var(--muted); }
   .chord-now b { font-size: 26px; color: var(--ink); min-width: 1.6em; }
   .chord-edit[hidden] { display: none; }
-  #practice.no-notes .note-layer, #practice.no-notes #note-edit, #practice.no-notes .lane-ctl .listen { display: none; }
   /* Notes over their stem's lane, at the height of their pitch. */
   .note-layer { position: absolute; inset: 2px 0; pointer-events: none; }
   .note-layer .note { position: absolute; height: 14px; margin: 0; padding: 0 3px; border: 0; border-radius: 3px; box-sizing: border-box;
@@ -268,7 +267,9 @@
   .note-layer .note.now { background: var(--warn); color: var(--panel); }
   .note-layer .note.sel { outline: 2px solid var(--accent); outline-offset: 0; }
   .note-layer .note.hand { box-shadow: inset 0 -2px 0 var(--accent); }
-  .note-layer .note-detect { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); pointer-events: auto; }
+  .note-layer[hidden] { display: none; }
+  .lanes .name-box .small { padding: 1px 6px; font-size: 11px; }
+  .lanes .name-box .listen.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   #practice.no-chords .chord-ctl, #practice.no-chords .chord-lane, #practice.no-chords .chord-now, #practice.no-chords .chord-edit { display: none; }
   .chord-edit { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; margin: 2px 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
   .chord-edit input { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
@@ -549,7 +550,6 @@
       <span class="pr-spacer"></span>
       <button class="small" id="practice-monitor" data-text-title="monitor.hear_room_through_mic" data-text="monitor.monitor"></button>
       <button class="small" id="practice-chords-toggle" data-text-title="keys.show_hide_chords"></button>
-      <button class="small" id="practice-notes-toggle" data-text-title="keys.show_hide_notes"></button>
       <button class="small" id="practice-lyrics-toggle" data-text-title="keys.show_hide_lyrics" data-text="practice.lyrics"></button>
       <button class="small" id="practice-full" data-text-title="practice.full_screen_without_browsers_bars" data-text="practice.full_screen"></button>
       <button class="small" id="practice-close" data-text="practice.close"></button>
@@ -2855,22 +2855,23 @@ showChords(chordsShown());
 // own lanes at the height of their pitch (a small piano roll: the melody's shape shows too), with
 // their names when they fit. "♪" plays them with a soft tone, scheduled with the click (so it
 // follows jumps, loops and speed), transposed with the live pitch like their names.
-const NOTES_HIDDEN_KEY = "song-wizard:notes-hidden";
+const NOTES_HIDDEN_KEY = "song-wizard:notes-hidden-parts";
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const notesState = { data: null, listen: {}, sel: null, saving: Promise.resolve() };
-const notesShown = () => { try { return localStorage.getItem(NOTES_HIDDEN_KEY) !== "1"; } catch { return true; } };
+// Which parts' notes are hidden (each track has its own "hide notes"), remembered in this browser.
+const notesHidden = () => { try { return JSON.parse(localStorage.getItem(NOTES_HIDDEN_KEY)) || {}; } catch { return {}; } };
+function toggleNotesShown(part) {
+  const hidden = notesHidden();
+  if (hidden[part]) delete hidden[part]; else hidden[part] = true;
+  try { localStorage.setItem(NOTES_HIDDEN_KEY, JSON.stringify(hidden)); } catch {}
+  if (notesState.sel && notesState.sel.part === part) notesState.sel = null;
+  renderNotes();
+}
 const partOf = (t) => !t.click && t.file && (/\((bass|vocals)\)\.wav$/i.exec(t.file.name) || [])[1]?.toLowerCase();
 const noteName = (midi, octave = false) => {
   const m = midi + semitones();
   return NOTE_NAMES[((m % 12) + 12) % 12] + (octave ? Math.floor(m / 12) - 1 : "");
 };
-
-function showNotes(on) {
-  try { on ? localStorage.removeItem(NOTES_HIDDEN_KEY) : localStorage.setItem(NOTES_HIDDEN_KEY, "1"); } catch {}
-  $("practice").classList.toggle("no-notes", !on);
-  $("practice-notes-toggle").textContent = on ? say("practice.notes_toggle") : say("practice.notes_toggle_2");
-  if (!on) { notesState.sel = null; renderNoteEditor(); }
-}
 
 async function loadPracticeNotes(song) {
   notesState.data = null; notesState.sel = null;
@@ -2897,24 +2898,28 @@ function renderNotes() {
     if (!ui.noteLayer) {
       ui.noteLayer = el("div", { class: "note-layer" });
       ui.lane.append(ui.noteLayer);
-      ui.listenButton = el("button", { class: "small listen", title: say("practice.listen_notes_title"),
-        onclick: () => { notesState.listen[part] = !notesState.listen[part]; resetSchedule(); renderNotes(); } }, "♪");
       // Next to the track's name, not with M and S: the volume sliders keep the same width on every row.
+      ui.detectButton = el("button", { class: "small", title: say("practice.detect_notes_title"),
+        onclick: () => start({ action: "notes", part, paths: [practice.song.path] }) }, say("practice.detect_notes"));
+      ui.showButton = el("button", { class: "small", onclick: () => toggleNotesShown(part) });
+      ui.listenButton = el("button", { class: "small listen", title: say("practice.listen_notes_title"),
+        onclick: () => { notesState.listen[part] = !notesState.listen[part]; resetSchedule(); renderNotes(); } }, say("practice.listen_notes"));
       const label = ui.ctl.querySelector(".name");
       const box = el("span", { class: "name-box" });
       label.replaceWith(box);
-      box.append(label, ui.listenButton);
+      box.append(label, ui.detectButton, ui.showButton, ui.listenButton);
     }
     const notes = notesState.data && notesState.data[part] ? notesState.data[part].notes : null;
+    const hidden = !!notesHidden()[part];
+    ui.detectButton.hidden = !!notes;
+    ui.showButton.hidden = !notes;
+    ui.showButton.textContent = hidden ? say("practice.notes_toggle_2") : say("practice.notes_toggle");
     ui.listenButton.hidden = !notes || !notes.length;
     ui.listenButton.classList.toggle("on", !!notesState.listen[part]);
     ui.listenButton.setAttribute("aria-pressed", String(!!notesState.listen[part]));
+    ui.noteLayer.hidden = hidden;
     ui.noteBlocks = [];
-    if (!notes) {
-      ui.noteLayer.replaceChildren(el("button", { class: "small note-detect", title: say("practice.detect_notes_title"),
-        onclick: () => start({ action: "notes", part, paths: [practice.song.path] }) }, say("practice.detect_notes")));
-      continue;
-    }
+    if (!notes || hidden) { ui.noteLayer.replaceChildren(); continue; }
     if (!d || !notes.length) { ui.noteLayer.replaceChildren(); continue; }
     const [a, b] = practice.view || [0, d], span = b - a, width = ui.lane.clientWidth || 600;
     const low = Math.min(...notes.map((n) => n.midi)), high = Math.max(...notes.map((n) => n.midi)), rows = high - low + 1;
@@ -2986,8 +2991,6 @@ $("note-name").addEventListener("change", () => {
 $("note-name").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("note-name").blur(); } });
 $("note-delete").onclick = () => editNote((list, i) => { list.splice(i, 1); notesState.sel = null; });
 $("note-done").onclick = () => { notesState.sel = null; renderNotes(); };
-$("practice-notes-toggle").onclick = () => showNotes(!notesShown());
-showNotes(notesShown());
 
 // The tone for "♪": a soft triangle, the bass an octave up so it's heard on small speakers.
 function noteTone(when, length, midi) {
@@ -4160,7 +4163,6 @@ const ACTIONS = [
   ["full", "practice", say("keys.full_screen"), ["f"]],
   ["lyrics", "practice", say("keys.show_hide_lyrics"), ["y"]],
   ["chords", "practice", say("keys.show_hide_chords"), ["a"]],
-  ["notes", "practice", say("keys.show_hide_notes"), ["n"]],
   ["tap", "practice", say("keys.lyrics_times_mark_next_line"), ["t"]],
   ["sync", "practice", say("keys.see_how_far_apart_tracks"), ["d"]],
   ...Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, "lyrics", say("lyrics.marker_2", { v: i + 1 }), [String(i + 1)]]),
@@ -4268,7 +4270,6 @@ const RUN = {
   monitor: () => { $("mon-panel").hidden = false; toggleMonitor(); },
   lyrics: () => showPracticeLyrics(!lyricsShown()),
   chords: () => showChords(!chordsShown()),
-  notes: () => showNotes(!notesShown()),
   tap: tapNextLine,
   sync: () => { $("practice-sync").hidden = !$("practice-sync").hidden; },
   ...Object.fromEntries(Array.from({ length: 5 }, (_, i) => [`color${i + 1}`, () => { if (lyr.data && lyr.colors[i]) pickTool(lyr.colors[i].id); }])),
