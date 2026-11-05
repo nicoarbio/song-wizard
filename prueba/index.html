@@ -91,6 +91,12 @@
     <select id="inputs" class="hidden"></select>
   </div>
   <div class="row">
+    <span class="hint">Nivel</span>
+    <div style="flex:1;min-width:120px;height:10px;background:var(--line);border-radius:5px;overflow:hidden"><div id="level" style="height:100%;width:0;background:var(--accent)"></div></div>
+    <label><input type="checkbox" id="callMode"> Modo llamada</label>
+  </div>
+  <p class="hint">La barra muestra si la entrada elegida recibe sonido (hablale o tocá el celu). "Modo llamada" prende el procesamiento de llamada: en Android puede ser lo que hace falta para elegir otra entrada, aunque suma demora. Probar el selector con y sin.</p>
+  <div class="row">
     <label><input type="checkbox" id="monOn"> Escucharme</label>
     <input type="range" id="monVol" min="0" max="150" value="100" style="max-width:160px">
   </div>
@@ -518,19 +524,38 @@ async function getMic(deviceId) {
   setSession("play-and-record"); // en iPhone, con "playback" el micrófono no se puede abrir
   mic = await navigator.mediaDevices.getUserMedia({ audio: {
     deviceId: deviceId ? { exact: deviceId } : undefined,
-    echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1, latency: 0 } });
+    echoCancellation: $("#callMode").checked, noiseSuppression: false, autoGainControl: false, channelCount: 1, latency: 0 } });
   micSrc = c.createMediaStreamSource(mic);
+  meter(micSrc);
   if (!monGain) { monGain = c.createGain(); monGain.connect(c.destination); }
   monGain.gain.value = $("#monOn").checked ? $("#monVol").value / 100 : 0;
   micSrc.connect(monGain);
   const track = mic.getAudioTracks()[0], set = track.getSettings ? track.getSettings() : {};
-  R.input = `${track.label || "?"}${set.latency ? `, demora declarada ${(set.latency * 1000).toFixed(1)} ms` : ""}${set.sampleRate ? `, ${set.sampleRate} Hz` : ""}`;
+  R.input = `${$("#callMode").checked ? "[modo llamada] " : ""}${track.label || "?"}${set.latency ? `, demora declarada ${(set.latency * 1000).toFixed(1)} ms` : ""}${set.sampleRate ? `, ${set.sampleRate} Hz` : ""}`;
   log(`entrada: ${R.input}`);
   await listInputs();
   $("#measure").disabled = false;
   $("#micOn").textContent = "Micrófono activo";
   return mic;
 }
+// Nivel de la entrada, para ver si la elegida de verdad recibe sonido.
+let analyser = null;
+function meter(src) {
+  if (!analyser) {
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024;
+    const buf = new Float32Array(analyser.fftSize);
+    const draw = () => {
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0; for (const x of buf) sum += x * x;
+      const db = 20 * Math.log10(Math.sqrt(sum / buf.length) + 1e-9);
+      $("#level").style.width = `${Math.max(0, Math.min(100, (db + 60) / 60 * 100))}%`;
+      requestAnimationFrame(draw);
+    };
+    draw();
+  }
+  src.connect(analyser);
+}
+$("#callMode").onchange = () => { if (mic) getMic().catch((e) => log(`micrófono: ${e.name}`)); };
 $("#micOn").onclick = () => getMic().catch((e) => log(`micrófono: ${e.name}`));
 $("#inputs").onchange = () => getMic($("#inputs").value).catch((e) => log(`micrófono: ${e.name}`));
 // La lista de entradas, con la que se está usando elegida.
