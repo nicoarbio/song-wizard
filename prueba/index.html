@@ -30,7 +30,7 @@
   .track:first-child { border-top: 0; }
   .track .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .time { font-variant-numeric: tabular-nums; min-width: 92px; }
-  #qr { background: #fff; padding: 8px; border-radius: 8px; max-width: 320px; margin: 8px 0; }
+  #qr { background: #fff; padding: 8px; border-radius: 8px; max-width: 340px; margin: 8px 0; }
   #qr svg { width: 100%; height: auto; display: block; }
   video { width: 100%; max-width: 320px; border-radius: 8px; background: #000; }
   textarea { width: 100%; font: 12px/1.3 ui-monospace, monospace; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 6px; }
@@ -509,9 +509,11 @@ function showState() {
 }
 
 // ---------- monitor ----------
-let mic = null, micSrc = null, monGain = null, recNode = null;
+let mic = null, micSrc = null, monGain = null, recNode = null, micChoice = null;
 async function getMic(deviceId) {
   const c = audio();
+  if (deviceId !== undefined) micChoice = deviceId;
+  deviceId = micChoice;
   if (mic) { mic.getTracks().forEach((t) => t.stop()); micSrc.disconnect(); }
   setSession("play-and-record"); // en iPhone, con "playback" el micrófono no se puede abrir
   mic = await navigator.mediaDevices.getUserMedia({ audio: {
@@ -524,20 +526,39 @@ async function getMic(deviceId) {
   const track = mic.getAudioTracks()[0], set = track.getSettings ? track.getSettings() : {};
   R.input = `${track.label || "?"}${set.latency ? `, demora declarada ${(set.latency * 1000).toFixed(1)} ms` : ""}${set.sampleRate ? `, ${set.sampleRate} Hz` : ""}`;
   log(`entrada: ${R.input}`);
-  const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
-  const sel = $("#inputs");
-  sel.textContent = "";
-  for (const d of devs) { const o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || "entrada"; o.selected = d.label === track.label; sel.append(o); }
-  sel.classList.toggle("hidden", devs.length < 2);
+  await listInputs();
   $("#measure").disabled = false;
   $("#micOn").textContent = "Micrófono activo";
   return mic;
 }
 $("#micOn").onclick = () => getMic().catch((e) => log(`micrófono: ${e.name}`));
 $("#inputs").onchange = () => getMic($("#inputs").value).catch((e) => log(`micrófono: ${e.name}`));
-navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener("devicechange", () => {
-  // Algo enchufado o desenchufado: se toma la entrada que el sistema elija.
-  if (mic) { log("cambió la entrada"); getMic().catch((e) => log(`micrófono: ${e.name}`)); }
+// La lista de entradas, con la que se está usando elegida.
+async function listInputs() {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  const track = mic && mic.getAudioTracks()[0], using = track && track.getSettings ? track.getSettings().deviceId : null;
+  const sel = $("#inputs");
+  sel.textContent = "";
+  for (const d of devs) {
+    const o = document.createElement("option");
+    o.value = d.deviceId; o.textContent = d.label || "entrada";
+    o.selected = d.deviceId === using || (!using && track && d.label === track.label);
+    sel.append(o);
+  }
+  sel.classList.toggle("hidden", !devs.length);
+  R.inputs = devs.map((d) => d.label || "?").join(" | ");
+  return devs;
+}
+navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener("devicechange", async () => {
+  // Algo enchufado o desenchufado. Si la entrada elegida sigue estando, se queda esa; si no
+  // (o si no se eligió ninguna y la que andaba se cortó), la que dé el sistema.
+  if (!mic) return;
+  const devs = await listInputs();
+  const track = mic.getAudioTracks()[0];
+  if (micChoice && !devs.some((d) => d.deviceId === micChoice)) { micChoice = null; log("la entrada elegida se desconectó"); }
+  else if (track.readyState === "live") return;
+  log("cambió la entrada");
+  getMic().catch((e) => log(`micrófono: ${e.name}`));
 });
 const monLevel = () => { if (monGain) monGain.gain.value = $("#monOn").checked ? $("#monVol").value / 100 : 0; };
 $("#monOn").onchange = async () => { if (!mic) await getMic().catch((e) => log(`micrófono: ${e.name}`)); monLevel(); };
@@ -699,19 +720,33 @@ function renderMembers() {
 let pending = null, scanning = null;
 const b64 = (u8) => btoa(String.fromCharCode(...u8)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64 = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-async function encode(obj) {
-  const json = JSON.stringify(obj);
-  if (window.CompressionStream) {
-    const z = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate-raw"));
-    return "Z" + b64(new Uint8Array(await new Response(z).arrayBuffer()));
+// El código lleva solo lo indispensable de la conexión (clave, huella y direcciones), así el QR
+// tiene pocos puntos y la cámara lo lee fácil; del otro lado se rearma la descripción completa.
+function encode(kind, sdp) {
+  const get = (k) => (sdp.match(new RegExp(`^a=${k}:(.*)$`, "m")) || [])[1] || "";
+  const fp = get("fingerprint").split(" ")[1].split(":").map((h) => parseInt(h, 16));
+  const seen = new Set(), cands = [];
+  for (const l of sdp.split(/\r?\n/)) {
+    const m = l.match(/^a=candidate:\S+ 1 udp \d+ (\S+) (\d+) typ host/i);
+    if (!m) continue;
+    const at = (m[1].includes(":") ? `[${m[1]}]` : m[1]) + ":" + m[2];
+    if (!seen.has(at)) { seen.add(at); cands.push(at); }
   }
-  return "J" + b64(new TextEncoder().encode(json));
+  return ["SW1", kind, ID, get("ice-ufrag"), get("ice-pwd"), b64(Uint8Array.from(fp)), get("setup"), cands.join(",")].join("|");
 }
-async function decode(code) {
-  code = code.trim();
-  const bytes = unb64(code.slice(1));
-  if (code[0] === "Z") return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text());
-  return JSON.parse(new TextDecoder().decode(bytes));
+function decode(code) {
+  const [tag, kind, id, ufrag, pwd, fp, setup, cands] = code.trim().split("|");
+  if (tag !== "SW1") throw new Error("código");
+  const hex = [...unb64(fp)].map((x) => x.toString(16).toUpperCase().padStart(2, "0")).join(":");
+  const lines = ["v=0", `o=- ${Date.now()} 2 IN IP4 127.0.0.1`, "s=-", "t=0 0", "a=group:BUNDLE 0", "a=msid-semantic: WMS",
+    "m=application 9 UDP/DTLS/SCTP webrtc-datachannel", "c=IN IP4 0.0.0.0"];
+  (cands ? cands.split(",") : []).forEach((at, i) => {
+    const cut = at.lastIndexOf(":"), ip = at.slice(0, cut).replace(/^\[|\]$/g, ""), port = at.slice(cut + 1);
+    lines.push(`a=candidate:${i + 1} 1 udp ${2122260223 - i} ${ip} ${port} typ host generation 0`);
+  });
+  lines.push(`a=ice-ufrag:${ufrag}`, `a=ice-pwd:${pwd}`, `a=fingerprint:sha-256 ${hex}`, `a=setup:${setup}`, "a=mid:0",
+    "a=sctp-port:5000", "a=max-message-size:262144");
+  return { k: kind, id, s: lines.join("\r\n") + "\r\n" };
 }
 function gathered(pc) {
   return new Promise((r) => {
@@ -726,7 +761,7 @@ function describeCandidates(sdp) {
   return `${c.length} candidatos: ${addr.map((a) => (a.endsWith(".local") ? "mDNS" : a)).join(", ") || "ninguno"}`;
 }
 async function showCode(kind, sdp, text) {
-  const code = await encode({ k: kind, s: sdp, id: ID });
+  const code = encode(kind, sdp);
   const q = qrcode(0, "L"); q.addData(code); q.make();
   $("#qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
   $("#code").value = code;
@@ -763,7 +798,7 @@ $("#cancelPair").onclick = () => { if (pending && !links.has(pending)) pending.p
 
 async function useCode(code) {
   let o;
-  try { o = await decode(code); } catch (e) { log("ese código no sirve"); return; }
+  try { o = decode(code); } catch (e) { log("ese código no sirve"); return; }
   if (o.id === ID) { log("es mi propio código"); return; }
   if (o.k === "o") {
     pending = makeLink("join");
@@ -783,7 +818,7 @@ async function scan() {
   stopScan();
   const video = $("#cam");
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); }
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } }); }
   catch (e) { log(`cámara: ${e.name}; usar copiar y pegar`); return null; }
   video.srcObject = stream; video.classList.remove("hidden");
   await video.play();
@@ -793,22 +828,22 @@ async function scan() {
     const look = () => {
       if (!scanning) return resolve(null);
       if (video.videoWidth) {
-        const w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+        const w = Math.min(1280, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
         canvas.width = w; canvas.height = h; g.drawImage(video, 0, 0, w, h);
         const found = jsQR(g.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: "dontInvert" });
-        if (found && found.data) { stopScan(); return resolve(found.data); }
+        if (found && found.data) { log("QR leído"); return stopScan(found.data); }
       }
       requestAnimationFrame(look);
     };
     look();
   });
 }
-function stopScan() {
+function stopScan(found = null) {
   if (!scanning) return;
   scanning.stream.getTracks().forEach((t) => t.stop());
   const r = scanning.resolve; scanning = null;
   $("#cam").classList.add("hidden"); $("#cam").srcObject = null;
-  r(null);
+  r(found);
 }
 
 // ---------- resultados ----------
@@ -826,7 +861,7 @@ function results() {
     `memoria: ${R.mb.toFixed(0)} MB, cargado en ${(R.decodeMs / 1000).toFixed(1)} s · ${tracks.map((t) => t.info).join(" / ")}`,
     `contra el reloj: desvío típico ${median(abs).toFixed(1)} ms, máx ${abs.length ? Math.max(...abs).toFixed(1) : "-"} ms (${abs.length} medidas) · correcciones ${R.reschedules}`,
     `velocidad: ${Math.round(S.rate * 100)} % · tono ${semisText(S.semis)}`,
-    `entrada: ${R.input || "-"}`,
+    `entrada: ${R.input || "-"}${R.inputs ? ` · hay: ${R.inputs}` : ""}`,
     ...R.lagRuns.map((l) => `demora monitor (ida y vuelta): ${l.runs.join(", ")} ms → ${median(l.runs)} ms · ${l.input}`),
     `sesión: ${R.candidates || "sin emparejar"} · conexiones ${R.connected} · ahora ${links.size}`,
     ...[...links].map((l) => `  con ${nameOf(l.id)}: ida y vuelta ${l.rtt ? l.rtt.toFixed(1) : "-"} ms`),
