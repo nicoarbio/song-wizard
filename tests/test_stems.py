@@ -62,3 +62,31 @@ def test_versions_are_mp3_by_default(tmp_path):
                             "stream=codec_name", "-of", "csv=p=0", str(tmp_path / "tone (+1).mp3")],
                            capture_output=True, text=True, check=True).stdout.strip()
     assert codec == "mp3"
+
+
+def test_all_stems_add_up_to_the_original_in_mp3(tmp_path, monkeypatch):
+    """"all" makes "other" as the mix minus the stems as stored (MP3, a few samples longer than
+    the source). The models are replaced by a fake split: the arithmetic and the files are real."""
+    import numpy as np
+    import soundfile as sf
+
+    from song_wizard import separate
+
+    def fake_split(model, wanted, inputs, device, tmp, keep):
+        for f, scale, path in inputs:
+            mix, _ = sf.read(path, dtype="float32", always_2d=True)
+            mix = mix.T / scale
+            keep(f, mix, {stem: mix * (0.1 * (i + 1)) for i, (stem, _) in enumerate(wanted)})
+        return device
+
+    monkeypatch.setattr(separate, "separate_with", fake_split)
+    monkeypatch.setattr(separate, "pick", lambda *a, **k: "cpu")
+    src = synth.write(tmp_path / "song.wav", synth.sine(330, 3, peak=0.5))
+    separate.run(["all"], [str(src)], force_cpu=True)
+    original, _ = sf.read(src, dtype="float32", always_2d=True)
+    total = np.zeros_like(original)
+    for stem in ["vocals", "drums", "bass", "guitar", "other"]:
+        part = audio.load(str(tmp_path / f"song ({stem}).mp3"), sr=synth.SR)[0].T
+        total[: len(part)] += part[: len(original)]
+    assert os.path.exists(tmp_path / "song (other).mp3")
+    assert np.abs(total - original).max() < 0.01  # MP3 coding noise only
