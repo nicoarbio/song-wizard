@@ -129,7 +129,7 @@ def test_interface(server):  # noqa: F811
     content = request(port, "GET", f"/lyrics?path={q}&with=chords&shift=3&bars=2&simple=1")[1]
     assert b">Cm</b>" in content and b'<option selected>2</option>' in content
     content = request(port, "GET", f"/lyrics?path={q}&with=nope&shift=x&bars=9")[1]
-    assert b"Am" not in content and b"la la" in content  # back to the defaults: just the lyrics
+    assert b">Am</b>" not in content and b"la la" in content  # back to the defaults: just the lyrics
 
 
 def test_setlist_with_chords(tmp_path, monkeypatch):

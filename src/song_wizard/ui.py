@@ -624,10 +624,9 @@ def make_handler(token, root, runner, port):
                     if not sheet.available(path, data):
                         return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_lyrics_yet")
                     kind = "chords" if "chords" in sheet.available(path, data) else "bass"
-                page_title = f"{title} ({artist})" if artist else title
                 hidden = [("path", query["path"][0]), ("lang", self.lang)]
-                return self.send(HTTPStatus.OK, sheet.page(page_title, path, data, self.lang, kind, shift, simple, bars,
-                                                           hidden).encode(), "text/html; charset=utf-8")
+                return self.send(HTTPStatus.OK, sheet.page(title, path, data, self.lang, kind, shift, simple, bars,
+                                                           hidden, artist).encode(), "text/html; charset=utf-8")
             if url.path == "/setlist":
                 # The printable setlist, in its own tab: of a folder, or of songs from any folders
                 # in the order given (?path=...&path=...). Shown only: nothing is saved.

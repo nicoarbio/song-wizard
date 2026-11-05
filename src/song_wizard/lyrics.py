@@ -271,6 +271,6 @@ def export(song, kind="lyrics", shift=0, simple=False, bars=4):
     title, artist = title_artist(song)
     name = {"lyrics": "lyrics", "chords": "chords", "bass": "bass"}[kind]
     out = Path(song).parent / f"{base_of(Path(song).name)}.{name}.html"
-    out.write_text(sheet.page(f"{title} ({artist})" if artist else title, song, data, kind=kind, shift=shift,
-                              simple=simple, bars=bars), encoding="utf-8")
+    out.write_text(sheet.page(title, song, data, kind=kind, shift=shift, simple=simple, bars=bars,
+                              artist=artist), encoding="utf-8")
     return out

@@ -67,7 +67,7 @@ def test_interface(server):  # noqa: F811
     folder.mkdir()
     synth.write(folder / "001 - Song.wav", synth.sine(440, 1.0))
     response, content = request(port, "GET", f"/setlist?folder=Show&t={TOKEN}", token=None)
-    assert response.status == 200 and b"Song" in content and b"<title>Setlist: Show" in content
+    assert response.status == 200 and b"Song" in content and b"<title>Show - setlist by song-wizard" in content
     assert request(port, "GET", "/setlist?folder=Show", token=None)[0].status == 403
     assert request(port, "GET", "/setlist?folder=../..")[0].status == 403
     assert request(port, "GET", "/setlist?folder=Empty")[0].status == 404
@@ -133,7 +133,7 @@ def test_interface_songs(server):  # noqa: F811
     lyrics.save(root / "B" / "001 - Song B.wav", {"text": "la la"})
     query = "path=B/001%20-%20Song%20B.wav&path=A/001%20-%20Song%20A.wav&title=Gig%20%3Cb%3E"
     response, content = request(port, "GET", f"/setlist?{query}")
-    assert response.status == 200 and b"<title>Setlist: Gig &lt;b&gt;" in content
+    assert response.status == 200 and b"<title>Gig -b- - setlist by song-wizard" in content
     assert content.index(b"Song B") < content.index(b"Song A") and b"la la" not in content
     assert b"la la" in request(port, "GET", f"/setlist?{query}&lyrics=1")[1]
     assert b"la la" in request(port, "GET", "/setlist?folder=B&lyrics=1")[1]

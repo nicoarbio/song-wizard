@@ -6,14 +6,12 @@ equal to the one before are folded by default: the first is written and the rest
 "repeat the bar" sign with "×N" over it; bars where the drums don't play become one rest with
 how many bars it lasts. The bars keep their numbers."""
 
-import base64
 import re
 from collections import defaultdict
 from html import escape
-from importlib import resources
 
 from .i18n import say
-from .sheet import WATERMARK, WATERMARK_STYLE
+from .sheet import WATERMARK, WATERMARK_STYLE, file_title, logo
 
 # Where each part goes on the staff, and its notehead.
 POSITION = {"crash": ("A", 5, "x"), "hihat": ("G", 5, "x"), "hhopen": ("G", 5, "circle-x"), "ride": ("F", 5, "x"),
@@ -199,19 +197,6 @@ def scalable(svg):
     return (f'<svg viewBox="0 0 {m[1]} {m[2]}" preserveAspectRatio="xMidYMin meet"' + svg[m.end():])
 
 
-def logo():
-    """song-wizard's icon, inside the page (a saved page has nothing else to load it from)."""
-    data = resources.files("song_wizard").joinpath("static", "logo.png").read_bytes()
-    return "data:image/png;base64," + base64.b64encode(data).decode()
-
-
-def file_title(title, artist):
-    """The page's title, which the browser offers as the PDF's name: without the characters a
-    file name can't have (a "/" in it makes the browser offer something else), and "&" as
-    "and". Only the name: the heading on the page keeps the title as it is."""
-    name = f"{artist} - {title} - drum tab by song-wizard" if artist else f"{title} - drum tab by song-wizard"
-    name = re.sub(r"\s*&\s*", " and ", name)  # some browsers give up on it too
-    return re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|]+', "-", name)).strip()
 
 
 STYLE = """

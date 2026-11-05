@@ -12,9 +12,11 @@ Where nobody sings (intro, solos, the end) the chords go in rows of bars on the 
 Names follow a pitch shift (-6...+6 semitones, like the practice player) and can be simplified
 to major/minor, like the practice player does."""
 
+import base64
 import math
 import re
 from html import escape
+from importlib import resources
 
 from . import chords as chords_mod
 from . import lyrics as lyrics_mod
@@ -294,6 +296,50 @@ WATERMARK = ('<svg class="wm" aria-hidden="true"><defs><pattern id="wm" width="2
              '<text x="10" y="40">song-wizard</text><text x="135" y="100">song-wizard</text></pattern></defs>'
              '<rect width="100%" height="100%" fill="url(#wm)"/></svg>')
 
+def logo():
+    """song-wizard's icon, inside the page (a saved page has nothing else to load it from)."""
+    data = resources.files("song_wizard").joinpath("static", "logo.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
+
+
+def file_title(title, artist=None, what="drum tab"):
+    """The page's title, which the browser offers as the PDF's name ("Artist - Song - lyrics by
+    song-wizard"): without the characters a file name can't have (a "/" in it makes the browser
+    offer something else), and "&" as "and". Only the name: the heading keeps the title as it is."""
+    name = f"{artist} - {title} - {what} by song-wizard" if artist else f"{title} - {what} by song-wizard"
+    name = re.sub(r"\s*&\s*", " and ", name)  # some browsers give up on it too
+    return re.sub(r"\s+", " ", re.sub(r'[\\/:*?"<>|]+', "-", name)).strip()
+
+
+# Printed like the drum sheet: the page has no margins of its own, so the browser adds no date,
+# address or title around it; the margins are the body's, repeated on every page (clone), and
+# "... by song-wizard" goes at the foot of each one (a fixed element repeats on every page).
+PRINT_STYLE = """
+  @page { size: A4; margin: 0; }
+  .heading { display: grid; grid-template-columns: 18mm 1fr 18mm; align-items: center; margin: 0 0 4mm; }
+  .heading img { width: 13mm; height: 13mm; }
+  .heading .titles { text-align: center; }
+  .heading h1 { font: 600 21pt/1.15 Georgia, "Times New Roman", serif; margin: 0; }
+  .heading .artist { font: italic 13pt/1.3 Georgia, "Times New Roman", serif; margin-top: 1mm; }
+  .heading .meta { margin: 1mm 0 0; }
+  .by { display: none; }
+  @media print {
+    body { padding: 12mm 13mm 14mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    .by { display: block; position: fixed; left: 13mm; bottom: 6mm; font-size: 8pt; color: #888; }
+  }
+"""
+
+
+def heading(title, artist=None, extra=""):
+    """The first page's heading: the icon, and the title centered with the artist under it."""
+    return (f'<header class="heading"><img src="{logo()}" alt=""><div class="titles"><h1>{escape(title)}</h1>'
+            + (f'<div class="artist">{escape(artist)}</div>' if artist else "") + extra + "</div><span></span></header>")
+
+
+def by(what):
+    return f'<div class="by">{escape(what)} by song-wizard</div>'
+
+
 # The choices above the sheet: never printed, and left out of a page saved to a file (they ask
 # the interface for the page again).
 CONTROLS_STYLE = """
@@ -382,7 +428,11 @@ def body(song, data, kind="lyrics", shift=0, simple=False, bars=4):
     return html, found, click
 
 
-def page(title, song, data, lang="es", kind="lyrics", shift=0, simple=False, bars=4, hidden=None):
+# What each page is, in its PDF's name and at its foot.
+WHAT = {"lyrics": "lyrics", "chords": "chords", "bass": "bass notes"}
+
+
+def page(title, song, data, lang="es", kind="lyrics", shift=0, simple=False, bars=4, hidden=None, artist=None):
     """The printable page of a song: its lyrics, or with the chords or the bass's notes over them.
     hidden: the form's fixed values, to show the choices (None for a page saved to a file)."""
     content, found, click = body(song, data, kind, shift, simple, bars)
@@ -390,20 +440,20 @@ def page(title, song, data, lang="es", kind="lyrics", shift=0, simple=False, bar
     form = controls(hidden, lang, kind, available(song, data), shift, simple, bars) if hidden is not None else ""
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{escape(say(lang, "lyrics.lyrics", v=title))}</title>
+<title>{escape(file_title(title, artist, WHAT[kind]))}</title>
 <style>
-  @page {{ size: A4; margin: 14mm; }}
   body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 760px; padding: 0 16px; }}
-  h1 {{ font-size: 20pt; margin: 0 0 6px; }}
   .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} }}
+{PRINT_STYLE}
+  @media print {{ body {{ margin: 0; max-width: none; }} .print {{ display: none; }} }}
 {lyrics_mod.STYLE}{STYLE}{CONTROLS_STYLE}{WATERMARK_STYLE}</style></head>
 <body>
 {WATERMARK}
 {form}
 {f'<p class="notice">{escape(tell)}</p>' if tell and hidden is not None else ""}
-<h1>{escape(title)}</h1>
+{heading(title, artist)}
 {content}
 <button class="print" onclick="print()">{say(lang, "print.print")}</button>
+{by(WHAT[kind])}
 </body></html>
 """

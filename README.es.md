@@ -680,7 +680,7 @@ Show
 23 songs, 1:40:00
 ```
 
-La lista de la carpeta en el orden de sus archivos (`001 - …`), con la tonalidad, el tempo y la duración de cada tema, y el total. Guarda `Setlist.txt` y `Setlist.html` en la carpeta; el `.html` se abre en el navegador y se imprime en una hoja A4, con la letra lo más grande que entre.
+La lista de la carpeta en el orden de sus archivos (`001 - …`), con la tonalidad, el tempo y la duración de cada tema, y el total. Guarda `Setlist.txt` y `Setlist.html` en la carpeta; el `.html` se abre en el navegador y se imprime en una hoja A4, con la letra lo más grande que entre. Se imprime como la partitura de batería: el título centrado con el ícono de song-wizard, "setlist by song-wizard" al pie de cada hoja (también en las de las letras), y el navegador no agrega la fecha ni la dirección; propone "Título - setlist by song-wizard" como nombre del PDF. La letra y la hoja de acordes se imprimen igual ("Artista - Tema - lyrics by song-wizard", o "chords" o "bass notes").
 
 **Con temas de cualquier carpeta**, en el orden que quieras: nombrá los temas en vez de la carpeta.
 

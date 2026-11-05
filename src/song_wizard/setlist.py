@@ -140,11 +140,9 @@ def page(name, items, with_lyrics=False, lang="es", with_chords=False, simple=Fa
             if with_lyrics and hidden is not None else "")
     return f"""<!doctype html>
 <html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Setlist: {html.escape(name)}</title>
+<title>{html.escape(sheet.file_title(name, None, "setlist"))}</title>
 <style>
-  @page {{ size: A4; margin: 12mm; }}
   body {{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #111; background: #fff; margin: 24px auto; max-width: 820px; padding: 0 16px; }}
-  h1 {{ font-size: {size + 6}pt; margin: 0 0 4px; }}
   .meta {{ color: #555; font-size: 11pt; margin-bottom: 10px; }}
   table {{ width: 100%; border-collapse: collapse; font-size: {size}pt; }}
   td {{ padding: .12em .35em; border-bottom: 1px solid #ccc; vertical-align: baseline; line-height: 1.25; }}
@@ -157,19 +155,21 @@ def page(name, items, with_lyrics=False, lang="es", with_chords=False, simple=Fa
   .song h2 {{ font-size: 20pt; margin: 0 0 6px; }}
   .song h2 .n {{ font-weight: 400; }}
   .print {{ margin: 16px 0; padding: 8px 16px; font-size: 12pt; cursor: pointer; }}
-  @media print {{ body {{ margin: 0; max-width: none; padding: 0; }} .print {{ display: none; }} .song {{ margin-top: 0; }} }}
+{sheet.PRINT_STYLE}
+  .heading h1 {{ font-size: {size + 6}pt; }}
+  @media print {{ body {{ margin: 0; max-width: none; }} .print {{ display: none; }} .song {{ margin-top: 0; }} }}
 {lyrics.STYLE}{sheet.STYLE}{sheet.CONTROLS_STYLE}{sheet.WATERMARK_STYLE}</style></head>
 <body>
 {sheet.WATERMARK}
 {form}
-<h1>{html.escape(name)}</h1>
-<div class="meta">{html.escape(say(lang, "print.songs", n=len(items), total=clock(total)))}</div>
+{sheet.heading(name, extra=f'<div class="meta">{html.escape(say(lang, "print.songs", n=len(items), total=clock(total)))}</div>')}
 <table><thead><tr><th class=n>#</th><th>{say(lang, "print.song")}</th><th class=k>{say(lang, "print.key")}</th><th class=b>BPM</th><th class=d>{say(lang, "print.length")}</th></tr></thead>
 <tbody>
 {body}
 </tbody></table>
 <button class="print" onclick="print()">{say(lang, "print.print")}</button>
 {chr(10).join(sheets)}
+{sheet.by("setlist")}
 </body></html>
 """
 

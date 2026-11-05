@@ -130,7 +130,7 @@ def test_export(song):
     lyrics.run([str(song)], export_page=True)
     page = (song.parent / "001 - Band - Song (Official Video).lyrics.html").read_text()
     assert '<mark style="background:#ffe066">hola</mark>' in page and "&lt;b&gt;mundo" in page
-    assert "corte" in page and "Voz 1" in page and "<title>Letra: Song (Band)</title>" in page
+    assert "corte" in page and "Voz 1" in page and "<title>Band - Song - lyrics by song-wizard</title>" in page and '<div class="artist">Band</div>' in page
 
 
 def test_runs():

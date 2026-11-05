@@ -680,7 +680,7 @@ Show
 23 songs, 1:40:00
 ```
 
-The folder's list in the order of its files (`001 - …`), with each song's key, tempo and length, and the total. It saves `Setlist.txt` and `Setlist.html` in the folder; the `.html` opens in the browser and prints on one A4 page, with the text as big as fits.
+The folder's list in the order of its files (`001 - …`), with each song's key, tempo and length, and the total. It saves `Setlist.txt` and `Setlist.html` in the folder; the `.html` opens in the browser and prints on one A4 page, with the text as big as fits. It prints like the drum sheet: the title centered with song-wizard's icon, "setlist by song-wizard" at the bottom of each page (the lyrics pages too), and the browser adds no date or address; it offers "Title - setlist by song-wizard" as the PDF's name. The lyrics and the chord sheet print the same way ("Artist - Song - lyrics by song-wizard", or "chords" or "bass notes").
 
 **With songs from any folder**, in the order you want: name the songs instead of the folder.
 
