@@ -218,7 +218,7 @@ def test_speed_job(server):
     assert status == "done", lines
     song = get_json(port, "/api/library")["folders"][0]["songs"][0]
     assert song["name"] == "tone.wav"
-    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).wav"]
+    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).opus"]
 
 
 def test_job_on_a_single_stem(server):
@@ -229,8 +229,8 @@ def test_job_on_a_single_stem(server):
     status, lines = wait_for(port, json.loads(content)["id"])
     assert status == "done", lines
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
-    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).wav", "tone (drums).wav"]
-    assert sf.info(root / "tone (drums) (50%).wav").duration == pytest.approx(4)
+    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).opus", "tone (drums).wav"]
+    assert sf.info(root / "tone (drums) (50%).opus").duration == pytest.approx(4, abs=0.05)  # Opus: lossy, 48 kHz
 
 
 def test_rename_job(server):
@@ -497,10 +497,10 @@ def test_settings_file_from_the_page(server):
     port, root = server
     data = get_json(port, "/api/config")
     assert "[download]" in data["text"] and data["text"] == config.CONFIG_PATH.read_text()  # made on first look
-    assert data["values"]["audio"]["stems"] == "wav" and "[audio]" in data["template"]
-    response, content = request(port, "POST", "/api/config", {"text": '[audio]\nstems = "opus"\n'})
-    assert response.status == 200 and json.loads(content)["values"]["audio"]["stems"] == "opus"
-    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "opus"\n'
+    assert data["values"]["audio"]["stems"] == "opus" and "[audio]" in data["template"]
+    response, content = request(port, "POST", "/api/config", {"text": '[audio]\nstems = "wav"\n'})
+    assert response.status == 200 and json.loads(content)["values"]["audio"]["stems"] == "wav"
+    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "wav"\n'
     response, content = request(port, "POST", "/api/config", {"text": "[audio\nstems = 1"})
     assert response.status == 400 and "TOML" in json.loads(content)["error"]
-    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "opus"\n'  # left as it was
+    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "wav"\n'  # left as it was

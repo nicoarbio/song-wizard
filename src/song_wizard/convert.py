@@ -6,16 +6,26 @@ import subprocess
 import numpy as np
 
 from . import tags
-from .audio import expand, load, require_ffmpeg
+from .audio import GENERATED, expand, load, require_ffmpeg
 
 FORMATS = {
     # LAME VBR quality 2 is ~190 kbps: transparent for practice tracks, ~7 MB for 5 minutes.
     "mp3": ["-c:a", "libmp3lame", "-q:a", "2", "-id3v2_version", "3"],
     "m4a": ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"],
 }
-# Folders: only lossless files are converted, so nothing lossy gets re-encoded and an .opus and
-# a .wav of the same song don't both turn into the same .mp3.
+# Folders: lossless files, and the stems and versions song-wizard made in Opus (its default), but
+# not the downloaded .opus files, so a song isn't re-encoded for nothing; and an .opus and a .wav of
+# the same file don't both turn into the same .mp3 (the .wav goes).
 LOSSLESS = {".wav", ".flac", ".aif", ".aiff"}
+
+
+def in_folder(f):
+    """Whether converting a folder takes this file."""
+    stem, ext = os.path.splitext(f)
+    if ext.lower() in LOSSLESS:
+        return True
+    return (ext.lower() == ".opus" and bool(GENERATED.search(os.path.basename(stem)))
+            and not any(os.path.exists(stem + e) for e in LOSSLESS))
 # Lossy formats clip whatever goes above 0 dB when played, and encoding itself adds a little
 # to the peaks, so louder files are turned down to -1 dB first (the usual margin for MP3/AAC).
 MAX_PEAK = 10 ** (-1 / 20)
@@ -26,7 +36,7 @@ def run(paths, fmt="mp3", overwrite=False):
     files = []
     for p in paths:
         if os.path.isdir(p):
-            files += [f for f in expand([p]) if os.path.splitext(f)[1].lower() in LOSSLESS]
+            files += [f for f in expand([p]) if in_folder(f)]
         else:
             files += list(expand([p]))
 

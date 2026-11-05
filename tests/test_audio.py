@@ -231,6 +231,19 @@ def test_convert_folder_skips_lossy(tmp_path):
     assert (tmp_path / "c.mp3").read_bytes() == b"not really mp3"
 
 
+def test_convert_folder_takes_opus_stems_not_downloads(tmp_path):
+    """Stems and versions are Opus by default: a folder converts them; the downloaded song isn't
+    re-encoded, and a stem kept both ways turns into one .mp3, from the .wav."""
+    (tmp_path / "Song.opus").write_bytes(b"the download")
+    for name in ["Song (drums)", "Song (80%)"]:
+        audio.save(str(tmp_path / f"{name}.opus"), synth.sine(440, 1), synth.SR)
+    synth.write(tmp_path / "Song (bass).wav", synth.sine(110, 1))
+    audio.save(str(tmp_path / "Song (bass).opus"), synth.sine(110, 1), synth.SR)
+    convert.run([str(tmp_path)])
+    made = sorted(n for n in os.listdir(tmp_path) if n.endswith(".mp3"))
+    assert made == ["Song (80%).mp3", "Song (bass).mp3", "Song (drums).mp3"]
+
+
 def test_convert_does_not_overwrite(tmp_path):
     src = synth.write(tmp_path / "a.wav", synth.sine(440, 1))
     (tmp_path / "a.mp3").write_bytes(b"keep me")

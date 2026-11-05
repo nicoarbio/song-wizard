@@ -37,7 +37,7 @@ song-wizard is written in Python, but it uses a few outside programs that are in
 | [**uv**](https://docs.astral.sh/uv/) | Installs song-wizard and its Python libraries in an isolated environment, without touching the system's Python. If needed, it also gets Python 3.12. | `uv tool install` makes the `song-wizard` command available, and `song-wizard upgrade` updates it. |
 | [**ffmpeg**](https://ffmpeg.org) | Reads and converts any audio format (Opus, MP3, M4A, WAV…). | Decodes songs before detecting the key, transposing or separating. In `download`, yt-dlp uses it to extract the audio (and to make the `.wav` files with `--wav`). |
 | [**deno**](https://deno.com) | Some sites require solving a JavaScript challenge before letting you download, and deno is the program that runs that JavaScript. Node v20 or newer works too. | yt-dlp, the download engine, finds it and uses it only in `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Changes the pitch without changing the tempo, or the tempo without changing the pitch, with very good quality. | `transpose` gives it the semitones and makes `Title (+2).wav`; `speed` gives it the speed and makes `Title (80%).wav`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Changes the pitch without changing the tempo, or the tempo without changing the pitch, with very good quality. | `transpose` gives it the semitones and makes `Title (+2).opus`; `speed` gives it the speed and makes `Title (80%).opus`. |
 
 On Linux and WSL, `curl` is also installed (to get the official uv and deno installers), and `build-essential` + `python3-dev`, to compile a Python library that doesn't come precompiled. On a Mac they're not needed, because Homebrew already installs the compiler.
 
@@ -471,7 +471,7 @@ song-wizard transpose -1 "song.opus"      # a half step down
 song-wizard transpose -1 "Music/Show"     # every song in the folder
 ```
 
-The number is in semitones: `+1` = a half step, `+2` = a whole step. It takes decimals (`-0.5`) in case a song is out of tune with A 440. It makes `Title (+2).wav` next to the original without touching it. The tempo and length don't change, so it stays lined up with the click.
+The number is in semitones: `+1` = a half step, `+2` = a whole step. It takes decimals (`-0.5`) in case a song is out of tune with A 440. It makes `Title (+2).opus` next to the original without touching it. The tempo and length don't change, so it stays lined up with the click.
 
 ### Changing the speed
 
@@ -481,7 +481,7 @@ song-wizard speed 70 "song (no guitar).wav"        # the song without your instr
 song-wizard speed 90 --semitones -2 "song.opus"    # slower and a whole step down, in one go
 ```
 
-The number is the percentage of the original speed, from 25 to 200: under 100 is slower, over 100 faster. The pitch doesn't change, unless you add `--semitones` (as in `transpose`). It makes `Title (80%).wav` (or `Title (90%, -2).wav`) next to the original without touching it.
+The number is the percentage of the original speed, from 25 to 200: under 100 is slower, over 100 faster. The pitch doesn't change, unless you add `--semitones` (as in `transpose`). It makes `Title (80%).opus` (or `Title (90%, -2).opus`) next to the original without touching it.
 
 It's for learning a song bit by bit: practice it at 70 %, then at 85 % and finally at full speed. To practice with a click, make the click at the new tempo: if the song is at 120 BPM, at 80 % it's 96. The slower, the more you hear that the audio is stretched, especially the drums.
 
@@ -498,7 +498,7 @@ song-wizard separate --stem piano  "song.opus"    # piano
 song-wizard separate --stem drumkit "song.opus"   # the drum kit in pieces
 ```
 
-It makes, for example, `Title (drums).wav` and `Title (no drums).wav` next to the original. Several can be asked for at once, and a whole folder processed:
+It makes, for example, `Title (drums).opus` and `Title (no drums).opus` next to the original. Several can be asked for at once, and a whole folder processed:
 
 ```bash
 song-wizard separate --stem drums --stem bass "Music/Show"
@@ -517,7 +517,7 @@ It makes `Title (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` and `(other)`, wh
 - **Piano** is for songs with a real piano (acoustic or electric): synths stay in the rest, and in some songs it takes something else (horns, for example). That's why it isn't in "All": it's asked for separately (`--stem all --stem piano` gives both).
 - The first time it downloads the models: about 2 GB for the four instruments (the vocals one is 870 MB and the guitar and piano one, 670 MB; piano adds nothing), and 420 MB more for the drum kit.
 - Guitar is the least precise separation: some keyboards or other guitars may get mixed in. Up to 0.11 it was separated with Demucs `htdemucs_6s`, which also took horns and piano; songs separated back then keep that guitar until they're separated again.
-- **The drum kit** (`--stem drumkit`, or "Drum kit" in the interface) splits the drums into kick, snare, toms, hi-hat, ride and crash, with MDX23C DrumSep: `Title (kick).wav`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, plus `(drums rest)`, what's left of the drums, so everything adds up to the exact drums. It works on the drums already separated, so if the song doesn't have them, it separates them first. In "practice" it shows as "Drum kit": each piece with its volume, along with the other instruments (or with the song without drums). The model is 438 MB and takes about a minute per song.
+- **The drum kit** (`--stem drumkit`, or "Drum kit" in the interface) splits the drums into kick, snare, toms, hi-hat, ride and crash, with MDX23C DrumSep: `Title (kick).opus`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, plus `(drums rest)`, what's left of the drums, so everything adds up to the exact drums. It works on the drums already separated, so if the song doesn't have them, it separates them first. In "practice" it shows as "Drum kit": each piece with its volume, along with the other instruments (or with the song without drums). The model is 438 MB and takes about a minute per song.
 - An open horns model (UVR `17_HP-Wind_Inst`) and piano on songs without piano were tried too: they separate, but not as well as the rest, so they're not in for now.
 
 #### Where does separation run?
@@ -536,20 +536,20 @@ Separating is the only heavy part. song-wizard picks where to run it on its own,
 - `song-wizard setup` shows where it will run on your computer.
 - Asking for drums and bass together costs the same as asking for one: they come from the same model.
 
-The files are 32-bit float WAVs at 44.1 kHz: peaks aren't clipped and REAPER, Ableton, Logic or any DAW opens them directly.
+The files are Opus, about 1 MB a minute each: Practice jumps around in them as exactly as in WAV, peaks above 0 dB aren't clipped (the stems still add up to the song) and REAPER opens them. To edit them in a DAW that doesn't read Opus (Ableton, Logic), or to keep them lossless, put `stems = "wav"` under `[audio]` in the settings (⚙ in the interface, or `song-wizard config`): 32-bit float WAVs at 44.1 kHz, about 20 MB a minute. Not `"mp3"` for practicing: in an MP3 the browser guesses where a jump lands, and the tracks drift apart.
 
 ### Converting to share (WhatsApp, email…)
 
-The 32-bit WAVs song-wizard makes are ideal to work with, but they're big (about 20 MB a minute). To send them over WhatsApp:
+Opus files go over WhatsApp as they are, but not every player reads them (Windows' own, some iPhones), and WAVs are big. To share them as MP3 or M4A, which every phone plays:
 
 ```bash
-song-wizard convert "song (no drums).wav"         # one file
-song-wizard convert "Music/Show"                  # every WAV in the folder
+song-wizard convert "song (no drums).opus"        # one file
+song-wizard convert "Music/Show"                  # every stem and version in the folder
 song-wizard convert --format m4a "song.wav"       # M4A (AAC) instead of MP3
 ```
 
 - It makes `Title.mp3` next to the original: MP3 at ~190 kbps, which any phone plays. A 5-minute song ends up at about 7 MB. M4A takes the same space and sounds slightly better; MP3 is the most compatible.
-- On a folder it only converts lossless files (WAV, FLAC, AIFF), so as not to re-encode the downloaded `.opus` files. If you name a file, it converts any format.
+- On a folder it converts the lossless files (WAV, FLAC, AIFF) and the stems and versions song-wizard made in Opus, but not the downloaded `.opus` songs, so as not to re-encode them for nothing. If you name a file, it converts any format.
 - If the file has peaks over 0 dB (stems do), it turns the volume down just enough so they don't clip, and tells you how much.
 - It doesn't overwrite existing files; `--overwrite` replaces them.
 - To work in a DAW keep using the WAVs: MP3 loses some quality and adds a few milliseconds of silence at the start, so it doesn't stay perfectly lined up with the click or the other stems.
@@ -581,7 +581,7 @@ In the interface, "more › Song data…" (or `E`) shows everything the file has
 song-wizard rename "001 - Song (Official Video).opus" "Song"
 ```
 
-Renames the song and everything made from it: the `.wav` or `.mp3`, the stems, the versions transposed or at another speed, the takes recorded in REAPER, the lyrics, the REAPER project (and the file names inside it, so it keeps opening), and its lines in `key.txt` and `bpm.txt`. It ends up `001 - Song.opus`, `001 - Song (drums).wav`, etc. Any file of the song can be given, not only the original.
+Renames the song and everything made from it: the `.wav` or `.mp3`, the stems, the versions transposed or at another speed, the takes recorded in REAPER, the lyrics, the REAPER project (and the file names inside it, so it keeps opening), and its lines in `key.txt` and `bpm.txt`. It ends up `001 - Song.opus`, `001 - Song (drums).opus`, etc. Any file of the song can be given, not only the original.
 
 The numbering (`001 - `) is kept, unless the new name brings its own (`"005 - Song"`). If any of the new names already exists, nothing is renamed. It doesn't take the characters Windows doesn't allow in file names (`\ / : * ? " < > |`) either.
 
@@ -609,7 +609,7 @@ In the interface, "more › Trim…" shows the song's waveform with two handles 
 
 ```bash
 song-wizard delete "001 - Song.opus"              # the song with everything that's its
-song-wizard delete "001 - Song (drums).wav"       # only that stem
+song-wizard delete "001 - Song (drums).opus"      # only that stem
 song-wizard delete --file "001 - Song.mp3"        # only that copy
 ```
 

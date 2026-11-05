@@ -13,7 +13,7 @@ CONFIG_PATH = Path(os.environ.get("SONG_WIZARD_CONFIG") or Path(user_config_dir(
 
 DEFAULTS = {
     "download": {"music_dir": None},
-    "audio": {"stems": "wav"},
+    "audio": {"stems": "opus"},
 }
 
 TEMPLATE = """\
@@ -27,10 +27,10 @@ TEMPLATE = """\
 
 [audio]
 # Format of the stems and versions song-wizard makes (drums, bass, speed, transposed...):
-# "wav" (default: 32-bit float, ~20 MB a minute per stem), "opus" (~1.1 MB a minute; Practice
-# jumps in it as exactly as in WAV) or "mp3" (~1.4 MB a minute, but in Practice the tracks drift
-# apart after a jump: not for practicing).
-# stems = "wav"
+# "opus" (default: ~1.1 MB a minute per stem, and Practice jumps in it as exactly as in WAV),
+# "wav" (32-bit float, ~20 MB a minute per stem: to edit them in another program) or "mp3"
+# (~1.4 MB a minute, but in Practice the tracks drift apart after a jump: not for practicing).
+# stems = "opus"
 """
 
 

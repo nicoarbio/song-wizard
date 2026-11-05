@@ -37,7 +37,7 @@ song-wizard está escrito en Python, pero usa algunos programas externos que hay
 | [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
 | [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio (y para generar los `.wav` con `--wav`). |
 | [**deno**](https://deno.com) | Algunos sitios exigen resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).wav`; `speed` le pasa la velocidad y genera `Título (80%).wav`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).opus`; `speed` le pasa la velocidad y genera `Título (80%).opus`. |
 
 En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y `build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada. En Mac no hace falta, porque el compilador ya lo instala Homebrew.
 
@@ -471,7 +471,7 @@ song-wizard transpose -1 "tema.opus"      # medio tono abajo
 song-wizard transpose -1 "Música/Show"    # todos los temas de la carpeta
 ```
 
-El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `Título (+2).wav` al lado del original sin tocarlo. El tempo y la duración no cambian, así que sigue alineado con el click.
+El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `Título (+2).opus` al lado del original sin tocarlo. El tempo y la duración no cambian, así que sigue alineado con el click.
 
 ### Cambiar la velocidad
 
@@ -481,7 +481,7 @@ song-wizard speed 70 "tema (no guitar).wav"        # el tema sin tu instrumento,
 song-wizard speed 90 --semitones -2 "tema.opus"    # más lento y un tono abajo, en un solo paso
 ```
 
-El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `Título (80%).wav` (o `Título (90%, -2).wav`) al lado del original sin tocarlo.
+El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `Título (80%).opus` (o `Título (90%, -2).opus`) al lado del original sin tocarlo.
 
 Sirve para sacar un tema de a poco: practicarlo al 70 %, después al 85 % y al final a velocidad normal. Para practicar con click, generá el click al tempo nuevo: si el tema va a 120 BPM, al 80 % va a 96. Cuanto más lento, más se nota que el audio está estirado, sobre todo en la batería.
 
@@ -498,7 +498,7 @@ song-wizard separate --stem piano  "tema.opus"    # piano
 song-wizard separate --stem drumkit "tema.opus"   # la batería en partes
 ```
 
-Genera, por ejemplo, `Título (drums).wav` y `Título (no drums).wav` al lado del original. Se pueden pedir varios a la vez y procesar una carpeta entera:
+Genera, por ejemplo, `Título (drums).opus` y `Título (no drums).opus` al lado del original. Se pueden pedir varios a la vez y procesar una carpeta entera:
 
 ```bash
 song-wizard separate --stem drums --stem bass "Música/Show"
@@ -517,7 +517,7 @@ Genera `Título (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` y `(other)`, dond
 - **El piano** es para temas con piano de verdad (acústico o eléctrico): los sintetizadores quedan en el resto, y en algunos temas se lleva otra cosa (por ejemplo, vientos). Por eso no entra en "Todos": se pide aparte (`--stem all --stem piano` da los dos).
 - La primera vez descarga los modelos: unos 2 GB para los cuatro instrumentos (el de voz pesa 870 MB y el de guitarra y piano, 670 MB; el piano no suma nada), y 420 MB más para la batería en partes.
 - La guitarra es la separación menos precisa: puede mezclarse algo de teclados o de otras guitarras. Hasta la 0.11 se separaba con Demucs `htdemucs_6s`, que además tomaba vientos y piano; los temas separados antes conservan esa guitarra hasta que se vuelva a separar.
-- **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `Título (kick).wav`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, más `(drums rest)`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
+- **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `Título (kick).opus`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, más `(drums rest)`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
 - Se probaron también un modelo abierto de vientos (UVR `17_HP-Wind_Inst`) y el piano en temas sin piano: separan, pero no tan bien como el resto, así que por ahora no están.
 
 #### ¿Dónde corre la separación?
@@ -536,20 +536,20 @@ Separar es lo único pesado. song-wizard elige solo dónde correrlo, y anda en c
 - `song-wizard setup` muestra dónde va a correr en tu computadora.
 - Pedir batería y bajo juntos cuesta lo mismo que pedir uno solo: salen del mismo modelo.
 
-Los archivos son WAV de 32 bits float a 44.1 kHz: no se recortan los picos y REAPER, Ableton, Logic o cualquier DAW los abre directo.
+Los archivos son Opus, de 1 MB por minuto cada uno, más o menos: Practicar salta en ellos tan exacto como en un WAV, los picos de más de 0 dB no se recortan (los stems siguen sumando el tema) y Reaper los abre. Para editarlos en un DAW que no lee Opus (Ableton, Logic), o para tenerlos sin pérdida, poné `stems = "wav"` en `[audio]` en los ajustes (⚙ en la interfaz, o `song-wizard config`): WAV de 32 bits float a 44.1 kHz, unos 20 MB por minuto. `"mp3"` no sirve para practicar: en un MP3 el navegador adivina dónde cae un salto, y las pistas se desfasan.
 
 ### Convertir para compartir (WhatsApp, mail…)
 
-Los WAV de 32 bits que genera song-wizard son ideales para trabajar, pero pesan mucho (unos 20 MB por minuto). Para mandarlos por WhatsApp:
+Los Opus se mandan por WhatsApp tal cual, pero no todos los reproductores los leen (el de Windows, algunos iPhone), y los WAV pesan mucho. Para compartirlos en MP3 o M4A, que cualquier celular reproduce:
 
 ```bash
-song-wizard convert "tema (no drums).wav"         # un archivo
-song-wizard convert "Música/Show"                 # todos los WAV de la carpeta
+song-wizard convert "tema (no drums).opus"        # un archivo
+song-wizard convert "Música/Show"                 # todos los stems y versiones de la carpeta
 song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
 ```
 
 - Genera `Título.mp3` al lado del original: MP3 a ~190 kbps, que cualquier teléfono reproduce. Un tema de 5 minutos queda en unos 7 MB. M4A ocupa lo mismo y suena apenas mejor; MP3 es el más compatible.
-- Con una carpeta convierte solo los archivos sin pérdida (WAV, FLAC, AIFF), para no recomprimir los `.opus` bajados. Si nombrás un archivo, convierte cualquier formato.
+- Con una carpeta convierte los archivos sin pérdida (WAV, FLAC, AIFF) y los stems y versiones que hizo song-wizard en Opus, pero no los `.opus` bajados, para no recomprimirlos sin necesidad. Si nombrás un archivo, convierte cualquier formato.
 - Si el archivo tiene picos por encima de 0 dB (pasa con los stems), baja el volumen lo justo para que no se recorten, y avisa cuánto.
 - No pisa archivos que ya existen; `--overwrite` los reemplaza.
 - Para trabajar en un DAW seguí usando los WAV: el MP3 pierde algo de calidad y agrega unos milisegundos de silencio al principio, así que no queda perfectamente alineado con el click ni con los otros stems.
@@ -581,7 +581,7 @@ En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene e
 song-wizard rename "001 - Tema (Official Video).opus" "Tema"
 ```
 
-Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav` o el `.mp3`, los stems, las versiones transpuestas o con otra velocidad, las tomas grabadas en Reaper, la letra, el proyecto de Reaper (y los nombres de archivo que tiene adentro, para que siga abriendo), y sus líneas en `key.txt` y `bpm.txt`. Queda `001 - Tema.opus`, `001 - Tema (drums).wav`, etc. Se puede pasar cualquier archivo del tema, no solo el original.
+Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav` o el `.mp3`, los stems, las versiones transpuestas o con otra velocidad, las tomas grabadas en Reaper, la letra, el proyecto de Reaper (y los nombres de archivo que tiene adentro, para que siga abriendo), y sus líneas en `key.txt` y `bpm.txt`. Queda `001 - Tema.opus`, `001 - Tema (drums).opus`, etc. Se puede pasar cualquier archivo del tema, no solo el original.
 
 La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
 
@@ -609,7 +609,7 @@ En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos
 
 ```bash
 song-wizard delete "001 - Tema.opus"              # el tema con todo lo suyo
-song-wizard delete "001 - Tema (drums).wav"       # solo ese stem
+song-wizard delete "001 - Tema (drums).opus"      # solo ese stem
 song-wizard delete --file "001 - Tema.mp3"        # solo esa copia
 ```
 

@@ -20,7 +20,7 @@ examples:
   song-wizard separate --stem drums ~/Music/Show
   song-wizard separate --stem vocals --stem guitar "song.opus"
   song-wizard separate --stem all "song.opus"
-  song-wizard convert "song (no drums).wav"
+  song-wizard convert "song (no drums).opus"
   song-wizard rename "001 - Song (Official Video).opus" "Song"
   song-wizard trim "001 - Song.opus" --start 0:12.5 --end 3:58
   song-wizard delete "001 - Song.opus"
@@ -141,16 +141,16 @@ def build_parser():
     p.add_argument("--full", action="store_true", help="with --sheet: every bar written, none folded")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
-                       description='Shift pitch without changing tempo or timing. Writes "Title (+2).wav" '
-                                   "(32-bit float) next to the original.")
+                       description='Shift pitch without changing tempo or timing. Writes "Title (+2).opus" '
+                                   '(or .wav/.mp3, as [audio] stems in the settings says) next to the original.')
     p.add_argument("semitones", type=float, metavar="N",
                    help="semitones: +1 = half step up, +2 = whole step up, -1.5, ...")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     p = sub.add_parser("speed", help="slow songs down or speed them up without changing the pitch",
-                       description='Change the speed without changing the pitch. Writes "Title (80%%).wav" '
-                                   "(32-bit float) next to the original; with --semitones, also shifts the "
-                                   'pitch in the same pass: "Title (80%%, -2).wav".')
+                       description='Change the speed without changing the pitch. Writes "Title (80%%).opus" '
+                                   "(or .wav/.mp3, as [audio] stems in the settings says) next to the original; "
+                                   'with --semitones, also shifts the pitch in the same pass: "Title (80%%, -2).opus".')
     p.add_argument("percent", type=float, metavar="PERCENT",
                    help="speed in percent of the original: 80 = slower, 120 = faster (25 to 200)")
     p.add_argument("--semitones", type=float, default=0, metavar="N", help="also shift the pitch, like transpose")
@@ -158,14 +158,15 @@ def build_parser():
 
     from .separate import ALL, STEMS
     p = sub.add_parser("separate", help="split out instruments: the instrument alone plus everything else",
-                       description='For each --stem, writes "Title (drums).wav" (the instrument alone) and '
-                                   '"Title (no drums).wav" (everything else) next to the original, as 44.1 kHz '
-                                   "32-bit float WAV. The two always add up to the exact original. Models are "
+                       description='For each --stem, writes "Title (drums).opus" (the instrument alone) and '
+                                   '"Title (no drums).opus" (everything else) next to the original; with '
+                                   'stems = "wav" under [audio] in the settings, 32-bit float WAV. The two add up '
+                                   "to the original (to the sample in WAV). Models are "
                                    "downloaded the first time they are used. Runs on an NVIDIA GPU (GTX 16 / "
                                    "RTX 20 or newer) or an Apple Silicon GPU when available, else on the CPU.")
     p.add_argument("--stem", action="append", required=True, choices=[*STEMS, ALL],
                    help='instrument to separate; repeat for several. "all" writes the four '
-                        'instruments plus "Title (other).wav" (everything else: keys, synths, '
+                        'instruments plus "Title (other).opus" (everything else: keys, synths, '
                         'backing vocals...), without the "no X" files; the five add up to the original. '
                         '"piano" isn\'t part of "all". "drumkit" splits the drums (separated first if '
                         'missing) into kick, snare, toms, hihat, ride and crash, plus "drums rest"; '
@@ -178,7 +179,8 @@ def build_parser():
     p = sub.add_parser("convert", help="convert to MP3 (or M4A) to share, e.g. over WhatsApp",
                        description="Converts to a small format any phone plays: MP3 at ~190 kbps by default "
                                    '(about 7 MB for 5 minutes), or M4A (AAC). Writes "Title.mp3" next to each '
-                                   "file. Given a folder, only lossless files (WAV, FLAC, AIFF) are converted; "
+                                   "file. Given a folder, lossless files (WAV, FLAC, AIFF) and the stems and versions made in Opus are "
+                                   "converted, not the downloaded songs; "
                                    "files named explicitly are converted whatever their format. Files whose "
                                    "peaks go above 0 dB are turned down just enough not to clip.")
     p.add_argument("--format", choices=list(FORMATS), default="mp3", help="output format (default: mp3)")
