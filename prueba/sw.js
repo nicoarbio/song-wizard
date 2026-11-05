@@ -1,6 +1,6 @@
 // Guarda la página para abrirla sin internet (en la sala, con el punto de acceso sin datos).
 // Primero la red (así llegan las versiones nuevas); sin red, lo guardado.
-const CACHE = "prueba-v4";
+const CACHE = "prueba-v5";
 const FILES = ["./", "index.html", "rec.js", "manifest.webmanifest", "icon.svg", "vendor/jsQR.js", "vendor/qrcode.js", "vendor/SignalsmithStretch.js"];
 
 self.addEventListener("install", (e) => {
