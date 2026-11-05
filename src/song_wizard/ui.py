@@ -28,7 +28,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from . import align, archives, log, paths, results, system
+from . import align, archives, config, log, paths, results, system
 from .i18n import LANGS, Said, say
 from .audio import AUDIO_EXTS, GENERATED, MAIN_FORMATS, base_of
 from .paths import music_dir
@@ -542,6 +542,9 @@ def make_handler(token, root, runner, port):
                 return self.audio(query.get("path", [""])[0])
             if url.path == "/api/version":
                 return self.json(version_info(force="check" in query))
+            if url.path == "/api/config":
+                return self.json({"path": system.shown_path(config.CONFIG_PATH), "text": config.read_text(),
+                                  "template": config.TEMPLATE, "values": config.load()})
             if url.path == "/api/reaper/setting":
                 from . import reaper
                 return self.json({**reaper.setting(), "installed": reaper_installed()})
@@ -754,6 +757,14 @@ def make_handler(token, root, runner, port):
                 self.wfile.flush()
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return
+            if url.path == "/api/config":
+                try:
+                    config.write_text(str(body.get("text", "")))
+                except ValueError as e:
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.settings_invalid", detail=e)
+                except OSError as e:
+                    return self.error(HTTPStatus.INTERNAL_SERVER_ERROR, "server.settings_not_saved", detail=e)
+                return self.json({"values": config.load()})
             if url.path == "/api/report":
                 from . import report
                 path, text, link = report.build()

@@ -50,6 +50,11 @@
     --shadow: none; color-scheme: dark;
   }
   .prefs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+  .prefs .gear { font-size: 16px; line-height: 1; padding: 3px 7px; }
+  .settings-picks { gap: 16px; } .settings-picks label { display: inline-flex; gap: 6px; align-items: center; }
+  #settings h4 { margin: 14px 0 4px; }
+  #settings-text { width: 100%; box-sizing: border-box; font: 13px/1.45 ui-monospace, Consolas, monospace; resize: vertical; tab-size: 4; }
+  #settings-state.bad { color: var(--bad, #c0392b); }
   .theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
   .theme button { border: 0; border-radius: 0; background: none; padding: 3px 9px; font-size: 12px; color: var(--muted); }
   .theme button + button { border-left: 1px solid var(--line); }
@@ -418,16 +423,7 @@
   </form>
   <div class="prefs">
   <button type="button" class="small keys-open" data-text-title="header.see_change_keyboard_shortcuts" data-text="header.shortcuts"></button>
-  <div class="theme" role="group" data-text-aria-label="data.language" id="lang" translate="no">
-    <button type="button" data-lang="es" title="Español">es</button>
-    <button type="button" data-lang="en" title="English">en</button>
-    <button type="button" data-lang="pt" title="Português">pt</button>
-  </div>
-  <div class="theme" role="group" data-text-aria-label="header.page_colors" id="theme">
-    <button type="button" data-theme="auto" data-text-title="header.light_dark_system_says" data-text="header.auto"></button>
-    <button type="button" data-theme="light" data-text-title="header.always_light" data-text="header.light"></button>
-    <button type="button" data-theme="dark" data-text-title="header.always_dark" data-text="header.dark"></button>
-  </div>
+  <button type="button" class="small gear" id="settings-open" data-text-title="header.settings" data-text-aria-label="header.settings">⚙</button>
   </div>
 </header>
 
@@ -716,6 +712,31 @@
   <div id="keys-list"></div>
 </dialog>
 
+<dialog id="settings" data-text-aria-label="header.settings">
+  <div class="row" style="justify-content:space-between"><h3 data-text="header.settings"></h3><button class="small" id="settings-close" data-text="practice.close"></button></div>
+  <div class="row settings-picks">
+    <label><span data-text="data.language"></span>
+      <select id="lang" translate="no" data-text-aria-label="data.language">
+        <option value="es">Español</option>
+        <option value="en">English</option>
+        <option value="pt">Português</option>
+      </select></label>
+    <label><span data-text="header.page_colors"></span>
+      <select id="theme" data-text-aria-label="header.page_colors">
+        <option value="auto" data-text-title="header.light_dark_system_says" data-text="header.auto"></option>
+        <option value="light" data-text-title="header.always_light" data-text="header.light"></option>
+        <option value="dark" data-text-title="header.always_dark" data-text="header.dark"></option>
+      </select></label>
+  </div>
+  <h4 data-text="settings.file"></h4>
+  <p class="hint"><code id="settings-path"></code></p>
+  <p class="hint" data-text="settings.file_hint"></p>
+  <textarea id="settings-text" spellcheck="false" rows="14"></textarea>
+  <p class="hint" id="settings-state" role="status"></p>
+  <details><summary data-text="settings.options"></summary><pre class="log" id="settings-template"></pre></details>
+  <div class="row" style="justify-content:flex-end"><button class="primary" id="settings-save" data-text="settings.save"></button></div>
+</dialog>
+
 <dialog id="folder">
   <h3 id="folder-title" data-text="playlists.choose_folder"></h3>
   <p class="hint" id="folder-note"></p>
@@ -853,11 +874,12 @@ function applyTexts(root) {
   }
 }
 applyTexts(document.body);
-for (const b of document.querySelectorAll("#lang button")) {
-  b.setAttribute("aria-pressed", String(b.dataset.lang === LANG));
-  b.onclick = () => {
-    if (b.dataset.lang === LANG) return;
-    try { localStorage.setItem(LANG_KEY, b.dataset.lang); } catch {}
+{
+  const picker = document.getElementById("lang");
+  picker.value = LANG;
+  picker.onchange = () => {
+    if (picker.value === LANG) return;
+    try { localStorage.setItem(LANG_KEY, picker.value); } catch {}
     location.reload();  // every text is put in once, as the page is drawn
   };
 }
@@ -1866,11 +1888,10 @@ function setTheme(theme) {
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
   else delete document.documentElement.dataset.theme;
   try { theme === "light" || theme === "dark" ? localStorage.setItem(THEME_KEY, theme) : localStorage.removeItem(THEME_KEY); } catch {}
-  const current = document.documentElement.dataset.theme || "auto";
-  for (const b of $("theme").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.theme === current));
+  $("theme").value = document.documentElement.dataset.theme || "auto";
   for (const w of Wave.all) w.draw();
 }
-for (const b of $("theme").querySelectorAll("button")) b.onclick = () => setTheme(b.dataset.theme);
+$("theme").onchange = () => setTheme($("theme").value);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { for (const w of Wave.all) w.draw(); });
 setTheme(document.documentElement.dataset.theme || "auto");
 const trim = { song: null, duration: 0, start: 0, end: 0, view: [0, 0], overview: null, audio: null, stopAt: 0, raf: 0, timer: 0 };
@@ -4785,6 +4806,36 @@ async function assignKey(combo) {
 }
 $("keys").addEventListener("cancel", (e) => { if (keys.listening) e.preventDefault(); });
 $("keys-close").onclick = () => $("keys").close();
+
+// Settings: the language and colors (this browser), and the settings file as text (song-wizard's,
+// for every command). Saved only if it reads as TOML; nothing else is checked here.
+async function openSettings() {
+  $("settings-state").textContent = "";
+  $("settings-state").classList.remove("bad");
+  try {
+    const data = await api("/api/config");
+    $("settings-path").textContent = data.path;
+    $("settings-text").value = data.text;
+    $("settings-template").textContent = data.template;
+  } catch (e) {
+    $("settings-state").textContent = e.message;
+    $("settings-state").classList.add("bad");
+  }
+  if (!$("settings").open) $("settings").showModal();
+}
+$("settings-open").onclick = openSettings;
+$("settings-close").onclick = () => $("settings").close();
+$("settings-save").onclick = async () => {
+  const state = $("settings-state");
+  state.classList.remove("bad");
+  try {
+    await api("/api/config", { text: $("settings-text").value });
+    state.textContent = say("settings.saved");
+  } catch (e) {
+    state.textContent = e.message;
+    state.classList.add("bad");
+  }
+};
 $("keys-reset").onclick = async () => {
   if (!Object.keys(customKeys).length) return;
   if (await askConfirm({ title: say("keys.go_back_factory_shortcuts"), text: say("keys.all_changes_you_made_shortcuts"), ok: say("keys.reset") })) {

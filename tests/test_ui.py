@@ -11,7 +11,7 @@ import soundfile as sf
 
 import synth
 
-from song_wizard import system, ui
+from song_wizard import config, system, ui
 
 TOKEN = "test-token"
 
@@ -491,3 +491,16 @@ def test_audio_in_stretches(server):
     assert content == data[start:]
     response, content = request(port, "GET", "/api/audio?path=big.wav", headers={"Range": f"bytes=10-{ui.AUDIO_CHUNK * 2}"})
     assert content == data[10:ui.AUDIO_CHUNK * 2 + 1]
+
+
+def test_settings_file_from_the_page(server):
+    port, root = server
+    data = get_json(port, "/api/config")
+    assert "[download]" in data["text"] and data["text"] == config.CONFIG_PATH.read_text()  # made on first look
+    assert data["values"]["audio"]["stems"] == "wav" and "[audio]" in data["template"]
+    response, content = request(port, "POST", "/api/config", {"text": '[audio]\nstems = "opus"\n'})
+    assert response.status == 200 and json.loads(content)["values"]["audio"]["stems"] == "opus"
+    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "opus"\n'
+    response, content = request(port, "POST", "/api/config", {"text": "[audio\nstems = 1"})
+    assert response.status == 400 and "TOML" in json.loads(content)["error"]
+    assert config.CONFIG_PATH.read_text() == '[audio]\nstems = "opus"\n'  # left as it was

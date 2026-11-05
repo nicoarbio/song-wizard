@@ -111,9 +111,10 @@ def test_interface_in_english(tmp_path):
 
 
 def test_the_language_picker_is_never_translated():
-    """Its buttons say es, en, pt in every language (once, "en" got the key of "in" from "in Music")."""
+    """Each language is named in itself, in every language (once, "en" got the key of "in" from
+    "in Music")."""
     html = resources.files("song_wizard").joinpath("ui.html").read_text(encoding="utf-8")
-    picker = html[html.index('id="lang"'):html.index("</div>", html.index('id="lang"'))]
+    picker = html[html.index('id="lang"'):html.index("</select>", html.index('id="lang"'))]
     assert "data-text" not in picker.replace('data-text-aria-label="data.language"', "")
-    for lang in LANGS:
-        assert f'data-lang="{lang}"' in picker and f">{lang}</button>" in picker
+    for lang, name in zip(LANGS, ["Español", "English", "Português"]):
+        assert f'<option value="{lang}">{name}</option>' in picker

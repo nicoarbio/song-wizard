@@ -1,12 +1,15 @@
 """Local settings in a TOML file. Command-line options always win over it."""
 
+import os
 import sys
 import tomllib
 from pathlib import Path
 
 from platformdirs import user_config_dir
 
-CONFIG_PATH = Path(user_config_dir("song-wizard", appauthor=False)) / "config.toml"
+# SONG_WIZARD_CONFIG points somewhere else (the tests: the commands they run as subprocesses must
+# not read the real settings).
+CONFIG_PATH = Path(os.environ.get("SONG_WIZARD_CONFIG") or Path(user_config_dir("song-wizard", appauthor=False)) / "config.toml")
 
 DEFAULTS = {
     "download": {"music_dir": None},
@@ -24,8 +27,9 @@ TEMPLATE = """\
 
 [audio]
 # Format of the stems and versions song-wizard makes (drums, bass, speed, transposed...):
-# "wav" (default: 32-bit float, ~20 MB a minute per stem; the only one Practice jumps around in
-# without the tracks drifting apart), "mp3" (~1.4 MB a minute) or "opus" (smaller still).
+# "wav" (default: 32-bit float, ~20 MB a minute per stem), "opus" (~1.1 MB a minute; Practice
+# jumps in it as exactly as in WAV) or "mp3" (~1.4 MB a minute, but in Practice the tracks drift
+# apart after a jump: not for practicing).
 # stems = "wav"
 """
 
@@ -59,6 +63,25 @@ def ensure():
     except OSError:
         return False  # a read-only home: the defaults apply all the same
     return True
+
+
+def read_text():
+    """The settings file as written (made first, all commented out, if it isn't there)."""
+    ensure()
+    try:
+        return CONFIG_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return TEMPLATE
+
+
+def write_text(text):
+    """Save the settings file as given, if it's valid TOML (else tomllib.TOMLDecodeError, a
+    ValueError). Written whole or not at all."""
+    tomllib.loads(text)
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temp = CONFIG_PATH.with_name(f".{CONFIG_PATH.name}.tmp")
+    temp.write_text(text, encoding="utf-8")
+    os.replace(temp, CONFIG_PATH)
 
 
 def show():

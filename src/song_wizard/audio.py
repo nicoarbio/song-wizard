@@ -106,7 +106,8 @@ def save(path, audio, sr):
 # Stems and versions this tool writes: WAV unless [audio] stems = "mp3" or "opus" in the settings.
 # WAV because Practice plays one <audio> per track and the browser jumps to the exact sample only
 # in WAV: in an MP3 it guesses the spot from the bitrate, each track lands somewhere else and they
-# drift apart (0.39.0 to 0.39.2 made MP3 by default). MP3/Opus are a fraction of the size.
+# drift apart (0.39.0 to 0.39.2 made MP3 by default). Opus jumps as exactly as WAV (measured in
+# Edge: within 1-4 ms) at a twentieth of the size; FLAC too, at a quarter.
 LOSSY = {
     ".mp3": ["-c:a", "libmp3lame", "-q:a", "2", "-id3v2_version", "3"],
     ".opus": ["-c:a", "libopus", "-b:a", "160k"],
