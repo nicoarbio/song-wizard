@@ -455,7 +455,7 @@ def test_folder_on_an_unmounted_drive(server, monkeypatch):
     monkeypatch.setattr(system.os.path, "ismount", lambda p: False)
     response, content = request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": "H:\\Mi unidad"})
     data = json.loads(content)
-    assert response.status == 400 and data["command"] == "sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h"
+    assert response.status == 400 and data["command"] == f"sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h -o {system.mount_options()}"
 
 
 def test_singles_in_two_places(server, tmp_path):

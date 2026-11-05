@@ -285,7 +285,7 @@
  "library.reapers_default": "el de fábrica de Reaper",
  "library.redo_reaper_project": "Rehacer proyecto de Reaper",
  "library.refresh": "↻ actualizar",
- "library.run_command_wsl_terminal_asks": "Corré este comando en la terminal de WSL (pide tu contraseña) y tocá \"↻ actualizar\". Para que se conecte sola cada vez, agregá la línea \"{drive}: /mnt/{v} drvfs defaults,nofail 0 0\" a /etc/fstab.",
+ "library.run_command_wsl_terminal_asks": "Corré este comando en la terminal de WSL (pide tu contraseña) y tocá \"↻ actualizar\". Para que se conecte sola cada vez, agregá la línea \"{line}\" a /etc/fstab.",
  "library.save": "guardar",
  "library.separating_works_original_song_not": "Separar funciona sobre el tema original, no sobre stems, versiones ni otras copias.",
  "library.set_hand_click_change": "Puesto a mano. Clic para cambiarlo",

@@ -257,7 +257,10 @@ def write(paths, tags, own=None):
         detail = e.stderr.decode(errors="replace").strip() if getattr(e, "stderr", None) else str(e) or type(e).__name__
         die(f"Nothing changed: couldn't write {os.path.basename(temps[-1][1])}: {detail}")
     for temp, path in temps:
-        shutil.copymode(path, temp)
+        try:
+            shutil.copymode(path, temp)
+        except OSError:  # a drive mounted without chmod (drvfs without metadata): keep its own
+            pass
         os.replace(temp, path)
     forget(paths)
 

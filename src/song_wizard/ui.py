@@ -325,7 +325,8 @@ def library(root):
             letter = system.unmounted_drive(place)
             gone.append({"name": place.name, "path": key, "songs": [], "extras": [], "playlist": None,
                          "location": system.shown_path(place),
-                         "missing": {"drive": letter, "command": system.mount_command(letter) if letter else None}})
+                         "missing": {"drive": letter, "command": system.mount_command(letter) if letter else None,
+                                     "fstab": system.fstab_line(letter) if letter else None}})
             continue
         inside = sorted((p for p in place.iterdir() if p.is_dir() and not p.name.startswith(".")),
                         key=lambda p: p.name.lower()) if place.is_dir() else []

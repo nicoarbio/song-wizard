@@ -93,7 +93,7 @@ def test_unmounted_drive(playlist, monkeypatch):
     assert system.unmounted_drive("/mnt/h/Mi unidad/Bateria") == "H"
     assert system.unmounted_drive("/mnt/c/Users") is None
     assert system.unmounted_drive("/home/me") is None
-    assert "sudo mount -t drvfs H: /mnt/h" in system.mount_hint("H")
+    assert "sudo mount -t drvfs H: /mnt/h -o metadata,uid=" in system.mount_hint("H")  # metadata: chmod works
     with pytest.raises(SystemExit) as e:
         archives.move("1", "/mnt/h/Mi unidad")
     assert "drvfs H:" in str(e.value)
@@ -116,10 +116,11 @@ def test_a_place_that_isnt_there_is_shown(tmp_path, monkeypatch, capsys):
     # Moved away by hand: said, with no drive to connect.
     (tmp_path / "drive").rename(tmp_path / "elsewhere")
     gone = ui.library(music)[-1]
-    assert names() == [("song-wizard", True)] and gone["missing"] == {"drive": None, "command": None}
+    assert names() == [("song-wizard", True)] and gone["missing"] == {"drive": None, "command": None, "fstab": None}
     # A Windows drive WSL doesn't see: with the command that connects it.
     monkeypatch.setattr(system, "unmounted_drive", lambda path: "H")
     gone = ui.library(music)[-1]
-    assert gone["missing"] == {"drive": "H", "command": "sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h"}
+    assert gone["missing"] == {"drive": "H", "command": f"sudo mkdir -p /mnt/h && sudo mount -t drvfs H: /mnt/h -o {system.mount_options()}",
+                               "fstab": f"H: /mnt/h drvfs defaults,nofail,{system.mount_options()} 0 0"}
     listing.run()
     assert "(not available: WSL doesn't see drive H:. Connect it with: sudo mkdir -p /mnt/h" in capsys.readouterr().out

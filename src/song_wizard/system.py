@@ -39,8 +39,22 @@ def unmounted_drive(path):
     return match[1].upper() if match and not os.path.ismount(f"/mnt/{match[1]}") else None
 
 
+def mount_options():
+    """drvfs options: metadata lets chmod work there (writing a song's data copies its file's
+    permissions), and the files are the user's, with normal permissions, like C:'s."""
+    uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)
+    return f"metadata,uid={uid},gid={gid},umask=22,fmask=11"
+
+
 def mount_command(letter):
-    return f"sudo mkdir -p /mnt/{letter.lower()} && sudo mount -t drvfs {letter}: /mnt/{letter.lower()}"
+    return (f"sudo mkdir -p /mnt/{letter.lower()} && "
+            f"sudo mount -t drvfs {letter}: /mnt/{letter.lower()} -o {mount_options()}")
+
+
+def fstab_line(letter):
+    """The /etc/fstab line that mounts it every time WSL starts (nofail: without the drive, WSL
+    starts all the same)."""
+    return f"{letter}: /mnt/{letter.lower()} drvfs defaults,nofail,{mount_options()} 0 0"
 
 
 def mount_hint(letter):

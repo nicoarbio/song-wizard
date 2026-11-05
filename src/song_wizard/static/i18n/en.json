@@ -285,7 +285,7 @@
  "library.reapers_default": "REAPER's default",
  "library.redo_reaper_project": "Redo REAPER project",
  "library.refresh": "↻ refresh",
- "library.run_command_wsl_terminal_asks": "Run this command in the WSL terminal (it asks for your password) and click \"↻ refresh\". To have it connect on its own every time, add the line \"{drive}: /mnt/{v} drvfs defaults,nofail 0 0\" to /etc/fstab.",
+ "library.run_command_wsl_terminal_asks": "Run this command in the WSL terminal (it asks for your password) and click \"↻ refresh\". To have it connect on its own every time, add the line \"{line}\" to /etc/fstab.",
  "library.save": "save",
  "library.separating_works_original_song_not": "Separating works on the original song, not on stems, versions or other copies.",
  "library.set_hand_click_change": "Set by hand. Click to change it",

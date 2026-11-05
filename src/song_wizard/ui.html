@@ -1100,7 +1100,7 @@ function renderMissing(folder) {
     drive
       ? el("p", { class: "hint" }, say("library.wsl_doesnt_see_drive_happens", { drive }),
           el("button", { class: "small", onclick: () => showCommand(
-            say("library.run_command_wsl_terminal_asks", { drive, v: drive.toLowerCase() }),
+            say("library.run_command_wsl_terminal_asks", { line: folder.missing.fstab }),
             folder.missing.command) }, say("library.how_connect")))
       : el("p", { class: "hint" }, say("library.i_cant_find_folder_if")));
 }

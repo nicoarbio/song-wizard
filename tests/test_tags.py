@@ -109,6 +109,17 @@ def test_reads_again_after_writing(song, monkeypatch):
     assert tags.read(song)["album"] == "Live"
 
 
+def test_writes_where_chmod_isnt_allowed(song, monkeypatch):
+    """A drive mounted without chmod (drvfs without metadata, as Google Drive's was): the data is
+    written all the same, and no copy is left behind."""
+    def refuse(*a, **k):
+        raise PermissionError(1, "Operation not permitted")
+    monkeypatch.setattr(tags.shutil, "copymode", refuse)
+    tags.write([str(song)], {**tags.read(song), "album": "Live"})
+    assert tags.read(song)["album"] == "Live"
+    assert not [p for p in song.parent.iterdir() if "song-wizard-tags" in p.name]
+
+
 def test_wav_stays_a_wav(song):
     import soundfile
     wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
