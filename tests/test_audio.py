@@ -13,7 +13,7 @@ from song_wizard import audio, bpm, click, convert, key, speed, transpose
 @pytest.fixture(autouse=True)
 def wav_versions(monkeypatch):
     """These check exact samples and peaks of the versions, so they're written as WAV (32-bit float).
-    The Opus default (lossy, 48 kHz) is covered in test_stems.py."""
+    WAV is the default too; MP3 and Opus (lossy) are covered in test_stems.py."""
     monkeypatch.setattr(audio, "stem_ext", lambda: ".wav")
 
 

@@ -1,4 +1,4 @@
-"""Stems and versions are MP3 by default ([audio] stems in the settings); Opus and WAV on request."""
+"""Stems and versions are WAV by default ([audio] stems in the settings); MP3 and Opus on request."""
 
 import os
 import subprocess
@@ -12,18 +12,18 @@ def write_settings(text):
     config.CONFIG_PATH.write_text(text)
 
 
-def test_default_is_mp3():
-    assert audio.stem_ext() == ".mp3"
-    assert audio.output_path("/music/Song.opus", "drums") == os.path.join("/music", "Song (drums).mp3")
+def test_default_is_wav():
+    assert audio.stem_ext() == ".wav"
+    assert audio.output_path("/music/Song.opus", "drums") == os.path.join("/music", "Song (drums).wav")
 
 
 def test_settings_choose_the_format_and_bad_values_fall_back():
-    write_settings('[audio]\nstems = "WAV"\n')
-    assert audio.stem_ext() == ".wav"
+    write_settings('[audio]\nstems = "MP3"\n')
+    assert audio.stem_ext() == ".mp3"
     write_settings('[audio]\nstems = "opus"\n')
     assert audio.stem_ext() == ".opus"
     write_settings('[audio]\nstems = "flac"\n')
-    assert audio.stem_ext() == ".mp3"  # not a format for stems: the default
+    assert audio.stem_ext() == ".wav"  # not a format for stems: the default
 
 
 def test_mp3_save_is_small_and_reads_back_at_its_rate(tmp_path):
@@ -50,11 +50,16 @@ def test_stem_path_finds_any_format(tmp_path):
     assert audio.stem_path(song, "bass") is None
     (tmp_path / "001 - Song (bass).wav").write_bytes(b"")  # made before the change
     assert audio.stem_path(song, "bass").name == "001 - Song (bass).wav"
-    (tmp_path / "001 - Song (bass).mp3").write_bytes(b"")  # the chosen format wins
+    (tmp_path / "001 - Song (bass).mp3").write_bytes(b"")
+    assert audio.stem_path(song, "bass").name == "001 - Song (bass).wav"  # the chosen format wins
+    write_settings('[audio]\nstems = "mp3"\n')
     assert audio.stem_path(song, "bass").name == "001 - Song (bass).mp3"
 
 
-def test_versions_are_mp3_by_default(tmp_path):
+def test_versions_in_mp3_when_asked(tmp_path):
+    write_settings('[audio]\nstems = "mp3"\n')
+    tmp_path = tmp_path / "music"  # the settings live in tmp_path too
+    tmp_path.mkdir()
     src = synth.write(tmp_path / "tone.wav", synth.sine(440, 2))
     transpose.run(1, [str(src)])
     assert sorted(os.listdir(tmp_path)) == ["tone (+1).mp3", "tone.wav"]
@@ -81,6 +86,7 @@ def test_all_stems_add_up_to_the_original_in_mp3(tmp_path, monkeypatch):
 
     monkeypatch.setattr(separate, "separate_with", fake_split)
     monkeypatch.setattr(separate, "pick", lambda *a, **k: "cpu")
+    write_settings('[audio]\nstems = "mp3"\n')
     src = synth.write(tmp_path / "song.wav", synth.sine(330, 3, peak=0.5))
     separate.run(["all"], [str(src)], force_cpu=True)
     original, _ = sf.read(src, dtype="float32", always_2d=True)

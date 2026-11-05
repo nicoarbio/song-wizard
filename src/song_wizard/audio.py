@@ -103,26 +103,27 @@ def save(path, audio, sr):
     sf.write(path, audio.T, sr, subtype="FLOAT")
 
 
-# Stems and versions this tool writes: MP3 unless [audio] stems = "opus" or "wav" in the settings.
-# MP3 plays everywhere (phones, cars, Windows, Safari, WhatsApp); the encoder options are the ones
-# convert uses (VBR ~190 kbps, transparent for practice). Opus is smaller, but not everything reads it.
+# Stems and versions this tool writes: WAV unless [audio] stems = "mp3" or "opus" in the settings.
+# WAV because Practice plays one <audio> per track and the browser jumps to the exact sample only
+# in WAV: in an MP3 it guesses the spot from the bitrate, each track lands somewhere else and they
+# drift apart (0.39.0 to 0.39.2 made MP3 by default). MP3/Opus are a fraction of the size.
 LOSSY = {
     ".mp3": ["-c:a", "libmp3lame", "-q:a", "2", "-id3v2_version", "3"],
     ".opus": ["-c:a", "libopus", "-b:a", "160k"],
 }
-STEM_FORMATS = ("mp3", "opus", "wav")
+STEM_FORMATS = ("wav", "mp3", "opus")
 
 
 def stem_ext():
-    """The extension stems and versions are written with: ".mp3" (default), ".opus" or ".wav"."""
+    """The extension stems and versions are written with: ".wav" (default), ".mp3" or ".opus"."""
     from . import config
 
     value = str(config.get("audio", "stems")).strip().lower().lstrip(".")
-    return f".{value}" if value in STEM_FORMATS else ".mp3"
+    return f".{value}" if value in STEM_FORMATS else ".wav"
 
 
 def output_path(src, suffix):
-    """'dir/Title.opus' + 'drums' -> 'dir/Title (drums).mp3' (or .opus/.wav, per the settings)"""
+    """'dir/Title.opus' + 'drums' -> 'dir/Title (drums).wav' (or .mp3/.opus, per the settings)"""
     return f"{os.path.splitext(src)[0]} ({suffix}){stem_ext()}"
 
 

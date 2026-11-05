@@ -218,7 +218,7 @@ def test_speed_job(server):
     assert status == "done", lines
     song = get_json(port, "/api/library")["folders"][0]["songs"][0]
     assert song["name"] == "tone.wav"
-    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).mp3"]
+    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).wav"]
 
 
 def test_job_on_a_single_stem(server):
@@ -229,8 +229,8 @@ def test_job_on_a_single_stem(server):
     status, lines = wait_for(port, json.loads(content)["id"])
     assert status == "done", lines
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
-    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).mp3", "tone (drums).wav"]
-    assert sf.info(root / "tone (drums) (50%).mp3").duration == pytest.approx(4, abs=0.05)  # MP3: lossy, with a little padding
+    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).wav", "tone (drums).wav"]
+    assert sf.info(root / "tone (drums) (50%).wav").duration == pytest.approx(4)
 
 
 def test_rename_job(server):

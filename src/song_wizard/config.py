@@ -10,7 +10,7 @@ CONFIG_PATH = Path(user_config_dir("song-wizard", appauthor=False)) / "config.to
 
 DEFAULTS = {
     "download": {"music_dir": None},
-    "audio": {"stems": "mp3"},
+    "audio": {"stems": "wav"},
 }
 
 TEMPLATE = """\
@@ -24,9 +24,9 @@ TEMPLATE = """\
 
 [audio]
 # Format of the stems and versions song-wizard makes (drums, bass, speed, transposed...):
-# "mp3" (default: plays everywhere, ~1.4 MB a minute per stem), "opus" (smaller, but not every
-# player reads it) or "wav" (32-bit float, ~20 MB a minute per stem: for editing in another program).
-# stems = "mp3"
+# "wav" (default: 32-bit float, ~20 MB a minute per stem; the only one Practice jumps around in
+# without the tracks drifting apart), "mp3" (~1.4 MB a minute) or "opus" (smaller still).
+# stems = "wav"
 """
 
 
