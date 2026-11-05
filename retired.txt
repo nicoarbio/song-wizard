@@ -7,3 +7,4 @@
 0.22.2  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
 0.22.3  guardar los datos de un tema dañaba sus WAV (Windows y el ffmpeg nuevo no los abrían; volver a guardarlos con la 0.22.5 los repara); arreglado en la 0.22.5
 0.22.4  en Mac no podía reparar los WAV que dañaron la 0.22.0 a la 0.22.3; arreglado en la 0.22.5
+0.39.0  separar con "all" fallaba al final (no hacía el stem "other", y los stems de Práctica quedaban incompletos); arreglado en la 0.39.1
