@@ -193,17 +193,23 @@ function audio() {
 }
 const outLat = () => ctx ? (ctx.baseLatency || 0) + (ctx.outputLatency || 0) : 0;
 
-// Qué instante del reloj de audio se está oyendo ahora (getOutputTimestamp si anda; si no, el
-// actual menos la demora de salida), suavizado: el reloj de audio avanza a saltos.
-const offs = [];
+// Qué instante del reloj de audio se está oyendo ahora: el actual menos la demora de salida. El
+// reloj de audio avanza a saltos (de a bloques), así que se toma el más adelantado de los últimos.
+// Si el reloj de audio se frena (pantalla bloqueada, el sistema lo pausa) y después sigue, la
+// relación con el reloj del celu cambia de golpe: se empieza de cero y se reprograma todo.
+let clockSamples = [];
 function hearing() {
-  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
-  let c, w;
-  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) { c = ts.contextTime; w = ts.performanceTime; R.clock = "getOutputTimestamp"; }
-  else { c = ctx.currentTime - outLat(); w = now(); R.clock = "currentTime"; }
-  offs.push(c - w / 1000);
-  if (offs.length > 25) offs.shift();
-  return median(offs);
+  const off = ctx.currentTime - outLat() - now() / 1000;
+  const est = clockSamples.length ? Math.max(...clockSamples) : off;
+  if (clockSamples.length && Math.abs(off - est) > 0.08) {
+    clockSamples = [];
+    log(`el reloj de audio saltó ${((off - est) * 1000).toFixed(0)} ms (¿bloqueo?): se reprograma`);
+    R.clockJumps = (R.clockJumps || 0) + 1;
+    if (engine.running) engine.running = false;
+  }
+  clockSamples.push(off);
+  if (clockSamples.length > 25) clockSamples.shift();
+  return Math.max(...clockSamples);
 }
 const ctxOf = (w) => w / 1000 + hearing();   // instante de audio que se oye en el instante w
 const wallOf = (c) => (c - hearing()) * 1000;
@@ -414,6 +420,7 @@ function follow(t) {
     // Arranca (o entra tarde): en el instante pedido, o lo antes posible en el lugar que va.
     const c = Math.max(ctxOf(S.at), ctx.currentTime + lead);
     const p = target(wallOf(c));
+    if (!(p >= 0 && p < duration)) return;
     if (c > ctxOf(S.at) + 0.05) log(`entra en ${fmt(p)}`);
     startEngine(c, p);
     return;
@@ -447,7 +454,7 @@ function scheduleClicks(t) {
   if (nextBeat === null || nextBeat < here - 0.05) nextBeat = firstBeat + Math.max(0, Math.ceil((here - firstBeat) / spb)) * spb;
   for (;;) {
     const heard = S.at + (nextBeat - S.pos) / S.rate * 1000; // instante en que se tiene que oír
-    if (heard > t + 300) break;
+    if (heard > t + (document.hidden ? 3000 : 300)) break; // con la pantalla apagada los relojes de la página van lentos
     const when = ctxOf(heard);
     if (when > ctx.currentTime && nextBeat < duration) beep(when, Math.round((nextBeat - firstBeat) / spb) % 4 === 0);
     nextBeat += spb;
@@ -882,7 +889,7 @@ function results() {
     c ? `audio: ${c.sampleRate} Hz, base ${((c.baseLatency || 0) * 1000).toFixed(1)} ms, salida ${((c.outputLatency || 0) * 1000).toFixed(1)} ms, estado ${c.state}` : "audio: sin iniciar",
     `soporta: preservesPitch ${"preservesPitch" in HTMLMediaElement.prototype}, AudioWorklet ${!!window.AudioWorkletNode}, WakeLock ${!!navigator.wakeLock}, CompressionStream ${!!window.CompressionStream}, audioSession ${!!navigator.audioSession}`,
     `tema: ${songName || "-"} · ${tracks.length} pistas · ${fmt(duration)}`,
-    `motor: Signalsmith Stretch${$("#light").checked ? " liviano" : ""} · reloj ${R.clock || "-"} · demora del estirador ${(stretchLat * 1000).toFixed(0)} ms`,
+    `motor: Signalsmith Stretch${$("#light").checked ? " liviano" : ""} · saltos del reloj de audio ${R.clockJumps || 0} · demora del estirador ${(stretchLat * 1000).toFixed(0)} ms`,
     `memoria: ${R.mb.toFixed(0)} MB, cargado en ${(R.decodeMs / 1000).toFixed(1)} s · ${tracks.map((t) => t.info).join(" / ")}`,
     `contra el reloj: desvío típico ${median(abs).toFixed(1)} ms, máx ${abs.length ? Math.max(...abs).toFixed(1) : "-"} ms (${abs.length} medidas) · correcciones ${R.reschedules}`,
     `velocidad: ${Math.round(S.rate * 100)} % · tono ${semisText(S.semis)}`,
@@ -903,6 +910,11 @@ async function copy(text) {
 $("#copy").onclick = () => copy(results() + "\n\nregistro:\n" + logLines.join("\n"));
 if (navigator.share) { $("#share").classList.remove("hidden"); $("#share").onclick = () => navigator.share({ text: results() + "\n\nregistro:\n" + logLines.join("\n") }).catch(() => {}); }
 
+// Al volver a la página (desbloquear), el audio puede haber quedado pausado por el sistema.
+document.addEventListener("visibilitychange", () => {
+  log(document.hidden ? "página oculta" : "página visible");
+  if (!document.hidden && ctx) { if (ctx.state !== "running") ctx.resume(); clockSamples = []; if (S.mode === "playing") engine.running = false; }
+});
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 log(`id ${ID}`);
