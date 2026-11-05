@@ -60,7 +60,7 @@ def tracks_for(song):
     other stems and the original song muted, so they're there to switch to."""
     song = Path(song)
     base = base_of(song.name)
-    stem = re.compile(rf"^{re.escape(base)} \(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\)\.wav$", re.I)
+    stem = re.compile(rf"^{re.escape(base)} \(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\)\.(wav|opus|mp3)$", re.I)
     found = {}
     for n in sorted(os.listdir(song.parent)):
         if (m := stem.match(n)) and (song.parent / n).is_file():

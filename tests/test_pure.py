@@ -104,13 +104,13 @@ def test_parse_duration_invalid(text):
 
 def test_config_defaults():
     assert not config.CONFIG_PATH.exists()
-    assert config.load() == {"download": {"music_dir": None}}
+    assert config.load() == {"download": {"music_dir": None}, "audio": {"stems": "mp3"}}
 
 
 def test_config_file_values():
     config.CONFIG_PATH.parent.mkdir(parents=True)
     config.CONFIG_PATH.write_text('[download]\nmusic_dir = "~/Ensayos"\n[unknown]\nx = 1\n')
-    assert config.load() == {"download": {"music_dir": "~/Ensayos"}}
+    assert config.load() == {"download": {"music_dir": "~/Ensayos"}, "audio": {"stems": "mp3"}}
 
 
 def test_config_error():

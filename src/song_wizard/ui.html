@@ -1137,7 +1137,7 @@ function renderSong(song) {
 }
 
 // Whether the song has its bass or voice separated (what `song-wizard notes` reads).
-const hasNoteStems = (song) => song.files.some((f) => /\((bass|vocals)\)\.wav$/i.test(f.name));
+const hasNoteStems = (song) => song.files.some((f) => /\((bass|vocals)\)\.(wav|opus|mp3)$/i.test(f.name));
 
 // "más": the song's data, lyrics, trim and the REAPER project, in a menu. One open at a time (state.menu is
 // that song's path), kept open across redraws; a click elsewhere or Escape closes it.
@@ -2069,7 +2069,7 @@ function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 // separated alone with the rest of the song, or the song by itself.
 function trackSets(song) {
   const base = song.name.replace(/\.[^.]+$/, "");
-  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\\)\\.wav$`, "i");
+  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\\)\\.(wav|opus|mp3)$`, "i");
   const found = {};
   for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
   const sets = [];
@@ -3024,7 +3024,7 @@ function toggleNotesShown(part) {
   if (notesState.sel && notesState.sel.part === part) notesState.sel = null;
   renderNotes();
 }
-const partOf = (t) => !t.click && t.file && (/\((bass|vocals)\)\.wav$/i.exec(t.file.name) || [])[1]?.toLowerCase();
+const partOf = (t) => !t.click && t.file && (/\((bass|vocals)\)\.(wav|opus|mp3)$/i.exec(t.file.name) || [])[1]?.toLowerCase();
 const noteName = (midi, octave = false) => {
   const m = midi + semitones();
   return NOTE_NAMES[((m % 12) + 12) % 12] + (octave ? Math.floor(m / 12) - 1 : "");
@@ -3193,12 +3193,12 @@ const drumsState = { data: null, listen: false, bus: null, noise: null,
   open: (() => { try { return localStorage.getItem(DRUMS_OPEN_KEY) === "1"; } catch { return false; } })(),
   volume: (() => { try { const v = parseFloat(localStorage.getItem(DRUMS_VOLUME_KEY)); return isNaN(v) ? 0.8 : v; } catch { return 0.8; } })() };
 const drumsSheetUrl = (path) => `/drums?path=${encodeURIComponent(path)}&lang=${LANG}`;
-const hasDrumStem = (song) => song.files.some((f) => /\((drums|kick|snare)\)\.wav$/i.test(f.name));
+const hasDrumStem = (song) => song.files.some((f) => /\((drums|kick|snare)\)\.(wav|opus|mp3)$/i.test(f.name));
 // The drums' track; in the drum kit's set, its last piece.
 const drumsHost = () => {
   const lanes = (practice.lanes || []).filter((ui) => ui.track.file);
-  return lanes.find((ui) => /\(drums\)\.wav$/i.test(ui.track.file.name))
-    || lanes.filter((ui) => /\((kick|snare|toms|hihat|ride|crash)\)\.wav$/i.test(ui.track.file.name)).pop() || null;
+  return lanes.find((ui) => /\(drums\)\.(wav|opus|mp3)$/i.test(ui.track.file.name))
+    || lanes.filter((ui) => /\((kick|snare|toms|hihat|ride|crash)\)\.(wav|opus|mp3)$/i.test(ui.track.file.name)).pop() || null;
 };
 const detectDrums = () => start({ action: "drums", paths: [practice.song.path] });
 

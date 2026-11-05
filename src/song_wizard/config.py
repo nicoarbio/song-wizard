@@ -10,6 +10,7 @@ CONFIG_PATH = Path(user_config_dir("song-wizard", appauthor=False)) / "config.to
 
 DEFAULTS = {
     "download": {"music_dir": None},
+    "audio": {"stems": "mp3"},
 }
 
 TEMPLATE = """\
@@ -20,6 +21,12 @@ TEMPLATE = """\
 # Where downloads go (default: your Music folder, the Windows one on WSL).
 # The SONG_WIZARD_DIR environment variable wins over this.
 # music_dir = "~/Ensayos"
+
+[audio]
+# Format of the stems and versions song-wizard makes (drums, bass, speed, transposed...):
+# "mp3" (default: plays everywhere, ~1.4 MB a minute per stem), "opus" (smaller, but not every
+# player reads it) or "wav" (32-bit float, ~20 MB a minute per stem: for editing in another program).
+# stems = "mp3"
 """
 
 

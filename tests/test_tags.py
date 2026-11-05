@@ -223,12 +223,11 @@ def test_interface(server, monkeypatch):
 # ---- What song-wizard makes carries the song's data and its mark ----
 
 def test_made_files_carry_the_data_and_mark(song, capsys):
-    from song_wizard import __version__, click, convert, transpose, trim
+    from song_wizard import __version__, click, transpose, trim
     mark = f"song-wizard {__version__}"
-    transpose.run(2, [str(song)])
-    convert.run([str(song.parent / "001 - Someone - Song (HQ) (+2).wav")], "mp3")  # from a file with the data
+    transpose.run(2, [str(song)])  # the version is made from the file with the data, and carries it
     click.run(120, duration="0:02", song=str(song))
-    for name in ["001 - Someone - Song (HQ) (+2).wav", "001 - Someone - Song (HQ) (+2).mp3",
+    for name in ["001 - Someone - Song (HQ) (+2).mp3",
                  "001 - Someone - Song (HQ) (click 120 BPM 4-4).wav"]:
         data = tags.read(song.parent / name)
         assert (data.get("title"), data.get("artist"), data.get("encoded_by")) == ("Song (HQ)", "Uploader", mark), (name, data)

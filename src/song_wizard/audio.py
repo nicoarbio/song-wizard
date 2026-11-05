@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import soundfile as sf
@@ -89,13 +90,52 @@ def probe_sample_rate(path):
 
 
 def save(path, audio, sr):
-    """Write (channels, samples) float audio as 32-bit float WAV: peaks above 0 dB are kept."""
+    """Write (channels, samples) float audio. A .wav is 32-bit float (peaks above 0 dB are kept);
+    .mp3 and .opus are encoded by ffmpeg (lossy, a fraction of the size: right for practice)."""
+    ext = os.path.splitext(os.fspath(path))[1].lower()
+    if ext in LOSSY:
+        require_ffmpeg()
+        data = np.ascontiguousarray(audio.T, dtype="<f4").tobytes()
+        cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "f32le", "-ar", str(sr),
+               "-ac", str(audio.shape[0]), "-i", "pipe:0", *LOSSY[ext], os.fspath(path)]
+        subprocess.run(cmd, input=data, check=True)
+        return
     sf.write(path, audio.T, sr, subtype="FLOAT")
 
 
+# Stems and versions this tool writes: MP3 unless [audio] stems = "opus" or "wav" in the settings.
+# MP3 plays everywhere (phones, cars, Windows, Safari, WhatsApp); the encoder options are the ones
+# convert uses (VBR ~190 kbps, transparent for practice). Opus is smaller, but not everything reads it.
+LOSSY = {
+    ".mp3": ["-c:a", "libmp3lame", "-q:a", "2", "-id3v2_version", "3"],
+    ".opus": ["-c:a", "libopus", "-b:a", "160k"],
+}
+STEM_FORMATS = ("mp3", "opus", "wav")
+
+
+def stem_ext():
+    """The extension stems and versions are written with: ".mp3" (default), ".opus" or ".wav"."""
+    from . import config
+
+    value = str(config.get("audio", "stems")).strip().lower().lstrip(".")
+    return f".{value}" if value in STEM_FORMATS else ".mp3"
+
+
 def output_path(src, suffix):
-    """'dir/Title.opus' + 'drums' -> 'dir/Title (drums).wav'"""
-    return f"{os.path.splitext(src)[0]} ({suffix}).wav"
+    """'dir/Title.opus' + 'drums' -> 'dir/Title (drums).mp3' (or .opus/.wav, per the settings)"""
+    return f"{os.path.splitext(src)[0]} ({suffix}){stem_ext()}"
+
+
+def stem_path(song, part):
+    """The song's file for one part ("Title (bass)"), as a Path: the format the settings choose
+    first, then the others (songs made before the change have .wav, others .opus). None if there isn't one."""
+    song = Path(song)
+    base = base_of(song.name)
+    for ext in dict.fromkeys([stem_ext(), ".mp3", ".opus", ".wav"]):
+        stem = song.with_name(f"{base} ({part}){ext}")
+        if stem.is_file():
+            return stem
+    return None
 
 
 class Progress:

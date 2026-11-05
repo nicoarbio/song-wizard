@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from . import __version__, align, results, weights
-from .audio import base_of, expand
+from .audio import base_of, expand, stem_path
 from .audio import load as load_audio
 from .paths import MODELS_DIR
 
@@ -61,9 +61,7 @@ def path_for(song):
 
 
 def stem_for(song, part):
-    song = Path(song)
-    stem = song.with_name(f"{base_of(song.name)} ({part}).wav")
-    return stem if stem.is_file() else None
+    return stem_path(song, part)
 
 
 def load(song):

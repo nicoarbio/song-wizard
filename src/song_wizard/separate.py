@@ -100,7 +100,7 @@ def run(stems, paths, force_cpu=False):
                 mix, _ = sf.read(path, dtype="float32", always_2d=True)
                 other = mix.T / scale
                 for stem in EVERY:
-                    part, _ = sf.read(output_path(f, stem), dtype="float32", always_2d=True)
+                    part, _ = load(output_path(f, stem), sr=SR)  # as stored: Opus is lossy, 48 kHz
                     other -= part.T
                 save(output_path(f, "other"), other, SR)
                 tags.stamp(output_path(f, "other"), f)
