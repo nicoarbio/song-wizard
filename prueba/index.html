@@ -54,6 +54,7 @@
     <input type="file" id="files" accept="audio/*,.m4a,.opus,.webm,.mp3,.wav,.flac,.ogg" multiple class="hidden">
   </div>
   <p class="hint">El de prueba son 4 pistas (bombo, redoblante, bajo, guía) con golpes en el mismo instante: si se desfasan, se oye "flam". Para sincronizar, todos usan el mismo.</p>
+  <p id="loadStatus" class="big" style="font-size:16px"></p>
   <div id="tracks"></div>
 </section>
 
@@ -70,12 +71,17 @@
     <span id="rateText">100 %</span>
   </div>
   <div class="row">
+    <label>Tono <input type="range" id="semis" min="-6" max="6" step="1" value="0" style="min-width:140px"></label>
+    <span id="semisText">0</span>
+    <label><input type="checkbox" id="light"> Modo liviano</label>
+  </div>
+  <div class="row">
     <label><input type="checkbox" id="clickOn" checked> Click</label>
     <input type="range" id="clickVol" min="0" max="100" value="60" style="max-width:140px">
     <label>BPM <input type="number" id="bpm" value="120" min="30" max="300"></label>
     <label>1.er tiempo (s) <input type="number" id="first" value="0" step="0.01" min="0"></label>
   </div>
-  <p class="hint">Probar: dejarlo sonar todo el tema, cambiar la velocidad, saltar. Con la pantalla bloqueada también.</p>
+  <p class="hint">Probar: dejarlo sonar todo el tema, cambiar velocidad y tono, saltar. Con la pantalla bloqueada también. Si se entrecorta, probar "Modo liviano" (gasta menos el celu).</p>
 </section>
 
 <section>
@@ -135,6 +141,7 @@
 
 <script src="vendor/qrcode.js"></script>
 <script src="vendor/jsQR.js"></script>
+<script src="vendor/SignalsmithStretch.js"></script>
 <script>
 "use strict";
 const $ = (s) => document.querySelector(s);
@@ -155,86 +162,101 @@ window.addEventListener("error", (e) => log("ERROR " + e.message));
 window.addEventListener("unhandledrejection", (e) => log("ERROR " + (e.reason && (e.reason.message || e.reason.name) || e.reason)));
 
 // ---------- resultados ----------
-const R = { playRejected: 0, seeks: 0, nudges: 0, spreadMax: 0, spreadSamples: [], errSamples: [], lagRuns: [],
-            candidates: "", connected: 0, notes: [] };
+const R = { reschedules: 0, errSamples: [], lagRuns: [], candidates: "", connected: 0, notes: [], decodeMs: 0, mb: 0, clock: "" };
 
 // ---------- audio ----------
-let ctx = null, clickGain = null;
+// Las pistas se decodifican en memoria y suenan por un estirador de tiempo (Signalsmith Stretch):
+// todas arrancan en el mismo instante del reloj de audio, así que entre ellas no se desfasan, y
+// la velocidad y el tono cambian en vivo.
+let ctx = null, clickGain = null, master = null;
+function setSession(type) { if (navigator.audioSession) { try { navigator.audioSession.type = type; } catch (e) {} } }
+setSession("playback"); // en iPhone, que suene aunque el celu esté en silencio
 function audio() {
   if (!ctx) {
     const C = window.AudioContext || window.webkitAudioContext;
     ctx = new C({ latencyHint: "interactive" });
+    master = ctx.createGain(); master.connect(ctx.destination);
     clickGain = ctx.createGain();
     clickGain.gain.value = $("#clickVol").value / 100;
     clickGain.connect(ctx.destination);
     log(`audio: ${ctx.sampleRate} Hz, base ${(ctx.baseLatency * 1000 || 0).toFixed(1)} ms, salida ${((ctx.outputLatency || 0) * 1000).toFixed(1)} ms`);
+    ctx.onstatechange = () => log(`audio: ${ctx.state}`);
   }
   if (ctx.state !== "running") ctx.resume();
   return ctx;
 }
 const outLat = () => ctx ? (ctx.baseLatency || 0) + (ctx.outputLatency || 0) : 0;
-if (navigator.audioSession) { try { navigator.audioSession.type = "playback"; } catch (e) {} }
+
+// Qué instante del reloj de audio se está oyendo ahora (getOutputTimestamp si anda; si no, el
+// actual menos la demora de salida), suavizado: el reloj de audio avanza a saltos.
+const offs = [];
+function hearing() {
+  const ts = ctx.getOutputTimestamp ? ctx.getOutputTimestamp() : null;
+  let c, w;
+  if (ts && ts.contextTime > 0 && ts.performanceTime > 0) { c = ts.contextTime; w = ts.performanceTime; R.clock = "getOutputTimestamp"; }
+  else { c = ctx.currentTime - outLat(); w = now(); R.clock = "currentTime"; }
+  offs.push(c - w / 1000);
+  if (offs.length > 25) offs.shift();
+  return median(offs);
+}
+const ctxOf = (w) => w / 1000 + hearing();   // instante de audio que se oye en el instante w
+const wallOf = (c) => (c - hearing()) * 1000;
 
 // ---------- pistas ----------
-let tracks = [], duration = 0, songName = "";
+let tracks = [], duration = 0, songName = "", decoding = 0, stretchLat = 0.1;
 function unload() {
-  for (const t of tracks) { t.el.pause(); URL.revokeObjectURL(t.el.src); t.src.disconnect(); }
-  tracks = []; duration = 0;
+  for (const t of tracks) { try { t.node.schedule({ active: false }); t.node.disconnect(); t.node.dropBuffers(); } catch (e) {} }
+  tracks = []; duration = 0; engine.running = false;
 }
 
-function loadTracks(list, name) {
+async function makeTrack(name, channels, info) {
+  const c = audio();
+  const node = await SignalsmithStretch(c, { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [channels.length] });
+  if ($("#light").checked) node.configure({ blockMs: null, preset: "cheaper" });
+  await node.addBuffers(channels);
+  stretchLat = Math.max(stretchLat, node.latency ? await node.latency() : 0.1);
+  const g = c.createGain();
+  node.connect(g).connect(master);
+  return { name, node, g, vol: 1, mute: false, info, secs: channels[0].length / c.sampleRate };
+}
+
+async function loadTracks(sources, name) {
+  // sources: [{name, channels}] (ya decodificadas) o [{name, file}]
   const c = audio();
   unload();
-  songName = name;
-  tracks = list.map(({ name, blob }) => {
-    const el = new Audio();
-    el.preload = "auto";
-    el.preservesPitch = true; el.webkitPreservesPitch = true; el.mozPreservesPitch = true;
-    el.playsInline = true;
-    el.src = URL.createObjectURL(blob);
-    const src = c.createMediaElementSource(el);
-    const g = c.createGain();
-    src.connect(g).connect(c.destination);
-    el.addEventListener("error", () => log(`${name}: no se puede reproducir (${el.error && el.error.code})`));
-    el.addEventListener("waiting", () => { if (S.mode === "playing") log(`${name}: esperando datos`); });
-    return { name, el, src, g, vol: 1, mute: false, type: blob.type || name.split(".").pop(), size: blob.size, unlocked: false };
-  });
-  unlock();
-  Promise.all(tracks.map((t) => new Promise((r) => {
-    if (t.el.readyState >= 1) r();
-    t.el.addEventListener("loadedmetadata", r, { once: true });
-    t.el.addEventListener("error", r, { once: true });
-  }))).then(() => {
-    const ds = tracks.map((t) => t.el.duration).filter((d) => isFinite(d));
-    duration = ds.length ? Math.max(...ds) : 0;
-    if (ds.length && Math.max(...ds) - Math.min(...ds) > 0.5) log("¡Ojo! las pistas no miden lo mismo");
-    $("#seek").max = duration; $("#seek").disabled = $("#play").disabled = !duration;
-    log(`tema: ${tracks.length} pistas, ${fmt(duration)}`);
-    renderTracks(); sendStatus(true);
-    if (S.mode === "preparing") prepare();
-  });
-  renderTracks();
+  songName = name; decoding++; renderTracks();
+  setStatus("Cargando…");
+  const t0 = now();
+  let mb = 0;
+  const made = [];
+  try {
+    for (const s of sources) {
+      setStatus(`Cargando ${s.name}…`);
+      let channels = s.channels, info = s.info || "";
+      if (!channels) {
+        try {
+          const buf = await c.decodeAudioData(await s.file.arrayBuffer());
+          channels = [...Array(buf.numberOfChannels).keys()].map((i) => buf.getChannelData(i));
+          info = `${s.file.type || s.name.split(".").pop()}, ${buf.numberOfChannels} canal${buf.numberOfChannels > 1 ? "es" : ""}`;
+        } catch (e) { log(`${s.name}: no se puede leer (${e.name || e})`); continue; }
+      }
+      mb += channels.length * channels[0].length * 4 / 1e6;
+      made.push(await makeTrack(s.name, channels, info));
+    }
+  } finally { decoding--; }
+  tracks = made;
+  const ds = tracks.map((t) => t.secs);
+  duration = ds.length ? Math.max(...ds) : 0;
+  if (ds.length && Math.max(...ds) - Math.min(...ds) > 0.5) log("¡Ojo! las pistas no miden lo mismo");
+  R.decodeMs = now() - t0; R.mb = mb;
+  log(`tema: ${tracks.length} pistas, ${fmt(duration)}, ${mb.toFixed(0)} MB en memoria, cargado en ${(R.decodeMs / 1000).toFixed(1)} s`);
+  $("#seek").max = duration; $("#seek").disabled = $("#play").disabled = !duration;
+  setStatus(tracks.length ? `Listo: ${tracks.length} pistas, ${fmt(duration)}. Tocá ▶ Play.` : "No se pudo cargar ninguna pista.");
+  renderTracks(); sendStatus();
+  if (S.mode === "preparing") prepare();
+  if (S.mode === "playing") engine.running = false;
 }
-
-// iOS deja reproducir por código (cuando llega el play de otro aparato) solo a lo que ya sonó
-// una vez tocando la pantalla: en cada toque, se "destraban" las pistas nuevas.
-function unlock() {
-  if (S && S.mode === "playing") return;
-  for (const t of tracks) {
-    if (t.unlocked) continue;
-    if (t.unlocking) continue;
-    t.unlocking = true;
-    t.g.gain.value = 0;
-    const p = t.el.play();
-    const done = (ok) => {
-      // Si mientras tanto le tocó sonar de verdad, no se la pausa.
-      if (t.unlocking) { t.el.pause(); t.unlocking = false; }
-      t.unlocked = t.unlocked || ok; applyVol(t);
-    };
-    if (p) p.then(() => done(true)).catch(() => done(false));
-  }
-}
-document.addEventListener("pointerdown", () => { if (ctx) { if (ctx.state !== "running") ctx.resume(); unlock(); } }, true);
+function setStatus(text) { $("#loadStatus").textContent = text; }
 
 function applyVol(t) { t.g.gain.value = t.mute ? 0 : t.vol; }
 
@@ -262,13 +284,13 @@ $("#pick").onclick = () => { audio(); $("#files").click(); };
 $("#files").onchange = () => {
   const files = [...$("#files").files].sort((a, b) => a.name.localeCompare(b.name));
   if (!files.length) return;
-  loadTracks(files.map((f) => ({ name: f.name, blob: f })), files.map((f) => f.name).join(", "));
   R.notes.push(`archivos: ${files.map((f) => `${f.name} (${(f.size / 1e6).toFixed(1)} MB)`).join(", ")}`);
+  loadTracks(files.map((f) => ({ name: f.name, file: f })), files.map((f) => f.name).join(", "));
 };
 
 // Tema de prueba: 4 pistas con golpes en los mismos instantes (si se desfasan, se oye).
-function makeDemo() {
-  const sr = 44100, secs = 150, n = sr * secs, spb = 0.5; // 120 bpm
+function makeDemo(sr) {
+  const secs = 150, n = sr * secs, spb = 0.5; // 120 bpm
   const parts = { "bombo": new Float32Array(n), "redoblante": new Float32Array(n), "bajo": new Float32Array(n), "guía": new Float32Array(n) };
   let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296) * 2 - 1;
   const roots = [55, 43.65, 65.41, 49];
@@ -285,33 +307,25 @@ function makeDemo() {
     const root = roots[Math.floor(b / 4) % 4];
     for (let i = 0; i < spb * sr && at + i < n; i++) { const t = i / sr; parts.bajo[at + i] = 0.3 * Math.sin(2 * Math.PI * root * (at + i) / sr) * Math.min(1, t * 200) * Math.exp(-t * 3); }
   }
-  return Object.entries(parts).map(([name, data]) => ({ name: `${name}.wav`, blob: wav(data, sr) }));
-}
-function wav(data, sr) {
-  const buf = new ArrayBuffer(44 + data.length * 2), v = new DataView(buf);
-  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  str(0, "RIFF"); v.setUint32(4, 36 + data.length * 2, true); str(8, "WAVEfmt ");
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
-  v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data"); v.setUint32(40, data.length * 2, true);
-  const out = new Int16Array(buf, 44);
-  for (let i = 0; i < data.length; i++) out[i] = Math.max(-1, Math.min(1, data[i])) * 32767;
-  return new Blob([buf], { type: "audio/wav" });
+  return Object.entries(parts).map(([name, data]) => ({ name, channels: [data], info: "generada, 1 canal" }));
 }
 $("#demo").onclick = () => {
-  audio();
+  const c = audio();
   $("#bpm").value = 120; $("#first").value = 0; readClick();
-  loadTracks(makeDemo(), "tema de prueba");
+  loadTracks(makeDemo(c.sampleRate), "tema de prueba");
 };
 
 // ---------- estado compartido ----------
 // No se mandan órdenes sueltas sino el estado: "sonando desde el instante at (reloj de cada uno)
-// en la posición pos, a velocidad rate", "preparándose en pos" o "pausado en pos". Gana el más
-// nuevo (seq, y si empatan, el id): todos terminan en el mismo, sin esperar a nadie.
-let S = { seq: 0, by: "", mode: "paused", pos: 0, at: 0, rate: 1, deadline: 0 };
+// en la posición pos, a velocidad rate y tono semis", "preparándose en pos" o "pausado en pos".
+// Gana el más nuevo (seq, y si empatan, el id): todos terminan en el mismo, sin esperar a nadie.
+let S = { seq: 0, by: "", mode: "paused", pos: 0, at: 0, rate: 1, semis: 0, deadline: 0 };
 const key = (s) => `${s.seq}:${s.by}`;
 const newer = (a, b) => a.seq > b.seq || (a.seq === b.seq && a.by > b.by);
 const readyBy = new Map(); // key del estado -> aparatos listos
-let localReady = false, startTimer = null, joining = false, stallUntil = 0, settleUntil = 0, nextBeat = null;
+let localReady = false, stallUntil = 0, settleUntil = 0, nextBeat = null, loading = 0;
+// Lo que se le pidió al estirador: desde el instante de audio c0 suena la posición p0 a rate.
+const engine = { running: false, c0: 0, p0: 0, rate: 1, semis: 0, bad: 0 };
 
 function target(t) { return S.pos + Math.max(0, t - S.at) / 1000 * S.rate; }
 function position() { return S.mode === "playing" ? Math.min(target(now()), duration) : S.pos; }
@@ -324,34 +338,40 @@ function command(change) {
 function accept(s, from) {
   if (!newer(s, S) && !(from && from.adopt)) return;
   if (from) from.adopt = false;
-  const before = S;
   S = s;
-  clearTimeout(startTimer); startTimer = null; nextBeat = null;
-  if (S.mode !== "playing" || before.mode !== "playing" || before.pos !== S.pos || before.at !== S.at) settleUntil = now() + 3000;
+  nextBeat = null;
+  settleUntil = now() + 2000;
   relay({ type: "state", s: S }, from);
   enter();
 }
 
 function enter() {
-  if (S.mode === "paused") { pauseAll(); seekAll(S.pos); }
+  if (S.mode === "playing") { wakeLock(); engine.running = false; } // follow() lo programa
+  else stopEngine();
   if (S.mode === "preparing") prepare();
-  if (S.mode === "playing") wakeLock();
   showState();
+}
+
+function stopEngine() {
+  if (!ctx) return;
+  for (const t of tracks) t.node.schedule({ active: false, output: ctx.currentTime + 0.01 });
+  engine.running = false;
+}
+
+function startEngine(c, p) {
+  for (const t of tracks) t.node.schedule({ active: true, input: p, rate: S.rate, semitones: S.semis, output: c });
+  Object.assign(engine, { running: true, c0: c, p0: p, rate: S.rate, semis: S.semis, bad: 0 });
 }
 
 // Mientras carga no entra a sonar; si en el medio los demás arrancaron, al terminar entra en
 // el lugar donde va el tema (no avisa "listo": ese estado ya pasó).
-let loading = 0;
 async function prepare() {
   const k = key(S);
   localReady = false;
-  pauseAll();
-  if (!tracks.length || !duration) return;
+  if (!tracks.length || !duration || decoding) return;
   loading++;
-  try {
-    await seekAll(S.pos);
-    if ($("#slow").checked) { log("simulando carga lenta…"); await sleep(8000); }
-  } finally { loading--; }
+  try { if ($("#slow").checked) { log("simulando carga lenta…"); await sleep(8000); } }
+  finally { loading--; }
   if (key(S) !== k) return;
   localReady = true;
   markReady(k, ID);
@@ -361,24 +381,6 @@ async function prepare() {
 function markReady(k, id) {
   if (!readyBy.has(k)) readyBy.set(k, new Set());
   readyBy.get(k).add(id);
-}
-
-function pauseAll() { for (const t of tracks) if (!t.el.paused) t.el.pause(); }
-function seekAll(p) {
-  return Promise.all(tracks.map((t) => new Promise((r) => {
-    const done = () => (t.el.readyState >= 3 ? r() : t.el.addEventListener("canplay", r, { once: true }));
-    if (Math.abs(t.el.currentTime - p) > 0.01) { t.el.currentTime = p; t.el.addEventListener("seeked", done, { once: true }); }
-    else done();
-    setTimeout(r, 15000);
-  })));
-}
-function playAll(list = tracks) {
-  return Promise.all(list.map((t) => {
-    if (t.unlocking) { t.unlocking = false; applyVol(t); }
-    t.el.playbackRate = S.rate;
-    const p = t.el.play();
-    return p && p.catch((e) => { R.playRejected++; log(`play() rechazado (${e.name}): tocar la pantalla`); });
-  }));
 }
 
 function tick() {
@@ -399,46 +401,31 @@ function tick() {
 setInterval(tick, 100);
 
 function follow(t) {
-  if (!tracks.length || !duration || t < stallUntil || loading) return;
-  const lat = outLat();
-  const want = target(t) + lat * S.rate; // lo que cada pista tiene que estar mandando ahora
-  if (want >= duration - 0.05) { pauseAll(); return; }
-  if (t < S.at - lat * 1000 - 20) {
-    if (!startTimer && localReady) startTimer = setTimeout(() => { startTimer = null; playAll(); }, S.at - lat * 1000 - now());
+  if (!ctx || !tracks.length || !duration || decoding || loading || t < stallUntil) return;
+  if (target(t) >= duration) { if (engine.running) stopEngine(); return; }
+  const lead = stretchLat + 0.08; // el estirador necesita programarse con un poco de anticipación
+  if (!engine.running) {
+    // Arranca (o entra tarde): en el instante pedido, o lo antes posible en el lugar que va.
+    const c = Math.max(ctxOf(S.at), ctx.currentTime + lead);
+    const p = target(wallOf(c));
+    if (c > ctxOf(S.at) + 0.05) log(`entra en ${fmt(p)}`);
+    startEngine(c, p);
     return;
   }
-  const stopped = tracks.filter((x) => x.el.paused);
-  if (stopped.length) {
-    // Entra tarde (cargó después o se trabó): va directo a donde está el tema ahora.
-    if (joining) return;
-    joining = true;
-    const lead = 0.15;
-    for (const x of stopped) x.el.currentTime = target(now()) + outLat() * S.rate + lead;
-    log(`entra en ${fmt(target(now()))}`);
-    settleUntil = now() + 3000;
-    playAll(stopped).finally(() => { joining = false; });
-    return;
-  }
-  const errs = [];
-  for (const x of tracks) {
-    if (x.el.seeking) continue;
-    const err = x.el.currentTime - want;
-    errs.push(err);
-    if (Math.abs(err) > 0.25) {
-      x.el.currentTime = want + 0.05; R.seeks++; log(`${x.name}: salto (${(err * 1000).toFixed(0)} ms)`);
-    } else if (Math.abs(err) > 0.012) {
-      x.el.playbackRate = S.rate * (1 - Math.max(-0.04, Math.min(0.04, err * 0.6))); R.nudges++;
-    } else if (x.el.playbackRate !== S.rate) x.el.playbackRate = S.rate;
-  }
-  if (errs.length && t > settleUntil) {
-    R.errSamples.push(median(errs) * 1000);
+  // Dónde está sonando contra dónde tendría que estar (el reloj de audio y el del celu no
+  // marchan exactamente igual; con otros aparatos, además, se corrige el reloj común).
+  const hearNow = ctxOf(t);
+  if (hearNow < engine.c0) return;
+  const err = (engine.p0 + (hearNow - engine.c0) * engine.rate - target(t)) * 1000;
+  if (t > settleUntil) {
+    R.errSamples.push(err);
     if (R.errSamples.length > 600) R.errSamples.shift();
-    if (errs.length > 1) {
-      const spread = (Math.max(...errs) - Math.min(...errs)) * 1000;
-      R.spreadSamples.push(spread);
-      if (R.spreadSamples.length > 600) R.spreadSamples.shift();
-      R.spreadMax = Math.max(R.spreadMax, spread);
-    }
+  }
+  engine.bad = Math.abs(err) > 25 ? engine.bad + 1 : 0;
+  if (engine.bad >= 5) {
+    const c = ctx.currentTime + lead;
+    log(`corrige ${err.toFixed(0)} ms`); R.reschedules++;
+    startEngine(c, target(wallOf(c)));
   }
 }
 
@@ -449,13 +436,13 @@ $("#bpm").onchange = $("#first").onchange = readClick;
 $("#clickVol").oninput = () => { if (clickGain) clickGain.gain.value = $("#clickVol").value / 100; };
 $("#clickOn").onchange = () => { nextBeat = null; };
 function scheduleClicks(t) {
-  if (!$("#clickOn").checked || !ctx || t < stallUntil) return;
+  if (!$("#clickOn").checked || !ctx || t < stallUntil || loading || decoding || !tracks.length) return;
   const spb = 60 / bpm, here = target(t);
   if (nextBeat === null || nextBeat < here - 0.05) nextBeat = firstBeat + Math.max(0, Math.ceil((here - firstBeat) / spb)) * spb;
   for (;;) {
     const heard = S.at + (nextBeat - S.pos) / S.rate * 1000; // instante en que se tiene que oír
-    if (heard > t + 250) break;
-    const when = ctx.currentTime + (heard - now()) / 1000 - outLat();
+    if (heard > t + 300) break;
+    const when = ctxOf(heard);
     if (when > ctx.currentTime && nextBeat < duration) beep(when, Math.round((nextBeat - firstBeat) / spb) % 4 === 0);
     nextBeat += spb;
   }
@@ -472,12 +459,12 @@ function beep(when, accent) {
 
 // ---------- controles ----------
 $("#play").onclick = () => {
-  audio(); unlock();
+  audio();
   if (S.mode === "paused") command({ mode: "preparing", pos: S.pos >= duration - 0.1 ? 0 : S.pos, deadline: now() + 3000 });
   else command({ mode: "paused", pos: position() });
 };
-$("#seek").oninput = () => { seekDragging = true; $("#time").textContent = fmt(+$("#seek").value); };
 let seekDragging = false;
+$("#seek").oninput = () => { seekDragging = true; $("#time").textContent = fmt(+$("#seek").value); };
 $("#seek").onchange = () => {
   seekDragging = false;
   const p = +$("#seek").value;
@@ -487,10 +474,19 @@ $("#seek").onchange = () => {
 $("#rate").oninput = () => { $("#rateText").textContent = `${$("#rate").value} %`; };
 $("#rate").onchange = () => {
   const r = $("#rate").value / 100, t = now();
-  if (S.mode === "playing") command({ pos: target(t), at: t, rate: r });
+  // Un poco más adelante: así el cambio cae en el mismo instante en todos, sin salto.
+  if (S.mode === "playing") command({ pos: target(t + 300), at: t + 300, rate: r });
   else command({ rate: r });
 };
-$("#stall").onclick = () => { stallUntil = now() + 2000; pauseAll(); log("trabado 2 s"); };
+const semisText = (n) => (n > 0 ? `+${n}` : `${n}`);
+$("#semis").oninput = () => { $("#semisText").textContent = semisText(+$("#semis").value); };
+$("#semis").onchange = () => {
+  const t = now();
+  if (S.mode === "playing") command({ pos: target(t + 300), at: t + 300, semis: +$("#semis").value });
+  else command({ semis: +$("#semis").value });
+};
+$("#light").onchange = () => { for (const t of tracks) t.node.configure($("#light").checked ? { blockMs: null, preset: "cheaper" } : { blockMs: null, preset: "default" }); };
+$("#stall").onclick = () => { stallUntil = now() + 2000; stopEngine(); log("trabado 2 s"); };
 
 let lock = null;
 async function wakeLock() {
@@ -507,6 +503,9 @@ function showState() {
   if (+$("#rate").value !== Math.round(S.rate * 100) && document.activeElement !== $("#rate")) {
     $("#rate").value = Math.round(S.rate * 100); $("#rateText").textContent = `${$("#rate").value} %`;
   }
+  if (+$("#semis").value !== S.semis && document.activeElement !== $("#semis")) {
+    $("#semis").value = S.semis; $("#semisText").textContent = semisText(S.semis);
+  }
 }
 
 // ---------- monitor ----------
@@ -514,6 +513,7 @@ let mic = null, micSrc = null, monGain = null, recNode = null;
 async function getMic(deviceId) {
   const c = audio();
   if (mic) { mic.getTracks().forEach((t) => t.stop()); micSrc.disconnect(); }
+  setSession("play-and-record"); // en iPhone, con "playback" el micrófono no se puede abrir
   mic = await navigator.mediaDevices.getUserMedia({ audio: {
     deviceId: deviceId ? { exact: deviceId } : undefined,
     echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1, latency: 0 } });
@@ -669,7 +669,7 @@ function receive(link, m) {
 }
 
 function myStatus() {
-  const st = !tracks.length ? "sin tema" : loading ? "cargando" : S.mode === "playing" ? (tracks.some((t) => t.el.paused) ? "cargando" : "sonando")
+  const st = decoding ? "cargando" : !tracks.length ? "sin tema" : loading ? "cargando" : S.mode === "playing" ? (engine.running ? "sonando" : "cargando")
     : S.mode === "preparing" ? (localReady ? "listo" : "cargando") : "pausado";
   const recent = R.errSamples.slice(-30);
   return { type: "status", id: ID, name: $("#name").value, n: ++statusN, hop: 0, st, dur: duration,
@@ -821,10 +821,11 @@ function results() {
     `nombre: ${$("#name").value} (${ID})`,
     c ? `audio: ${c.sampleRate} Hz, base ${((c.baseLatency || 0) * 1000).toFixed(1)} ms, salida ${((c.outputLatency || 0) * 1000).toFixed(1)} ms, estado ${c.state}` : "audio: sin iniciar",
     `soporta: preservesPitch ${"preservesPitch" in HTMLMediaElement.prototype}, AudioWorklet ${!!window.AudioWorkletNode}, WakeLock ${!!navigator.wakeLock}, CompressionStream ${!!window.CompressionStream}, audioSession ${!!navigator.audioSession}`,
-    `tema: ${songName || "-"} · ${tracks.length} pistas · ${fmt(duration)}${tracks.length ? " · " + tracks.map((t) => t.type).join("/") : ""}`,
-    `stems: separación máx ${R.spreadMax.toFixed(1)} ms, típica ${median(R.spreadSamples).toFixed(1)} ms (${R.spreadSamples.length} medidas)`,
-    `contra el reloj: desvío típico ${median(abs).toFixed(1)} ms, máx ${abs.length ? Math.max(...abs).toFixed(1) : "-"} ms · saltos ${R.seeks} · ajustes de velocidad ${R.nudges} · play() rechazados ${R.playRejected}`,
-    `velocidad: ${Math.round(S.rate * 100)} %`,
+    `tema: ${songName || "-"} · ${tracks.length} pistas · ${fmt(duration)}`,
+    `motor: Signalsmith Stretch${$("#light").checked ? " liviano" : ""} · reloj ${R.clock || "-"} · demora del estirador ${(stretchLat * 1000).toFixed(0)} ms`,
+    `memoria: ${R.mb.toFixed(0)} MB, cargado en ${(R.decodeMs / 1000).toFixed(1)} s · ${tracks.map((t) => t.info).join(" / ")}`,
+    `contra el reloj: desvío típico ${median(abs).toFixed(1)} ms, máx ${abs.length ? Math.max(...abs).toFixed(1) : "-"} ms (${abs.length} medidas) · correcciones ${R.reschedules}`,
+    `velocidad: ${Math.round(S.rate * 100)} % · tono ${semisText(S.semis)}`,
     `entrada: ${R.input || "-"}`,
     ...R.lagRuns.map((l) => `demora monitor (ida y vuelta): ${l.runs.join(", ")} ms → ${median(l.runs)} ms · ${l.input}`),
     `sesión: ${R.candidates || "sin emparejar"} · conexiones ${R.connected} · ahora ${links.size}`,

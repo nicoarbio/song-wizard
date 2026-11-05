@@ -1,7 +1,7 @@
 // Guarda la página para abrirla sin internet (en la sala, con el punto de acceso sin datos).
 // Primero la red (así llegan las versiones nuevas); sin red, lo guardado.
-const CACHE = "prueba-v1";
-const FILES = ["./", "index.html", "rec.js", "manifest.webmanifest", "icon.svg", "vendor/jsQR.js", "vendor/qrcode.js"];
+const CACHE = "prueba-v2";
+const FILES = ["./", "index.html", "rec.js", "manifest.webmanifest", "icon.svg", "vendor/jsQR.js", "vendor/qrcode.js", "vendor/SignalsmithStretch.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
