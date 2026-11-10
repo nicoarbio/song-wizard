@@ -93,7 +93,7 @@ Todo tiene que quedar en verde. También te dice si la separación va a usar la 
 song-wizard config
 ```
 
-Muestra dónde está el archivo de configuración y qué valores se están usando. El archivo se crea solo, con todo comentado, la primera vez que corrés cualquier comando. Por ahora guarda la carpeta de descargas. Lo que pases en cada comando siempre gana sobre el archivo.
+Muestra dónde está el archivo de configuración y qué valores se están usando. El archivo se crea solo, con todo comentado, la primera vez que corrés cualquier comando, y cuando una versión nueva trae un ajuste nuevo se suma a tu archivo igual, comentado y con su valor por defecto (lo que escribiste queda como está). Guarda la carpeta de descargas, el formato de los stems y la cuenta del proyecto de Reaper. Lo que pases en cada comando siempre gana sobre el archivo.
 
 - Linux/WSL: `~/.config/song-wizard/config.toml`
 - Mac: `~/Library/Application Support/song-wizard/config.toml`

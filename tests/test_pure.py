@@ -302,3 +302,28 @@ def test_separate_choose():
     assert separate.choose(["piano", "guitar", "piano"]) == (["piano", "guitar"], False)
     # Guitar and piano come from the same model: one pass for both.
     assert separate.MODELS["guitar"][0] == separate.MODELS["piano"][0]
+
+
+def test_config_gets_the_new_settings():
+    """A settings file from an older song-wizard gets the settings it doesn't mention, commented
+    out (so nothing changes): in their section, or in a new one at the end. What's written stays."""
+    config.CONFIG_PATH.parent.mkdir(parents=True)
+    old = '# mine\n[audio]\nstems = "wav"  # I edit them\n\n[download]\nmusic_dir = "~/x"\n'
+    config.CONFIG_PATH.write_text(old)
+    assert config.ensure() is False
+    text = config.CONFIG_PATH.read_text()
+    assert text.startswith(old.rstrip("\n")) and "\n[reaper]\n" in text and "\n# count_in = 4\n" in text
+    assert config.load()["audio"]["stems"] == "wav" and config.load()["reaper"]["count_in"] == 4
+    config.ensure()
+    assert config.CONFIG_PATH.read_text() == text  # once
+    # A setting missing from a section that's there goes into it.
+    config.CONFIG_PATH.write_text('[reaper]\n# count_in = 2\n\n[audio]\n# a note\n\n[download]\n# music_dir = "~/y"\n')
+    config.ensure()
+    text = config.CONFIG_PATH.read_text()
+    audio = text.split("[audio]\n")[1].split("[download]")[0]
+    assert audio.startswith("# a note\n# Format of the stems") and '# stems = "opus"\n' in audio
+    assert "# count_in = 2" in text and "count_in = 4" not in text
+    # A broken file is left alone (load() says what's wrong with it).
+    config.CONFIG_PATH.write_text("[audio\n")
+    config.ensure()
+    assert config.CONFIG_PATH.read_text() == "[audio\n"

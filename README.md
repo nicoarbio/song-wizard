@@ -93,7 +93,7 @@ Everything should be green. It also tells you whether separation will use the gr
 song-wizard config
 ```
 
-Shows where the settings file is and which values are in use. The file is created on its own, with everything commented out, the first time you run any command. For now it holds the download folder. Whatever you pass to a command always wins over the file.
+Shows where the settings file is and which values are in use. The file is created on its own, with everything commented out, the first time you run any command, and when a new version brings a new setting it's added to your file the same way, commented out with its default (what you wrote stays as it is). It holds the download folder, the stems' format and the REAPER project's count-in. Whatever you pass to a command always wins over the file.
 
 - Linux/WSL: `~/.config/song-wizard/config.toml`
 - Mac: `~/Library/Application Support/song-wizard/config.toml`

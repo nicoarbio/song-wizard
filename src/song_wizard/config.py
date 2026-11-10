@@ -1,6 +1,7 @@
 """Local settings in a TOML file. Command-line options always win over it."""
 
 import os
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -58,9 +59,78 @@ def get(section, key):
     return load()[section][key]
 
 
+HEADER = re.compile(r"^\s*\[([^\]]+)\]\s*(?:#.*)?$")
+SETTING = re.compile(r"^\s*#?\s*([A-Za-z_][\w-]*)\s*=")
+
+
+def sections(text):
+    """[(section or None, [lines])] of a settings file, in order."""
+    found = [(None, [])]
+    for line in text.splitlines():
+        if m := HEADER.match(line):
+            found.append((m[1].strip(), []))
+        found[-1][1].append(line)
+    return found
+
+
+def template_settings():
+    """{section: [(key, its lines in TEMPLATE: the comments just over it and the line itself)]}."""
+    settings = {}
+    for section, lines in sections(TEMPLATE)[1:]:
+        settings[section], pending = [], []
+        for line in lines[1:]:
+            if not line.strip():
+                pending = []
+                continue
+            pending.append(line)
+            if m := SETTING.match(line):
+                settings[section].append((m[1], pending))
+                pending = []
+    return settings
+
+
+def with_missing(text):
+    """The settings file's text with the settings it doesn't mention (set or commented out)
+    added, commented out as in TEMPLATE: in their section, or in a new one at the end. The
+    rest stays as it was written. The same text if nothing is missing."""
+    parts = sections(text)
+    present = {}
+    for section, lines in parts:
+        present.setdefault(section, set()).update(m[1] for line in lines if (m := SETTING.match(line)))
+    added = False
+    for section, settings in template_settings().items():
+        missing = [b for key, b in settings if key not in present.get(section, set())]
+        if not missing:
+            continue
+        added = True
+        lines = [line for b in missing for line in b]
+        place = next((i for i, (name, _) in reversed(list(enumerate(parts))) if name == section), None)
+        if place is None:
+            parts.append((section, ["", f"[{section}]", *lines]))
+        else:
+            body = parts[place][1]
+            while body and not body[-1].strip():  # after its last line, before the blank ones
+                body.pop()
+            body += lines + [""]
+    if not added:
+        return text
+    out = "\n".join(line for _, lines in parts for line in lines)
+    return out.rstrip("\n") + "\n"
+
+
 def ensure():
-    """Write the settings file (everything commented out) if it isn't there. True if it was written."""
+    """Write the settings file (everything commented out) if it isn't there, or add to it the
+    settings a newer song-wizard has that it doesn't mention (commented out, so nothing changes).
+    True if it was written."""
     if CONFIG_PATH.exists():
+        try:
+            text = CONFIG_PATH.read_text(encoding="utf-8")
+            new = with_missing(text)
+            if new != text:
+                tomllib.loads(new)  # never leave it broken
+                write_text(new)
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+            pass  # a file that can't be read or fixed: load() says what's wrong with it
         return False
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
