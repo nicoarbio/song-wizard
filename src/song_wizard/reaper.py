@@ -1,7 +1,7 @@
 """A REAPER project for a song: "<song>.rpp" in its folder, with a track per stem (or the song
 itself), the project's tempo and meter from the song's tempo (tempo.txt) and the audio placed so
 the song's first beat falls on a bar line, REAPER's own click on a track of its own, and a track
-armed to record. If the project exists it's just opened, never rewritten: it may have been edited
+armed to record (with the drum kit's stems, if any, after those two). If the project exists it's just opened, never rewritten: it may have been edited
 in REAPER.
 
 Takes recorded in REAPER go to the song's folder as "record 2026-11-01 19-05-12.wav". REAPER only has that setting globally (Preferences > Recording > recorded
@@ -18,7 +18,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from . import align, log, results, song as songfs, system
+from . import align, config, log, results, song as songfs, system
 from .audio import AUDIO_EXTS, die
 from .paths import DATA_DIR, is_wsl
 
@@ -69,30 +69,47 @@ def tracks_for(song):
     else:
         pair = next((k for k in ("vocals", "drums", "bass", "guitar", "piano") if k in found and f"no {k}" in found), None)
         playing = [pair, f"no {pair}"] if pair else []
-    order = [*FULL_SET, "piano", *(f"no {k}" for k in [*FULL_SET[:4], "piano"]), *KIT]
+    order = [*FULL_SET, "piano", *(f"no {k}" for k in [*FULL_SET[:4], "piano"])]
     tracks = [(name(k), found[k], False) for k in playing]
     tracks += [(name(k), found[k], True) for k in order if k in found and k not in playing]
     tracks.append(("Tema original", song.name, bool(playing)))
+    # The drum kit goes last (build puts it after the click and the recording track), so the
+    # tracks used every time aren't under seven muted ones.
+    tracks += [(name(k), found[k], True) for k in KIT if k in found]
     return tracks
 
 
+KIT_NAMES = {STEM_NAMES[k] for k in KIT}
+
+
 # --- timing ----------------------------------------------------------------------------------
+
+def count_in():
+    """Bars of click, at least, before the song's first beat ([reaper] count_in, 4 by default)."""
+    value = config.get("reaper", "count_in")
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 64:
+        die(f"[reaper] count_in in {config.CONFIG_PATH} must be a whole number of bars, 0 to 64 (it's {value!r})")
+    return value
+
 
 def timing(song):
     """(bpm, beats per bar, beat unit, where the audio starts in the project, problem): problem is
     None, "unaligned" (a tempo, but not where the beats fall) or "no-tempo"."""
     text = results.read(song, "tempo")
     click = align.parse(text)
+    bars = count_in()
     if click:
         beats, unit = (int(x) for x in click["meter"].split("/"))
         bar = beats * 60 / click["bpm"]
-        # The first bar line after the first beat... minus where it is in the file: the song's
-        # first beat lands on that bar line, with at least a bar of click before it.
-        start = (math.floor(click["first"] / bar) + 1) * bar - click["first"]
+        # The song's first beat lands on a bar line, with at least `bars` bars of click before
+        # it, and later if the song starts with a longer silence (the audio can't start before
+        # the project does).
+        start = max(bars, math.ceil(click["first"] / bar)) * bar - click["first"]
         return click["bpm"], beats, unit, start, None
+    # Not knowing where the beats fall, the audio just starts after the count-in.
     if text and (m := re.match(r"\s*(\d+(?:\.\d+)?)", text)):
-        return float(m[1]), 4, 4, 0.0, "unaligned"
-    return 120.0, 4, 4, 0.0, "no-tempo"
+        return float(m[1]), 4, 4, bars * 4 * 60 / float(m[1]), "unaligned"
+    return 120.0, 4, 4, bars * 4 * 60 / 120.0, "no-tempo"
 
 
 def duration(path):
@@ -239,10 +256,16 @@ def build(song):
              "  MASTER_PANMODE 3",
              "  MASTER_FX 1",
              "  MASTER_SEL 0"]
-    for name, file, muted in tracks:
-        lines += track(name, item(file, start, duration(song.parent / file), source(file)), muted=muted)
+    audio = lambda name, file, muted: track(name, item(file, start, duration(song.parent / file), source(file)), muted=muted)
+    # Instruments, the click and the recording track, and then the drum kit.
+    for t in tracks:
+        if t[0] not in KIT_NAMES:
+            lines += audio(*t)
     lines += track("Click", item("Click", 0, end, click_source(bpm, beats)))
     lines += track("Grabación", record=True)
+    for t in tracks:
+        if t[0] in KIT_NAMES:
+            lines += audio(*t)
     lines.append(">")
     return "\n".join(lines) + "\n", note
 

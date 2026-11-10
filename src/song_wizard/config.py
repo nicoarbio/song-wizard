@@ -14,6 +14,7 @@ CONFIG_PATH = Path(os.environ.get("SONG_WIZARD_CONFIG") or Path(user_config_dir(
 DEFAULTS = {
     "download": {"music_dir": None},
     "audio": {"stems": "opus"},
+    "reaper": {"count_in": 4},
 }
 
 TEMPLATE = """\
@@ -31,6 +32,10 @@ TEMPLATE = """\
 # "wav" (32-bit float, ~20 MB a minute per stem: to edit them in another program) or "mp3"
 # (~1.4 MB a minute, but in Practice the tracks drift apart after a jump: not for practicing).
 # stems = "opus"
+
+[reaper]
+# Bars of click, at least, before the song's first beat in a new REAPER project (0: none).
+# count_in = 4
 """
 
 

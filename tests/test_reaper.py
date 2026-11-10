@@ -10,7 +10,7 @@ import pytest
 import synth
 from test_ui import get_json, request, server  # noqa: F401  (the fixture)
 
-from song_wizard import align, delete, reaper, rename, results, song
+from song_wizard import align, config, delete, reaper, rename, results, song
 
 
 SONG = '001 - Band "Live" & Co'
@@ -53,7 +53,16 @@ def test_tracks_with_the_drum_kit(tmp_path):
     song = make_song(tmp_path / "k", ["drums", "no drums", *kit])
     names = [(n, m) for n, _, m in reaper.tracks_for(song)]
     assert names[:2] == [("Batería", False), ("Sin batería", False)]
-    assert names[2:9] == [(n, True) for n in ["Bombo", "Redoblante", "Toms", "Hi-hat", "Ride", "Crash", "Resto de la batería"]]
+    assert names[2] == ("Tema original", True)
+    assert names[3:] == [(n, True) for n in ["Bombo", "Redoblante", "Toms", "Hi-hat", "Ride", "Crash", "Resto de la batería"]]
+
+
+def test_build_puts_the_drum_kit_after_the_recording_track(tmp_path):
+    """Instruments, click, recording and then the kit: the tracks used every time stay on top."""
+    song = make_song(tmp_path, ["drums", "no drums", "kick", "snare", "drums rest"])
+    text, _ = reaper.build(song)
+    assert [t["NAME"] for t in blocks(text)] == ['"Batería"', '"Sin batería"', '"Tema original"', '"Click"', '"Grabación"',
+                                                '"Bombo"', '"Redoblante"', '"Resto de la batería"']
 
 
 def test_tracks_one_instrument_or_none(tmp_path):
@@ -71,8 +80,8 @@ def test_build_lines_up_the_first_beat(tmp_path):
     assert "  TEMPO 123.4 4 4 0" in text and '  RECORD_PATH "" ""' in text
     tracks = blocks(text)
     bar = 4 * 60 / 123.4
-    # The audio starts where its first beat (0.5 s in) lands on the bar line after it.
-    assert float(tracks[0]["POSITION"]) == pytest.approx(bar - 0.5)
+    # The audio starts where its first beat (0.5 s in) lands on a bar line, after 4 bars of click.
+    assert float(tracks[0]["POSITION"]) == pytest.approx(4 * bar - 0.5)
     assert tracks[0]["FILE"] == '"drums.wav"'
     # Names with double quotes go in single quotes: REAPER has no escaping.
     assert tracks[2]["FILE"] == f"'{SONG}.wav'"
@@ -87,7 +96,8 @@ def test_build_without_click(tmp_path):
     song = make_song(tmp_path)
     results.save(song, "tempo", "98.5 BPM  steady")
     text, problem = reaper.build(song)
-    assert problem == "unaligned" and "  TEMPO 98.5 4 4 0" in text and float(blocks(text)[0]["POSITION"]) == 0
+    assert problem == "unaligned" and "  TEMPO 98.5 4 4 0" in text
+    assert float(blocks(text)[0]["POSITION"]) == pytest.approx(4 * 4 * 60 / 98.5)  # after the count-in
     (song.parent / "tempo.txt").unlink()
     text, problem = reaper.build(song)
     assert problem == "no-tempo" and "  TEMPO 120 4 4 0" in text
@@ -263,3 +273,26 @@ def test_source_type_per_format(tmp_path):
     synth.write(folder / "no drums.wav", synth.sine(330, 2.0))
     text, _ = reaper.build(folder / "001 - Song.opus")
     assert text.count("<SOURCE WAVE") == 2 and re.search(r'<SOURCE OPUS\n\s*FILE "001 - Song.opus"', text)
+
+
+def test_count_in_from_the_settings(tmp_path, monkeypatch):
+    """[reaper] count_in sets the bars of click before the first beat; a song starting after a
+    silence gets more, so its first beat still lands on a bar line."""
+    monkeypatch.setattr(config, "CONFIG_PATH", tmp_path / "config.toml")
+    song = make_song(tmp_path / "s", ["drums", "no drums"])
+    bar = 4 * 60 / 120
+    results.save(song, "tempo", align.describe(120, "4/4", 0.5))
+    (tmp_path / "config.toml").write_text("[reaper]\ncount_in = 2\n")
+    assert reaper.timing(song)[3] == pytest.approx(2 * bar - 0.5)
+    (tmp_path / "config.toml").write_text("[reaper]\ncount_in = 0\n")
+    assert reaper.timing(song)[3] == pytest.approx(bar - 0.5)  # never before the project's start
+    # 2.5 bars of silence: with 1 bar of count-in the first beat goes 3 bars in, with 4, 4 bars in.
+    results.save(song, "tempo", align.describe(120, "4/4", 2.5 * bar))
+    (tmp_path / "config.toml").write_text("[reaper]\ncount_in = 1\n")
+    assert reaper.timing(song)[3] + 2.5 * bar == pytest.approx(3 * bar)
+    (tmp_path / "config.toml").write_text("[reaper]\ncount_in = 4\n")
+    assert reaper.timing(song)[3] + 2.5 * bar == pytest.approx(4 * bar)
+    for bad in ('"4"', "-1", "true", "2.5"):
+        (tmp_path / "config.toml").write_text(f"[reaper]\ncount_in = {bad}\n")
+        with pytest.raises(SystemExit):
+            reaper.timing(song)
