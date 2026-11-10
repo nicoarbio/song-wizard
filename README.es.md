@@ -677,7 +677,7 @@ song-wizard reaper --redo "001 - Tema.opus"   # arma uno nuevo (el anterior va a
 song-wizard reaper --setting show             # qué cambió song-wizard en Reaper (restore lo vuelve atrás)
 ```
 
-Abre el proyecto de Reaper del tema, `<tema>.rpp`, que queda en la carpeta del tema. Si no existe, primero lo arma con lo que haya en ese momento:
+Abre el proyecto de Reaper del tema, `<tema>.rpp`, que queda en la carpeta del tema. Si no existe, primero lo arma con lo que haya en ese momento, y antes de abrirlo pregunta si querés abrirlo en Reaper (en la terminal, sin poder preguntar, no lo abre y dice cómo):
 
 - **Una pista por stem**, con el nombre del instrumento: los mismos con los que arranca el reproductor de práctica (todos los instrumentos, o el instrumento separado y el resto). Los demás stems y el tema original quedan como pistas silenciadas, para cambiar de una a otra. Si el tema no está separado, va el tema solo. Todas a 0 dB.
 - **El tempo y el compás del tema** (el click ajustado en "practicar", o `align`), con decimales, y el audio corrido para que el primer golpe del tema caiga justo en un compás, con al menos 4 compases de click antes (más si el tema empieza con un silencio). Cuántos se cambia con `count_in = 2` (o `0`) en `[reaper]` en los ajustes (⚙ en la interfaz, o `song-wizard config`). Si no se sabe dónde caen los tiempos, usa el tempo sin alinear (o 120 BPM si no hay), con el audio después de esos compases, y lo avisa. Si no cae exacto, se corrige en Reaper.

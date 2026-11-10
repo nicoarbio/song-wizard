@@ -129,7 +129,28 @@ def test_run_without_reaper(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(reaper.system, "launch", opened.append)
     reaper.run(str(song))
     out = capsys.readouterr().out
-    assert "Created" in out and "doesn't seem to be installed" in out and not opened
+    assert "Created" in out and "isn't installed" in out and not opened
+
+
+def test_run_asks_before_opening_a_new_project(tmp_path, capsys, monkeypatch):
+    """A project just made isn't opened right away: it asks (and without a terminal, it says how);
+    one that's there opens."""
+    song = make_song(tmp_path)
+    opened, answers = [], []
+    monkeypatch.setattr(reaper, "installed", lambda: True)
+    monkeypatch.setattr(reaper, "take_names", lambda: None)
+    monkeypatch.setattr(reaper, "open_project", lambda p: opened.append(p) or True)
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda q: answers.append(q) or "n")
+    reaper.run(str(song))
+    assert answers == ["Open it in REAPER? [Y/n] "] and not opened and "Created" in capsys.readouterr().out
+    reaper.run(str(song))  # it's there now: opened, nothing asked
+    assert len(answers) == 1 and len(opened) == 1 and "Opening" in capsys.readouterr().out
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr(reaper.system, "trash", lambda paths: [__import__("os").unlink(p) for p in paths])
+    reaper.run(str(song), redo=True, yes=True)
+    out = capsys.readouterr().out
+    assert "Redone" in out and "To open it" in out and len(opened) == 1
 
 
 def test_take_names(tmp_path, monkeypatch):

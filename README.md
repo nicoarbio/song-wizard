@@ -677,7 +677,7 @@ song-wizard reaper --redo "001 - Song.opus"   # makes a new one (the old one goe
 song-wizard reaper --setting show             # what song-wizard changed in REAPER (restore puts it back)
 ```
 
-Opens the song's REAPER project, `<song>.rpp`, which sits in the song's folder. If it doesn't exist, it first makes it with whatever is there at that moment:
+Opens the song's REAPER project, `<song>.rpp`, which sits in the song's folder. If it doesn't exist, it first makes it with whatever is there at that moment, and asks whether to open it in REAPER (in a terminal where it can't ask, it doesn't open it and says how):
 
 - **A track per stem**, with the instrument's name: the same ones the practice player starts with (every instrument, or the separated instrument and the rest). The other stems and the original song are there as muted tracks, to switch between them. If the song isn't separated, the song goes alone. All at 0 dB.
 - **The song's tempo and meter** (the click adjusted in "practice", or `align`), with decimals, and the audio shifted so the song's first beat falls right on a bar, with at least 4 bars of click before it (more if the song starts with a silence). Change how many with `count_in = 2` (or `0`) under `[reaper]` in the settings (⚙ in the interface, or `song-wizard config`). If where the beats fall isn't known, it uses the tempo without lining it up (or 120 BPM if there's none), with the audio after those bars, and says so. If it doesn't fall exactly, fix it in REAPER.

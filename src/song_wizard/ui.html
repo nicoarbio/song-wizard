@@ -936,9 +936,10 @@ function el(tag, props = {}, ...children) {
 // Our own confirmation, in place of the browser's confirm(): resolves true or false. Escape, or
 // clicking outside it, cancels. For something that can't be undone ("danger"), the focus starts
 // on "cancelar", so Enter doesn't do it by accident.
-function askConfirm({ title, text, ok = "aceptar", danger = false }) {
+function askConfirm({ title, text, ok = "aceptar", cancel = null, danger = false }) {
   const box = $("confirm");
   $("confirm-title").textContent = title;
+  $("confirm-cancel").textContent = cancel || say("library.cancel");
   $("confirm-text").replaceChildren(...[].concat(text || []).map((t) => el("p", {}, t)));
   const okButton = $("confirm-ok");
   okButton.textContent = ok;
@@ -1302,20 +1303,32 @@ function showSettingChanged(s) {
 $("reaper-changed-ok").onclick = () => $("reaper-changed").close();
 $("reaper-changed-restore").onclick = () => { $("reaper-changed").close(); reaperSetting("restore"); };
 
-// Open the song's REAPER project, making it first if there's none (or remaking it: "redo").
+// Open the song's REAPER project. One that's made here (new, or remade: "redo") isn't opened
+// right away: it asks first.
 async function reaperProject(song, redo = false) {
   if (redo && !await askConfirm({ title: say("reaper.redo_reaper_project"), danger: true, ok: say("reaper.redo"),
                                     text: [say("reaper.current_project_goes_trash_whatever")] })) return;
   try {
-    const got = await api("/api/reaper", { path: song.path, redo });
-    const said = [got.created ? (redo ? say("reaper.redid", { name: got.name }) : say("reaper.created", { name: got.name })) : null,
-                  got.opened ? "Abriendo Reaper…" : (state.reaperInstalled ? null : say("reaper.reaper_isnt_installed_so_wasnt"))];
-    if (got.timing === "unaligned") said.push(say("reaper.tempo_comes_from_bpm_txt"));
-    if (got.timing === "no-tempo") said.push(say("reaper.no_tempo_was_detected_song"));
-    if (got.takes === "running") said.push(say("reaper.takes_show_their_song_close"));
-    toast(said.filter(Boolean).join(" "), said.filter(Boolean).length > 1 ? 9000 : 4000);
-    if (got.takes === "set") showSettingChanged(got.setting);
+    const got = await api("/api/reaper", { path: song.path, redo, open: false });
+    const notes = [];
+    if (got.timing === "unaligned") notes.push(say("reaper.tempo_comes_from_bpm_txt"));
+    if (got.timing === "no-tempo") notes.push(say("reaper.no_tempo_was_detected_song"));
+    if (got.takes === "running") notes.push(say("reaper.takes_show_their_song_close"));
     if (got.created) refresh();
+    let open = !got.created;
+    if (got.created) {
+      const made = redo ? say("reaper.redid", { name: got.name }) : say("reaper.created", { name: got.name });
+      if (state.reaperInstalled) {
+        open = await askConfirm({ title: made, text: [...notes, say("reaper.open_it_question")],
+                                  ok: say("reaper.open"), cancel: say("reaper.not_now") });
+      } else {
+        toast([made, say("reaper.reaper_isnt_installed_so_wasnt"), ...notes].join(" "), notes.length ? 9000 : 4000);
+      }
+    } else if (notes.length) toast(notes.join(" "), 9000);
+    if (got.takes === "set") showSettingChanged(got.setting);
+    if (!open || !state.reaperInstalled) return;
+    const opened = await api("/api/reaper", { path: song.path, open: true });
+    toast(opened.opened ? say("reaper.opening", { name: opened.name }) : say("reaper.reaper_isnt_installed_so_wasnt"), 4000);
   } catch (e) {
     toast(say("reaper.couldnt_done", { message: e.message }), 6000);
   }

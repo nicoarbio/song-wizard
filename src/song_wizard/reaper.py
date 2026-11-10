@@ -573,11 +573,22 @@ def run(song, redo=False, yes=False, open_it=True):
             print("Nothing changed.")
             return
     project, created, info = make(song, redo=redo)
-    print(f"{'Created' if created else 'Already there'}: {system.shown_path(project)}")
+    print(f"{('Redone' if info['trashed'] else 'Created') if created else 'Already there'}: {system.shown_path(project)}")
     for line in notes(info):
         print(f"  {line}")
-    if open_it:
-        if open_project(project):
-            print("Opening it in REAPER.")
-        else:
-            print("REAPER doesn't seem to be installed on this computer, so it wasn't opened.")
+    if not open_it:
+        return
+    if not installed():
+        print("REAPER isn't installed on this computer, so it wasn't opened.")
+        return
+    # One just made isn't opened right away: it asks first (without a terminal, it isn't).
+    if created:
+        if not sys.stdin.isatty():
+            print(f'To open it: song-wizard reaper "{song}"')
+            return
+        if input("Open it in REAPER? [Y/n] ").strip().lower() not in ("", "y", "yes", "s", "si", "sí"):
+            return
+    if open_project(project):
+        print(f"Opening {project.name} in REAPER.")
+    else:
+        print("REAPER isn't installed on this computer, so it wasn't opened.")
