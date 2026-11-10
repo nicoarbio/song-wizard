@@ -217,6 +217,52 @@ def peaks(path, n, start=None, end=None):
     return result
 
 
+def peaks_streamed(path, n, emit):
+    """The whole file's outline (as peaks(path, n)), sent while it's read: emit gets, every so
+    often, {"peaks": the first slices, "of": n, "seconds": the expected length}, and last the
+    result itself, the same as peaks() and remembered with it. Only for drawing it as it comes."""
+    key = (str(path), path.stat().st_mtime, n, None, None)
+    if key in PEAKS:
+        PEAKS.move_to_end(key)
+        return emit(PEAKS[key])
+    import numpy as np
+
+    sr = 8000
+    expected = duration(path)
+    process = subprocess.Popen(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sr),
+                                "-f", "f32le", "-"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    chunks, size, sent = [], 0, 0
+    try:
+        while block := process.stdout.read(sr * 4 * 15):  # 15 s of audio at a time
+            chunks.append(block)
+            size += len(block)
+            if not expected:
+                continue
+            # The slices read whole, as they'd be cut if the file is as long as it says.
+            per = expected * sr / n
+            done = min(n, int(size // 4 / per))
+            if done > sent:
+                samples = np.abs(np.frombuffer(b"".join(chunks)[:size - size % 4], dtype=np.float32))
+                edges = (np.arange(done + 1) * per).astype(int)
+                emit({"peaks": [round(float(samples[a:b].max()), 4) if b > a else 0.0 for a, b in zip(edges[:-1], edges[1:])],
+                      "of": n, "seconds": expected})
+                sent = done
+    finally:
+        process.stdout.close()
+        code = process.wait()
+    if code:
+        raise subprocess.CalledProcessError(code, "ffmpeg")
+    data = b"".join(chunks)
+    samples = np.abs(np.frombuffer(data[:len(data) - len(data) % 4], dtype=np.float32))
+    edges = np.linspace(0, len(samples), n + 1).astype(int)
+    values = [float(samples[a:b].max()) if b > a else 0.0 for a, b in zip(edges[:-1], edges[1:])]
+    result = {"from": 0.0, "seconds": len(samples) / sr, "peaks": [round(v, 4) for v in values]}
+    PEAKS[key] = result
+    while len(PEAKS) > 64:
+        PEAKS.popitem(last=False)
+    emit(result)
+
+
 # How much audio one open-ended request gets (about 6 s of a 32-bit float stem).
 AUDIO_CHUNK = 2 << 20
 
@@ -447,6 +493,24 @@ def make_handler(token, root, runner, port):
             if self.command != "HEAD":
                 self.wfile.write(body)
 
+        def peaks_streamed(self, path, n):
+            """A line of JSON per part (see peaks_streamed), until the connection closes; a
+            file that can't be read ends with {"error": ...} (the answer has started by then)."""
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.close_connection = True
+            if self.command == "HEAD":
+                return
+            emit = lambda data: (self.wfile.write(json.dumps(data).encode() + b"\n"), self.wfile.flush())
+            try:
+                peaks_streamed(path, n, emit)
+            except subprocess.CalledProcessError:
+                emit({"error": self.say("server.audio_couldnt_read")})
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the page went somewhere else
+
         def json(self, data, status=HTTPStatus.OK):
             self.send(status, json.dumps(data, ensure_ascii=False).encode())
 
@@ -661,6 +725,8 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
+                if start is None and end is None and query.get("stream") == ["1"]:
+                    return self.peaks_streamed(path, n)
                 try:
                     return self.json(peaks(path, n, start, end))
                 except subprocess.CalledProcessError:

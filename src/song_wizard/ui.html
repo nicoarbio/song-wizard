@@ -1701,15 +1701,57 @@ $("command-close").onclick = () => $("command").close();
 // and the playhead. Clicking or dragging moves the playhead (onSeek); in grid mode (onGridDrag)
 // dragging moves the beat lines instead, to line them up with the music.
 const peaksCache = new Map();
-function loadPeaks(path, range) {
+// A whole song's outline comes in parts as the server reads the file (a stem on Drive takes a
+// couple of seconds): onPartial(data) gets what's read so far, the rest flat, to draw it as it
+// comes. The promise is the finished outline, as always.
+const peaksPartial = new Map();  // path -> { last, listeners }
+function loadPeaks(path, range, onPartial) {
   const key = range ? `${path}|${range[0]}|${range[1]}` : path;
   if (!peaksCache.has(key)) {
     // Zoomed pictures pile up (a dozen lanes, each move): keep the latest ones.
     if (peaksCache.size > 300) for (const k of [...peaksCache.keys()].filter((k) => k.includes("|")).slice(0, 100)) peaksCache.delete(k);
-    const extra = range ? `&from=${range[0]}&to=${range[1]}&n=1600` : "&n=1500";
-    peaksCache.set(key, api(`/api/peaks?path=${encodeURIComponent(path)}${extra}`).catch((e) => { peaksCache.delete(key); throw e; }));
+    const url = `/api/peaks?path=${encodeURIComponent(path)}`;
+    const done = range ? api(`${url}&from=${range[0]}&to=${range[1]}&n=1600`) : streamPeaks(path, `${url}&n=1500&stream=1`);
+    peaksCache.set(key, done.catch((e) => { peaksCache.delete(key); throw e; }));
+  }
+  const partial = !range && peaksPartial.get(path);
+  if (onPartial && partial) {
+    partial.listeners.add(onPartial);
+    if (partial.last) onPartial(partial.last);
+    peaksCache.get(key).finally(() => partial.listeners.delete(onPartial)).catch(() => {});
   }
   return peaksCache.get(key);
+}
+
+async function streamPeaks(path, url) {
+  const partial = { last: null, listeners: new Set() };
+  peaksPartial.set(path, partial);
+  try {
+    const res = await fetch(url, { headers: { "X-Lang": LANG } });
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || res.statusText);
+    }
+    const reader = res.body.getReader(), decoder = new TextDecoder();
+    let text = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (value) text += decoder.decode(value, { stream: true });
+      const lines = text.split("\n");
+      text = done ? "" : lines.pop();
+      for (const line of lines.filter((l) => l.trim())) {
+        const data = JSON.parse(line);
+        if (data.error) throw new Error(data.error);
+        if (!data.of) return data;  // the finished outline
+        const peaks = data.peaks.concat(new Array(data.of - data.peaks.length).fill(0));
+        partial.last = { from: 0, seconds: data.seconds, peaks, partial: true };
+        for (const f of partial.listeners) f(partial.last);
+      }
+      if (done) throw new Error(say("server.audio_couldnt_read"));
+    }
+  } finally {
+    if (peaksPartial.get(path) === partial) peaksPartial.delete(path);
+  }
 }
 
 const mod = (k, n) => ((k % n) + n) % n;
@@ -1936,7 +1978,8 @@ function play(file) {
   $("player-play").disabled = false;
   playerWave.clear();
   playerWave.update({ position: 0 });
-  loadPeaks(file.path).then((d) => playerWave.set(d)).catch(() => {});
+  const showing = () => playerAudio.src.endsWith(`=${encodeURIComponent(file.path)}`);
+  loadPeaks(file.path, null, (d) => { if (showing()) playerWave.set(d); }).then((d) => { if (showing()) playerWave.set(d); }).catch(() => {});
   playerAudio.play().catch(() => toast(say("player.browser_couldnt_play_format")));
 }
 
@@ -2218,7 +2261,11 @@ function openPractice(song) {
   practiceNav.clear();
   practice.overview = null;
   // By path: a refresh of the library replaces practice.song with an equal object.
-  loadPeaks(song.path).then((d) => {
+  loadPeaks(song.path, null, (d) => {
+    if (!practice.song || practice.song.path !== song.path || practice.overview) return;
+    practiceWave.set(d);
+    practiceNav.set(d);
+  }).then((d) => {
     if (!practice.song || practice.song.path !== song.path) return;
     practice.overview = d;
     practiceNav.set(d);
@@ -2324,7 +2371,7 @@ function buildTracks() {
     const wave = new Wave(canvas, { onSeek: (time) => moveTo(time) });
     wheelZoom(canvas, practiceZoom);
     const ui = { track: t, wave, ctl, lane, mute, solo, vol, pct, path: t.click ? null : t.file.path, overview: null };
-    if (!t.click) loadPeaks(t.file.path).then((d) => { if (practice.lanes.includes(ui)) { ui.overview = d; showPracticeView(); } }).catch(() => {});
+    if (!t.click) loadPeaks(t.file.path, null, (d) => { if (practice.lanes.includes(ui) && !ui.overview) wave.set(d); }).then((d) => { if (practice.lanes.includes(ui)) { ui.overview = d; showPracticeView(); } }).catch(() => {});
     practice.lanes.push(ui);
   });
   placeDrums();

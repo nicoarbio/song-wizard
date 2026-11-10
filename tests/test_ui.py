@@ -323,6 +323,26 @@ def test_peaks(server):
     assert request(port, "GET", "/api/peaks?path=tone.wav&n=lots")[0].status == 400
 
 
+def test_peaks_streamed(server):
+    """stream=1 sends the outline in parts as it's read (40 s: 15 s at a time) and ends with the
+    same outline as without it; a file that can't be read ends with an error line."""
+    port, root = server
+    synth.write(root / "long.wav", synth.sine(440, 40, peak=0.5))
+    ui.PEAKS.clear()
+    lines = [json.loads(line) for line in request(port, "GET", "/api/peaks?path=long.wav&n=80&stream=1")[1].splitlines()]
+    parts, last = lines[:-1], lines[-1]
+    assert len(parts) >= 2 and all(p["of"] == 80 and p["seconds"] == pytest.approx(40, abs=0.01) for p in parts)
+    assert [len(p["peaks"]) for p in parts] == sorted(len(p["peaks"]) for p in parts) and len(parts[0]["peaks"]) < 80
+    assert all(v > 0.4 for v in parts[0]["peaks"])
+    ui.PEAKS.clear()
+    assert last == get_json(port, "/api/peaks?path=long.wav&n=80")
+    # Remembered: only the outline itself.
+    assert [json.loads(x) for x in request(port, "GET", "/api/peaks?path=long.wav&n=80&stream=1")[1].splitlines()] == [last]
+    (root / "bad.wav").write_bytes(b"not audio")
+    (line,) = request(port, "GET", "/api/peaks?path=bad.wav&stream=1")[1].splitlines()
+    assert "error" in json.loads(line)
+
+
 def test_click_settings(server, monkeypatch):
     port, root = server
     (root / "001 - Song").mkdir()
