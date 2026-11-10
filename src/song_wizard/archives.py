@@ -213,7 +213,8 @@ def add_place(folder):
     """Remember a folder downloads went into (a playlist's or Singles' parent), for the library."""
     folder = str(Path(folder).resolve())
     known = places_file().read_text().splitlines() if places_file().exists() else []
-    if folder not in known:
+    # A folder right inside another place is already shown as one of its folders.
+    if folder not in known and str(Path(folder).parent) not in known:
         ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
         places_file().write_text("".join(f"{p}\n" for p in [*known, folder]))
 
@@ -227,7 +228,11 @@ def places(missing=False):
         folder = read_meta(path.stem).get("folder")
         if folder:
             found.append(str(Path(folder).resolve().parent))
-    return [Path(p) for p in dict.fromkeys(found) if p and (missing or Path(p).is_dir())]
+    found = [p for p in dict.fromkeys(found) if p]
+    # One right inside another place shows already as one of its folders (added with "add
+    # folder" before this was checked): not twice.
+    found = [p for p in found if str(Path(p).parent) not in found]
+    return [Path(p) for p in found if missing or Path(p).is_dir()]
 
 
 def simple(name):

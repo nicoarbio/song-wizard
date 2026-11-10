@@ -142,3 +142,19 @@ def test_a_strange_url_isnt_kept(tmp_path):
     (folder / archives.RECORD).write_text(json.dumps({"id": "PLy", "url": "file:///etc/passwd", "title": "S"}))
     assert archives.adopt(folder) == "PLy"
     assert archives.playlists() == []  # without a link there's nothing to look in
+
+
+def test_a_folder_inside_a_place_isnt_shown_twice(tmp_path, monkeypatch):
+    """"add folder" on a folder that's already one of a place's folders: it stays one folder."""
+    monkeypatch.setenv("SONG_WIZARD_DIR", str(tmp_path / "music"))
+    (tmp_path / "music").mkdir()
+    drive = tmp_path / "drive"
+    inside = drive / "Inéditos" / "Song"
+    inside.mkdir(parents=True)
+    (inside / "Song.opus").write_bytes(b"x")
+    archives.add_place(drive)
+    archives.add_place(drive / "Inéditos")  # as "add folder" did
+    assert archives.places() == [drive]
+    archives.places_file().write_text(f"{drive}\n{drive / 'Inéditos'}\n")  # added by an older version
+    assert archives.places() == [drive]
+    assert [f["name"] for f in ui.library(tmp_path / "music")] == ["Inéditos"]
