@@ -767,6 +767,25 @@ def make_handler(token, root, runner, port):
                 if not system.open_folder(report.REPORTS_DIR):
                     return self.error(HTTPStatus.NOT_IMPLEMENTED, "server.i_didnt_find_file_manager")
                 return self.json({})
+            if url.path == "/api/playlist-review":
+                # Before downloading: what the playlist has now, against what's here (songs that left
+                # it go to Singles on their own; the ones already here elsewhere are asked about).
+                from . import download, review
+                link = str(body.get("url", "")).strip()
+                if not re.match(r"https?://", link):
+                    return self.error(HTTPStatus.BAD_REQUEST, "server.url_has_start_http_https")
+                try:
+                    to = folder_from(body.get("to"))
+                except NeedsCommand as e:
+                    return self.json({"error": self.say(e.text, **e.values), "command": e.command}, HTTPStatus.BAD_REQUEST)
+                except Said as e:
+                    return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
+                _, known, output = download.where(link, to)
+                try:
+                    return self.json(review.summary(review.check(link, known, output)))
+                except review.Unavailable as e:
+                    log.info("playlist review: %s", e)
+                    return self.json({"unavailable": True})
             if url.path == "/api/pick-folder":
                 # The system's folder dialog, on this computer's screen; waits for an answer.
                 return self.json({"path": system.pick_folder()})
@@ -956,7 +975,14 @@ def make_handler(token, root, runner, port):
                     raise Said("server.url_has_start_http_https")
                 title = self.say("server.check_new_songs", title=body["title"]) if body.get("title") else self.say("server.download", url=url)
                 to = folder_from(body.get("to"))
-                return title, ["download", *(["--wav"] if body.get("wav") else []), *(["--to", to] if to else []), url]
+                from .review import CHOICES
+                decide = []
+                for vid, choice in dict(body.get("decide") or {}).items():
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", str(vid)) or choice not in CHOICES:
+                        raise Said("server.invalid_request")
+                    decide += ["--decide", f"{vid}={choice}"]
+                return title, ["download", *(["--wav"] if body.get("wav") else []), *(["--to", to] if to else []),
+                               *decide, url]
             if action == "archives-move":
                 to = folder_from(body.get("to"))
                 if not to:

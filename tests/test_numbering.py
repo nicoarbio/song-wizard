@@ -112,6 +112,8 @@ def fake_ytdlp(monkeypatch, make):
     def run(args, **kw):
         if "yt_dlp" not in args:  # ffmpeg, making the test's files
             return real(args, **kw)
+        if "--flat-playlist" in args:  # going over the playlist first: here, as if offline
+            return subprocess.CompletedProcess(args, 1, "", "offline")
         prints = {args[i + 1]: args[i + 2] for i, a in enumerate(args) if a == "--print-to-file"}
         Path(prints["playlist:%(title)s"]).write_text("Show\n")
         made = make()

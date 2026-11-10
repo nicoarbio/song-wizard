@@ -390,6 +390,8 @@
   dialog#keys { max-width: min(760px, calc(100vw - 24px)); }
   #keys-list { max-height: 62vh; overflow-y: auto; margin-top: 8px; }
   #keys-list h4 { margin: 14px 0 4px; }
+  .review-list { list-style: none; padding: 0; margin: 8px 0; max-height: 50vh; overflow: auto; }
+  .review-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
   #keys-list .key-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line); }
   #keys-list .key-row .keys { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
   #keys-list .key-row.changed > span:first-child::after { content: " ✍"; color: var(--muted); font-size: 11px; }
@@ -797,6 +799,15 @@
   <h3 id="confirm-title"></h3>
   <div id="confirm-text"></div>
   <div class="row" style="justify-content:flex-end"><button id="confirm-cancel" data-text="library.cancel"></button><button id="confirm-ok"></button></div>
+</dialog>
+
+<dialog id="review">
+  <h3 id="review-title"></h3>
+  <p class="hint" id="review-removed"></p>
+  <p data-text="review.already_here"></p>
+  <label class="row" id="review-all-row"><span data-text="review.for_all"></span> <select id="review-all"></select></label>
+  <ul id="review-list" class="review-list"></ul>
+  <div class="row" style="justify-content:flex-end"><button id="review-cancel" data-text="library.cancel"></button><button class="primary" id="review-ok" data-text="review.download"></button></div>
 </dialog>
 
 <dialog id="delete">
@@ -1448,7 +1459,59 @@ $("dest").onclick = () => askFolder({ title: say("playlists.where_do_new_playlis
 renderDest();
 
 function updatePlaylist(playlist) {
-  start({ action: "download", url: playlist.url, wav: playlist.wav, title: playlist.title });
+  reviewAndDownload({ action: "download", url: playlist.url, wav: playlist.wav, title: playlist.title });
+}
+
+// Before downloading, the playlist is gone over: songs that left it go to Singles on their own,
+// and for its songs already here (in Singles or another playlist) every question is asked now,
+// in one window, before anything comes down.
+const REVIEW_CHOICES = ["download", "copy", "move"];
+const REVIEW_LABELS = { download: say("review.choice_download"), copy: say("review.choice_copy"), move: say("review.choice_move") };
+async function reviewAndDownload(request) {
+  toast(say("review.going_over"), 8000);
+  let found;
+  try {
+    found = await api("/api/playlist-review", { url: request.url, to: request.to });
+  } catch (e) {
+    if (e.command) return showCommand(e.message, e.command);
+    return toast(e.message, 6000);
+  }
+  if (found.unavailable || !found.conflicts.length) return start(request);
+  $("toast").classList.remove("show");
+  const decide = await askReview(request, found);
+  if (decide) start({ ...request, decide });
+}
+
+function askReview(request, found) {
+  const box = $("review");
+  $("review-title").textContent = say("review.before_downloading", { title: request.title || found.folder.split(/[\\/]/).pop() });
+  $("review-removed").textContent = found.removed.length ? say("review.leaving", { songs: found.removed.join(", ") }) : "";
+  $("review-removed").hidden = !found.removed.length;
+  const picks = {};
+  const rows = found.conflicts.map((c) => {
+    picks[c.id] = "copy";
+    const select = el("select", { onchange: (e) => { picks[c.id] = e.target.value; } },
+      ...c.choices.map((k) => el("option", { value: k, selected: k === "copy" }, REVIEW_LABELS[k])));
+    c.select = select;
+    const where = c.where === "singles" ? say("review.in_singles") : say("review.in_playlist", { title: c.where });
+    return el("li", {}, el("span", {}, el("b", {}, c.song), el("span", { class: "muted" }, ` · ${where}`)), select);
+  });
+  $("review-list").replaceChildren(...rows);
+  // "For all": the choices every song has (moving only from Singles).
+  const common = REVIEW_CHOICES.filter((k) => found.conflicts.every((c) => c.choices.includes(k)));
+  $("review-all").replaceChildren(el("option", { value: "" }, "—"), ...common.map((k) => el("option", { value: k }, REVIEW_LABELS[k])));
+  $("review-all").onchange = (e) => {
+    if (!e.target.value) return;
+    for (const c of found.conflicts) { picks[c.id] = e.target.value; c.select.value = e.target.value; }
+  };
+  $("review-all-row").hidden = found.conflicts.length < 2;
+  return new Promise((resolve) => {
+    const done = (answer) => { box.onclose = null; if (box.open) box.close(); resolve(answer); };
+    $("review-ok").onclick = () => done({ ...picks });
+    $("review-cancel").onclick = () => done(null);
+    box.onclose = () => done(null);
+    box.showModal();
+  });
 }
 
 async function confirmForget(numbers, title) {
@@ -3938,7 +4001,7 @@ const selectedPaths = () => [...state.selected];
 
 $("download").addEventListener("submit", (e) => {
   e.preventDefault();
-  start({ action: "download", url: $("url").value, wav: $("wav").checked, to: downloadTo() || undefined });
+  reviewAndDownload({ action: "download", url: $("url").value, wav: $("wav").checked, to: downloadTo() || undefined });
   $("url").value = "";
 });
 $("filter").addEventListener("input", renderLibrary);

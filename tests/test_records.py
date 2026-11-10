@@ -46,7 +46,9 @@ def test_downloading_updates_it(show, monkeypatch):
     class Done:
         returncode = 0
 
-    def run(args):
+    def run(args, **kw):
+        if "--flat-playlist" in args:  # going over the playlist first: here, as if offline
+            return __import__("subprocess").CompletedProcess(args, 1, "", "offline")
         archive = archives.ARCHIVE_DIR / "PLx.txt"
         seen.append(archive.read_text())
         archive.write_text(archive.read_text() + "youtube id9\n")

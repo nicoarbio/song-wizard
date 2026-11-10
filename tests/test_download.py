@@ -1,5 +1,6 @@
 """download, with yt-dlp replaced by a fake: no network."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,9 @@ def fake_ytdlp(monkeypatch, songs, title="Show"):
     class Done:
         returncode = 0
 
-    def run(args):
+    def run(args, **kw):
+        if "--flat-playlist" in args:  # going over the playlist first: here, as if offline
+            return subprocess.CompletedProcess(args, 1, "", "offline")
         calls.append(args)
         prints = {args[i + 1]: args[i + 2] for i, a in enumerate(args) if a == "--print-to-file"}
         Path(prints["playlist:%(title)s"]).write_text(title + "\n")

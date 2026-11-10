@@ -44,13 +44,20 @@ def build_parser():
                        description="Download the audio of a link, a single song or a playlist, in the best quality "
                                    "available and without re-encoding. Each song gets a folder of its own: playlists go to "
                                    "<Music>/<playlist name>/001 - Artist - Title/001 - Artist - Title.opus (as the "
-                                   "song's data says), single songs to <Music>/Singles/. <Music> is $SONG_WIZARD_DIR if set, else your Music "
+                                   "song's data says), single songs to <Music>/Singles/. Before downloading, the playlist is gone over: a song "
+                                   "that isn't in it anymore goes to Singles (the ones after it move up a number), "
+                                   "and for a song of it already here, in Singles or another playlist, it asks first "
+                                   "whether to download it again, copy the one here or (from Singles) move it. <Music> is $SONG_WIZARD_DIR if set, else your Music "
                                    "folder (the Windows one on WSL). An archive per playlist is kept: running "
                                    "it again only downloads new songs.")
     p.add_argument("--wav", action="store_true", help="also write a .wav next to each .opus")
     p.add_argument("--to", metavar="FOLDER",
                    help="where a new playlist's folder goes (default: the music folder); a playlist downloaded "
                         "before goes on in its own folder, wherever it is")
+    p.add_argument("--decide", action="append", default=[], metavar="VIDEO_ID=CHOICE",
+                   help="what to do with a song of the playlist that's already here (in Singles or another "
+                        "playlist), instead of being asked: download (again), copy (the one here, with its "
+                        "stems and data) or move (only from Singles); repeat it for more")
     p.add_argument("url", help="link to a song or a playlist")
     p.add_argument("ytdlp_args", nargs=argparse.REMAINDER, metavar="...",
                    help="extra yt-dlp options, e.g. --cookies-from-browser chrome")
@@ -419,7 +426,7 @@ def dispatch(argv):
     if args.command == "download":
         from . import download, system
         download.run(args.url, wav=args.wav, extra=args.ytdlp_args,
-                     to=system.local_path(args.to) if args.to else None)
+                     to=system.local_path(args.to) if args.to else None, decide=args.decide)
     elif args.command == "key":
         from . import key
         key.run(args.paths, value=args.set, force=args.force)

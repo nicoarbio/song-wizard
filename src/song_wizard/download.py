@@ -25,51 +25,75 @@ def name_by_data(path):
     numbering.name(path)
 
 
-def run(url, wav=False, extra=(), to=None):
-    sys.exit(fetch(url, wav=wav, extra=extra, to=to))
+def run(url, wav=False, extra=(), to=None, decide=()):
+    sys.exit(fetch(url, wav=wav, extra=extra, to=to, decide=decide))
 
 
-def fetch(url, wav=False, extra=(), to=None):
-    """to: the folder where a new playlist's folder (or Singles) goes; the music folder if not
-    given. A playlist downloaded before goes on in its own folder, wherever it is now."""
-    require_ffmpeg()
+# yt-dlp reads "%" in the output path as a template field.
+escape = lambda path: str(path).replace("%", "%%")
+SONG = "%(playlist_index&{:03d} - |)s%(title)s.%(ext)s"
+
+
+def where(url, to=None):
+    """(archive id, the playlist's folder if it was downloaded before, yt-dlp's output template).
+    to: where a new playlist's folder (or Singles) goes; the music folder if not given."""
     # One archive per playlist, so a song downloaded for one show isn't skipped for another.
     match = re.search(r"[?&]list=([A-Za-z0-9_-]+)", url)
     archive_id = match.group(1) if match else archives.SINGLES
+    known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
+    known = known if known and Path(known).is_dir() else None
+    if to is None and known:
+        return archive_id, known, f"{escape(known)}/{SONG}"
+    from . import system
+
+    if to and (letter := system.unmounted_drive(to)):
+        sys.exit(system.mount_hint(letter))
+    dest = Path(to).expanduser() if to else music_dir()
+    return archive_id, known, f"{escape(dest)}/%(playlist_title|Singles)s/{SONG}"
+
+
+def fetch(url, wav=False, extra=(), to=None, decide=()):
+    """to: the folder where a new playlist's folder (or Singles) goes; the music folder if not
+    given. A playlist downloaded before goes on in its own folder, wherever it is now. First the
+    playlist is gone over (review.py): songs that left it go to Singles, and what to do with the
+    ones already here elsewhere is asked (or given with decide: ["VIDEO_ID=copy", ...])."""
+    from . import layout, numbering, review
+    from .song import old_layout_message
+
+    require_ffmpeg()
+    archive_id, known, output = where(url, to)
     archive = archives.ARCHIVE_DIR / f"{archive_id}.txt"
     archives.ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+    if known:
+        if layout.needed(known):
+            sys.exit(old_layout_message(known))
+        # Another computer may have downloaded more songs into it (a synced folder): its record says.
+        archives.adopt(known)
+        numbering.tidy(known, wav=wav or archives.read_meta(archive_id).get("wav", False))
+    # What the playlist has now, against what's here: all the questions before downloading.
+    found, choices = None, {}
+    try:
+        found = review.check(url, known, output, extra)
+    except review.Unavailable as e:
+        print(f"Couldn't go over the playlist first ({e}): downloading what's new, without moving anything.")
+    if found:
+        choices = review.ask(found["conflicts"], review.decisions(decide))
+        if found["removed"] and archive_id != archives.SINGLES:
+            for old, new in review.to_singles(found["removed"], archive_id):
+                print(f"  {old.name}: not in the playlist anymore, moved to Singles ({new})")
+            review.close_gaps(known)
+        for vid, choice in choices.items():
+            if choice == review.DOWNLOAD:
+                review.edit_archive(archive_id, drop=[vid])
+            else:  # copied or moved after the download: not downloaded again
+                review.edit_archive(archive_id, add=[vid])
+    # New songs go after the last one in the folder (songs added by hand, numbered first, or
+    # an order of its own), not by their place in the playlist.
+    last = numbering.highest(known) if known else None
     # yt-dlp writes the playlist's name here once it's done, for "song-wizard archives".
     title_file = Path(tempfile.mkstemp(prefix="song-wizard-", suffix=".txt")[1])
     # And the path of each song once it's in place, to remember the playlist's folder.
     files_file = Path(tempfile.mkstemp(prefix="song-wizard-", suffix=".txt")[1])
-
-    # yt-dlp reads "%" in the output path as a template field.
-    escape = lambda path: str(path).replace("%", "%%")
-    song = "%(playlist_index&{:03d} - |)s%(title)s.%(ext)s"
-    known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
-    last = None
-    if known and Path(known).is_dir():
-        from . import layout, numbering
-        from .song import old_layout_message
-
-        if layout.needed(known):
-            sys.exit(old_layout_message(known))
-
-        # Another computer may have downloaded more songs into it (a synced folder): its record says.
-        archives.adopt(known)
-        # New songs go after the last one in the folder (songs added by hand, numbered first, or
-        # an order of its own), not by their place in the playlist.
-        numbering.tidy(known, wav=wav or archives.read_meta(archive_id).get("wav", False))
-        last = numbering.highest(known)
-    if to is None and known and Path(known).is_dir():
-        output = f"{escape(known)}/{song}"
-    else:
-        from . import system
-
-        if to and (letter := system.unmounted_drive(to)):
-            sys.exit(system.mount_hint(letter))
-        dest = Path(to).expanduser() if to else music_dir()
-        output = f"{escape(dest)}/%(playlist_title|Singles)s/{song}"
     args = [
         sys.executable, "-m", "yt_dlp",
         "-f", "bestaudio[acodec=opus]/bestaudio",
@@ -97,8 +121,6 @@ def fetch(url, wav=False, extra=(), to=None):
         files_file.unlink(missing_ok=True)
     # Named by its data, "001 - Artist - Title", as the song's data window names it: what the
     # site put there (often the uploader as the artist) shows up front, to be corrected by hand.
-    from . import numbering
-
     for i, path in enumerate(files, 1):
         if not Path(path).is_file():
             continue
@@ -106,7 +128,12 @@ def fetch(url, wav=False, extra=(), to=None):
             numbering.name(path, last[0] + i, last[1])
         else:
             numbering.name(path)
+    folder = known or (str(Path(files[-1]).parent) if files else None)
+    if found and choices:
+        target = Path(folder) if folder else found["folder"]
+        for choice, old, new in review.bring(found["conflicts"], choices, target, archive_id):
+            print(f"  {old.name}: {'copied' if choice == review.COPY else 'moved'} to the playlist as {new.parent.name}")
+        folder = folder or (str(target) if target.is_dir() else None)
     if archive.exists():
-        archives.remember(archive_id, url, lines[-1] if lines else None,
-                          folder=str(Path(files[-1]).parent) if files else None, wav=wav)
+        archives.remember(archive_id, url, lines[-1] if lines else None, folder=folder, wav=wav)
     return code
