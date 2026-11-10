@@ -102,7 +102,7 @@ def fetch(url, wav=False, extra=(), to=None, decide=()):
         "--embed-metadata",
         "--download-archive", str(archive),
         "--print-to-file", "playlist:%(title)s", str(title_file),
-        "--print-to-file", "after_move:%(filepath)s", str(files_file),
+        "--print-to-file", "after_move:%(id)s\t%(filepath)s", str(files_file),
         "-o", output,
     ]
     if node_ok():
@@ -116,24 +116,41 @@ def fetch(url, wav=False, extra=(), to=None, decide=()):
         code = 130
     finally:
         lines = [l for l in title_file.read_text(errors="replace").splitlines() if l.strip()]
-        files = [l for l in files_file.read_text(errors="replace").splitlines() if l.strip()]
+        got = [l.split("\t", 1) if "\t" in l else [None, l]
+               for l in files_file.read_text(errors="replace").splitlines() if l.strip()]
+        files = [path for _, path in got]
         title_file.unlink(missing_ok=True)
         files_file.unlink(missing_ok=True)
-    # Named by its data, "001 - Artist - Title", as the song's data window names it: what the
-    # site put there (often the uploader as the artist) shows up front, to be corrected by hand.
-    for i, path in enumerate(files, 1):
-        if not Path(path).is_file():
-            continue
-        if last is not None and Path(path).parent.resolve() == Path(known).resolve():
-            numbering.name(path, last[0] + i, last[1])
-        else:
-            numbering.name(path)
     folder = known or (str(Path(files[-1]).parent) if files else None)
+    # What was decided to be copied or moved comes in now, as if it had just been downloaded.
+    brought = []
     if found and choices:
         target = Path(folder) if folder else found["folder"]
-        for choice, old, new in review.bring(found["conflicts"], choices, target, archive_id):
-            print(f"  {old.name}: {'copied' if choice == review.COPY else 'moved'} to the playlist as {new.parent.name}")
+        brought = review.bring(found["conflicts"], choices, target, archive_id)
         folder = folder or (str(target) if target.is_dir() else None)
+    # Named by its data, "001 - Artist - Title", as the song's data window names it: what the
+    # site put there (often the uploader as the artist) shows up front, to be corrected by hand.
+    # Numbered as downloads always were: in a playlist downloaded before, after its last song, in
+    # the playlist's order; in a new one, by the place each has in the playlist.
+    order = {vid: i for i, vid in enumerate(found["order"])} if found else {}
+    arrivals = [(vid, Path(path), None) for vid, path in got if Path(path).is_file()]
+    arrivals += [(vid, main, (choice, old)) for choice, old, vid, main in brought]
+    arrivals.sort(key=lambda a: order.get(a[0], len(order)))
+    singles = folder and review.is_singles(folder)
+    n = 0
+    for vid, path, how in arrivals:
+        if singles:
+            final = numbering.name(path)
+        elif last is not None and Path(known).resolve() in (path.parent.resolve(), path.parent.parent.resolve()):
+            # Downloaded (loose in the folder) or brought in (in its own folder already).
+            n += 1
+            final = numbering.name(path, last[0] + n, last[1])
+        elif how and vid in order:
+            final = numbering.name(path, order[vid] + 1, 3)  # its place in the new playlist
+        else:
+            final = numbering.name(path)
+        if how:
+            print(f"  {how[1].name}: {'copied' if how[0] == review.COPY else 'moved'} to the playlist as {final.parent.name}")
     if archive.exists():
         archives.remember(archive_id, url, lines[-1] if lines else None, folder=folder, wav=wav)
     return code

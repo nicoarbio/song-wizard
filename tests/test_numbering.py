@@ -117,7 +117,7 @@ def fake_ytdlp(monkeypatch, make):
         prints = {args[i + 1]: args[i + 2] for i, a in enumerate(args) if a == "--print-to-file"}
         Path(prints["playlist:%(title)s"]).write_text("Show\n")
         made = make()
-        Path(prints["after_move:%(filepath)s"]).write_text("".join(f"{p}\n" for p in made))
+        Path(prints["after_move:%(id)s\t%(filepath)s"]).write_text("".join(f"{p}\n" for p in made))
         return Done()
 
     monkeypatch.setattr(download.subprocess, "run", run)

@@ -58,7 +58,7 @@ def library(tmp_path, monkeypatch):
     return music
 
 
-def fake_ytdlp(monkeypatch, remote, count=None, title="Show"):
+def fake_ytdlp(monkeypatch, remote, count=None, title="Show", make=False):
     """yt-dlp: the playlist lists `remote` ([(id, title)]); downloading makes nothing, but says
     which ids it would have downloaded (those not in its archive)."""
     got = {"downloaded": None}
@@ -79,6 +79,17 @@ def fake_ytdlp(monkeypatch, remote, count=None, title="Show"):
         archive = Path(args[args.index("--download-archive") + 1])
         have = archive.read_text().split() if archive.exists() else []
         got["downloaded"] = [vid for vid, _ in remote if vid not in have]
+        if make:  # really leave them, named as yt-dlp would, and say where
+            prints = {args[i + 1]: args[i + 2] for i, a in enumerate(args) if a == "--print-to-file"}
+            folder = output.split("/%(playlist_title|Singles)s/")[0] + f"/{title}" if "%(playlist_title" in output \
+                else str(Path(output).parent)
+            lines = []
+            for i, (vid, name) in enumerate(remote, 1):
+                if vid in got["downloaded"]:
+                    path = tone(Path(folder) / (f"{i:03d} - {name}.opus" if "%(playlist_title" in output else f"{name}.opus"), vid)
+                    lines.append(f"{vid}\t{path}")
+            Path(prints["after_move:%(id)s\t%(filepath)s"]).write_text("".join(f"{l}\n" for l in lines))
+            Path(prints["playlist:%(title)s"]).write_text(title + "\n")
         return subprocess.CompletedProcess(args, 0)
 
     monkeypatch.setattr(download.subprocess, "run", run)
@@ -186,3 +197,25 @@ def test_a_single_link_to_a_song_of_a_playlist(library, monkeypatch):
     download.fetch("https://www.youtube.com/watch?v=oooooooooo1", decide=["oooooooooo1=copy"])
     assert (library / "Singles" / "Band - O" / "Band - O.opus").is_file()  # Singles: no number
     assert (library / "Other" / "001 - Band - O").is_dir()
+
+
+def test_brought_in_is_numbered_as_if_downloaded(library, monkeypatch):
+    """Moving or copying is downloading without downloading: in a new playlist each song takes
+    its place in it (as downloads always did), the ones downloaded too, with no gaps."""
+    song(library / "Singles", "Band - T", "tttttttttt1")
+    fake_ytdlp(monkeypatch, [("ssssssssss1", "S"), ("tttttttttt1", "T"), ("nnnnnnnnnn1", "Band - New"),
+                             ("aaaaaaaaaa1", "A")], title="Gig", make=True)
+    download.fetch("https://www.youtube.com/playlist?list=PLg",
+                   decide=["ssssssssss1=move", "tttttttttt1=move", "aaaaaaaaaa1=copy"])
+    assert sorted(p.name for p in (library / "Gig").iterdir() if p.is_dir()) == [
+        "001 - Band - S", "002 - Band - T", "003 - Band - New", "004 - Band - A"]
+
+
+def test_brought_in_goes_after_the_last_in_the_playlists_order(library, monkeypatch):
+    """In a playlist downloaded before: after its last song, the new and the brought in together,
+    in the playlist's order."""
+    fake_ytdlp(monkeypatch, [("aaaaaaaaaa1", "A"), ("bbbbbbbbbb1", "B"), ("cccccccccc1", "C"), ("nnnnnnnnnn1", "Band - New"),
+                             ("ssssssssss1", "S")], make=True)
+    download.fetch(URL, decide=["ssssssssss1=move"])
+    assert sorted(p.name for p in (library / "Show").iterdir() if p.is_dir()) == [
+        "001 - Band - A", "002 - Band - B", "003 - Band - C", "004 - Mine", "005 - Band - New", "006 - Band - S"]

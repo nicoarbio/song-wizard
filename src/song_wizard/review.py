@@ -10,7 +10,8 @@ are never touched):
 - A song of the playlist that's already here, but somewhere else, is asked about first, all of
   them before anything is downloaded: download it again, copy the one here (with its stems, data
   and REAPER project) or, from Singles only, move it to the playlist. One in another playlist
-  isn't moved: it belongs there too. What's copied or moved goes at the end, with the new ones.
+  isn't moved: it belongs there too. What's copied or moved is numbered as if it had just been
+  downloaded: by its place in a new playlist, or after the last song of one downloaded before.
 """
 
 import json
@@ -133,7 +134,7 @@ def check(url, folder, output, extra=()):
         name = (archives.read_record(container) or {}).get("title") or container.name
         conflicts.append({"id": vid, "title": title, "song": s, "where": "singles" if singles else name,
                           "choices": [DOWNLOAD, COPY, MOVE] if singles else [DOWNLOAD, COPY]})
-    return {"title": None, "folder": target, "complete": complete,
+    return {"title": None, "folder": target, "complete": complete, "order": ids,
             "removed": sorted(removed, key=lambda p: p.name.lower()), "conflicts": conflicts}
 
 
@@ -245,10 +246,9 @@ def close_gaps(folder):
 
 
 def bring(conflicts, choices, folder, archive_id):
-    """Copy or move the songs decided so into the playlist's folder, after its last song.
-    Returns [(choice, song, its new main file)]."""
-    from . import numbering
-
+    """Copy or move the songs decided so into the playlist's folder, as if they had just been
+    downloaded (numbered afterwards with the ones that were). Returns [(choice, song, video id,
+    its main file in the folder)]."""
     done = []
     picked = [c for c in conflicts if choices[c["id"]] in (COPY, MOVE)]
     if not picked:
@@ -256,7 +256,6 @@ def bring(conflicts, choices, folder, archive_id):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     for c in picked:
-        last, digits = numbering.highest(folder)
         target = free(folder / plain_name(c["song"].name))
         if choices[c["id"]] == MOVE:
             shutil.move(str(c["song"]), str(target))
@@ -264,11 +263,8 @@ def bring(conflicts, choices, folder, archive_id):
         else:
             shutil.copytree(c["song"], target)
         rebase(target, c["song"].name)
-        # Singles has no numbers; a playlist, the one after its last song.
-        main = numbering.name(song.main_in(target)) if is_singles(folder) else \
-            numbering.name(song.main_in(target), last + 1, digits)
         edit_archive(archive_id, add=[c["id"]])
-        done.append((choices[c["id"]], c["song"], main))
+        done.append((choices[c["id"]], c["song"], c["id"], song.main_in(target)))
     return done
 
 
@@ -285,7 +281,7 @@ def decisions(items):
 
 def summary(found):
     """What check() found, for the interface (paths as strings)."""
-    return {"folder": str(found["folder"]), "complete": found["complete"],
+    return {"folder": str(found["folder"]), "complete": found["complete"], "order": found["order"],
             "removed": [s.name for s in found["removed"]],
             "conflicts": [{**c, "song": c["song"].name} for c in found["conflicts"]]}
 

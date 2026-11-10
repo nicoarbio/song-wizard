@@ -20,7 +20,7 @@ def fake_ytdlp(monkeypatch, songs, title="Show"):
         calls.append(args)
         prints = {args[i + 1]: args[i + 2] for i, a in enumerate(args) if a == "--print-to-file"}
         Path(prints["playlist:%(title)s"]).write_text(title + "\n")
-        Path(prints["after_move:%(filepath)s"]).write_text("".join(f"{s}\n" for s in songs))
+        Path(prints["after_move:%(id)s\t%(filepath)s"]).write_text("".join(f"{s}\n" for s in songs))
         archive = Path(args[args.index("--download-archive") + 1])
         archive.write_text("youtube id1\n")
         return Done()
