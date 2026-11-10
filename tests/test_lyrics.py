@@ -30,9 +30,7 @@ def database(monkeypatch):
 
 @pytest.fixture
 def song(tmp_path):
-    path = tmp_path / "001 - Band - Song (Official Video).wav"
-    synth.write(path, synth.sine(440, 60.0))
-    return path
+    return synth.song(tmp_path, "001 - Band - Song (Official Video).wav", synth.sine(440, 60.0))
 
 
 def test_search_picks_the_closest_length(database):
@@ -82,7 +80,7 @@ def test_clean_rejects(bad):
 def test_fetch_save_and_keep(song, database, capsys):
     lyrics.run([str(song)])
     saved = lyrics.load(song)
-    assert saved["text"].startswith("first line") and lyrics.path_for(song).name == "001 - Band - Song (Official Video).lyrics.json"
+    assert saved["text"].startswith("first line") and lyrics.path_for(song) == song.parent / "lyrics.json"
     assert "found" in capsys.readouterr().out
     # Already there: not looked up again (marks and notes would be lost)...
     database.clear()
@@ -142,18 +140,18 @@ def test_follows_rename_and_delete(song, monkeypatch):
     lyrics.save(song, {"text": "x"})
     lyrics.export(song)
     rename.run(str(song), "Other")
-    folder = song.parent
-    assert (folder / "001 - Other.lyrics.json").exists() and (folder / "001 - Other.lyrics.html").exists()
+    folder = song.parent.parent / "001 - Other"
+    assert (folder / "lyrics.json").exists() and (folder / "001 - Other.lyrics.html").exists()
     trashed = []
     monkeypatch.setattr(delete.system, "trash", lambda paths: trashed.extend(paths))
     delete.run(songs=[str(folder / "001 - Other.wav")], yes=True)
-    assert {p.rsplit("/", 1)[1] for p in trashed} == {"001 - Other.wav", "001 - Other.lyrics.json", "001 - Other.lyrics.html"}
+    assert trashed == [str(folder)]  # the song's folder, with its lyrics
 
 
 def test_interface(server, database):  # noqa: F811
     port, root = server
-    synth.write(root / "001 - Band - Song.wav", synth.sine(440, 60.0))
-    path = "001 - Band - Song.wav"
+    synth.song(root, "001 - Band - Song.wav", synth.sine(440, 60.0))
+    path = "001 - Band - Song/001 - Band - Song.wav"
     got = get_json(port, f"/api/lyrics?path={path.replace(' ', '%20')}")
     assert got["lyrics"] is None and got["title"] == "Song" and len(got["colors"]) == 5
     assert not get_json(port, "/api/library")["folders"][0]["songs"][0]["lyrics"]
@@ -173,25 +171,25 @@ def test_interface(server, database):  # noqa: F811
 
 def test_interface_not_found_and_offline(server, monkeypatch):  # noqa: F811
     port, root = server
-    synth.write(root / "Song.wav", synth.sine(440, 1.0))
+    synth.song(root, "Song.wav", synth.sine(440, 1.0))
     monkeypatch.setattr(lyrics, "get", lambda url: [])
-    assert request(port, "POST", "/api/lyrics/fetch", {"path": "Song.wav"})[0].status == 404
+    assert request(port, "POST", "/api/lyrics/fetch", {"path": "Song/Song.wav"})[0].status == 404
 
     def offline(url):
         raise lyrics.urllib.error.URLError("no network")
     monkeypatch.setattr(lyrics, "get", offline)
-    response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "Song.wav"})
+    response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "Song/Song.wav"})
     assert response.status == 502 and "internet" in json.loads(content)["error"]
 
 
 def test_interface_database_down(server, monkeypatch):  # noqa: F811
     """A 503 from the database isn't the user's internet: the message says so."""
     port, root = server
-    synth.write(root / "001 - Band - Song.wav", synth.sine(440, 5.0))
+    synth.song(root, "001 - Band - Song.wav", synth.sine(440, 5.0))
 
     def down(url):
         raise lyrics.urllib.error.HTTPError(url, 503, "Service Unavailable", {}, None)
     monkeypatch.setattr(lyrics, "get", down)
-    response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "001 - Band - Song.wav"})
+    response, content = request(port, "POST", "/api/lyrics/fetch", {"path": "001 - Band - Song/001 - Band - Song.wav"})
     message = json.loads(content)["error"]
     assert response.status == 502 and "no está respondiendo" in message and "internet" not in message

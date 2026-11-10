@@ -28,9 +28,9 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
-from . import align, archives, config, log, paths, results, system
+from . import align, archives, config, layout, log, paths, results, song as songs_of, system
 from .i18n import LANGS, Said, say
-from .audio import AUDIO_EXTS, GENERATED, MAIN_FORMATS, base_of
+from .audio import AUDIO_EXTS
 from .paths import music_dir
 
 PORT = 8765
@@ -161,22 +161,6 @@ class Runner:
             del job.lines[:-LOG_LINES]
 
 
-def read_results(folder, command):
-    """key.txt / bpm.txt of a folder as {file name: result}."""
-    path = folder / f"{command}.txt"
-    found = {}
-    if path.exists():
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            if not line.startswith("#") and "\t" in line:
-                name, text = line.split("\t", 1)
-                found[name] = text.strip()
-    return found
-
-
-# When a song exists in several formats ("Title.opus" and "Title.wav" from download --wav, or
-# "Title.mp3" from convert), the first of these is the song and the rest are its files.
-
-
 def chords_stamp(path):
     """When a song's chords file last changed (the page reloads them when it does), or None."""
     try:
@@ -281,9 +265,11 @@ def outside(root, missing=False):
     return found
 
 
-def with_audio(folder):
+def with_songs(folder):
+    """Whether a folder holds songs: in their folders, or still loose (the old layout)."""
     try:
-        return any(os.path.splitext(n)[1].lower() in AUDIO_EXTS for n in os.listdir(folder))
+        return bool(songs_of.songs_in(folder)) or any(
+            os.path.splitext(n)[1].lower() in AUDIO_EXTS for n in os.listdir(folder))
     except OSError:
         return False
 
@@ -306,16 +292,25 @@ def library(root):
     candidates = [p for place in [root, *archives.places()] for p in subfolders_of(place)]
     archives.sync(candidates)
     known = archives.playlists()
-    # Songs added by hand to a playlist's folder get the number after the last one.
+    # Songs added by hand (or just downloaded) go to their own folder; in a playlist's, they get
+    # the number after the last one.
     from . import numbering
+    for container in [root, *subfolders_of(root), *(f for p in archives.places() for f in [p, *subfolders_of(p)])]:
+        if songs_of.is_song(container):
+            continue
+        try:
+            layout.fold(container)
+        except OSError:
+            pass
     for playlist in known:
         if playlist["folder"] and Path(playlist["folder"]).is_dir():
             try:
                 numbering.tidy(playlist["folder"], wav=playlist["wav"])
             except OSError:
                 pass
-    subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")),
-                        key=lambda p: p.name.lower())
+    # The music folder's own folders: folders of songs (playlists, Singles...), or songs right in it.
+    subfolders = sorted((p for p in root.iterdir() if p.is_dir() and not p.name.startswith(".")
+                         and not songs_of.is_song(p)), key=lambda p: p.name.lower())
     places = [(root, "", f) for f in [root, *subfolders]]
     gone = []
     for key, place in sorted(outside(root, missing=True).items(), key=lambda kv: str(kv[1]).lower()):
@@ -328,54 +323,36 @@ def library(root):
                          "missing": {"drive": letter, "command": system.mount_command(letter) if letter else None,
                                      "fstab": system.fstab_line(letter) if letter else None}})
             continue
-        inside = sorted((p for p in place.iterdir() if p.is_dir() and not p.name.startswith(".")),
-                        key=lambda p: p.name.lower()) if place.is_dir() else []
-        places += [(place, key, f) for f in [place, *inside] if with_audio(f)]
+        inside = sorted((p for p in place.iterdir() if p.is_dir() and not p.name.startswith(".")
+                         and not songs_of.is_song(p)), key=lambda p: p.name.lower()) if place.is_dir() else []
+        places += [(place, key, f) for f in [place, *inside] if with_songs(f)]
     for place, key, folder in places:
         rel = lambda path, place=place, key=key: "/".join(filter(None, [key, relative(place, path)]))
-        try:
-            names = sorted(n for n in os.listdir(folder)
-                           if os.path.splitext(n)[1].lower() in AUDIO_EXTS and (folder / n).is_file())
-        except OSError:
+        playlist = archives.playlist_for(folder, known) if folder != root else None
+        playlist = {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None
+        if layout.needed(folder):
+            # Songs still loose in the folder, as before 0.42.0: shown once they're moved (tidy).
+            folders.append({"name": folder.name if folder != root else "(carpeta principal)", "path": rel(folder),
+                            "songs": [], "extras": [], "location": system.shown_path(place) if key else None,
+                            "playlist": playlist, "old": len(layout.loose(folder)[0])})
             continue
-        keys, bpms = read_results(folder, "key"), read_results(folder, "bpm")
-        clicks = read_results(folder, "click")
+        songs = [song_entry(rel, here) for here in songs_of.songs_in(folder)]
         try:
-            entries = {n.lower() for n in os.listdir(folder)}
+            extras = [{"name": n, "path": rel(folder / n), "size": (folder / n).stat().st_size}
+                      for n in sorted(os.listdir(folder))
+                      if os.path.splitext(n)[1].lower() in AUDIO_EXTS and (folder / n).is_file()]
         except OSError:
-            entries = set()
-        groups = collections.defaultdict(list)
-        for n in names:
-            groups[base_of(n)].append(n)
-        songs, extras = [], []
-        for base, members in sorted(groups.items(), key=lambda g: g[0].lower()):
-            originals = [n for n in members
-                         if os.path.splitext(n)[0] == base and not GENERATED.search(base)]
-            if not originals:  # click tracks: generated, but not from a song
-                extras += [file_entry(rel, folder / n, keys, bpms) for n in members]
-                continue
-            main = min(originals, key=lambda n: MAIN_FORMATS.index(os.path.splitext(n)[1].lower())
-                       if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
-            songs.append({"name": main, "path": rel(folder / main),
-                          "key": keys.get(main), "bpm": bpms.get(main), "click": align.parse(clicks.get(main)),
-                          "lyrics": (folder / f"{base}.lyrics.json").is_file(),
-                          "chords": chords_stamp(folder / f"{base}.chords.json"),
-                          "notes": chords_stamp(folder / f"{base}.notes.json"),
-                          "drums": chords_stamp(folder / f"{base}.drums.json"),
-                          "reaper": f"{base}.rpp".lower() in entries,
-                          "files": [file_entry(rel, folder / n, keys, bpms) for n in members if n != main]})
+            extras = []
         # The song's data (title, artist, album...), for the library and its filter.
         from . import tags
-        found = tags.read_many(folder / song["name"] for song in songs)
+        found = tags.read_many(folder / song["folder"] / song["name"] for song in songs)
         for song in songs:
-            data = found[folder / song["name"]]
+            data = found[folder / song["folder"] / song["name"]]
             song["tags"] = {k: data[k] for k in (*tags.MAIN, "composer", "album_artist") if data.get(k)}
         if songs or extras or folder != root:
-            playlist = archives.playlist_for(folder, known) if folder != root else None
             folders.append({"name": folder.name if folder != root else "(carpeta principal)",
                             "path": rel(folder), "songs": songs, "extras": extras,
-                            "location": system.shown_path(place) if key else None,
-                            "playlist": {k: playlist[k] for k in ("id", "title", "url", "wav")} if playlist else None})
+                            "location": system.shown_path(place) if key else None, "playlist": playlist})
     return folders + gone
 
 
@@ -424,11 +401,27 @@ def reaper_installed():
     return _reaper["installed"]
 
 
-def file_entry(rel, path, keys, bpms):
-    """A generated file. Stems can be analyzed too ("bpm" on the drums alone is often more
-    reliable), so they carry their own results."""
-    return {"name": path.name, "path": rel(path), "size": path.stat().st_size,
-            "key": keys.get(path.name), "bpm": bpms.get(path.name)}
+def song_entry(rel, here):
+    """A song for the library: its main file, what's known of it and its other files."""
+    main = songs_of.main_in(here)
+    tempo = results.read(main, "tempo")
+    files = []
+    for f in songs_of.audio_files(main, takes=True):
+        if f == main:
+            continue
+        what = songs_of.kind(f.name) or ("copy" if f.stem == here.name else "other")
+        parts = songs_of.parts(f.name) or []
+        files.append({"name": f.name, "path": rel(f), "size": f.stat().st_size, "kind": what,
+                      "part": parts[0] if what == "stem" and len(parts) == 1 else None,
+                      "speed": songs_of.speed_of(f.name)})
+    return {"name": main.name, "path": rel(main), "folder": here.name,
+            "key": results.read(main, "key"), "bpm": tempo, "click": align.parse(tempo),
+            "lyrics": (here / songs_of.DATA["lyrics"]).is_file(),
+            "chords": chords_stamp(here / songs_of.DATA["chords"]),
+            "notes": chords_stamp(here / songs_of.DATA["notes"]),
+            "drums": chords_stamp(here / songs_of.DATA["drums"]),
+            "reaper": (here / f"{here.name}.rpp").is_file(),
+            "files": files}
 
 
 def relative(base, path):
@@ -599,7 +592,7 @@ def make_handler(token, root, runner, port):
                 if not data:
                     return self.error(HTTPStatus.NOT_FOUND, "server.song_has_no_drums_yet")
                 if url.path == "/drums.mid":
-                    name = quote(f"{path.stem}.drums.mid")
+                    name = quote(songs_of.export(path, ".drums.mid").name)
                     return self.send(HTTPStatus.OK, drums.midi(data), "audio/midi",
                                      [("Content-Disposition", f"attachment; filename*=UTF-8''{name}")])
                 title, artist = tags.title_artist(path)
@@ -790,8 +783,10 @@ def make_handler(token, root, runner, port):
                     return self.error(HTTPStatus.BAD_REQUEST, "server.invalid_request")
                 if not path.is_file():
                     return self.error(HTTPStatus.NOT_FOUND, "server.doesnt_exist")
-                results.save("click", [(str(path), align.describe(bpm, meter, first))])
-                return self.json(align.parse(align.describe(bpm, meter, first)))
+                # Adjusted by ear in the practice player: the song's tempo from now on.
+                text = align.describe(bpm, meter, first)
+                results.save(path, "tempo", results.hand(text))
+                return self.json(align.parse(text))
             if url.path == "/api/notes":
                 from . import notes
                 try:
@@ -875,10 +870,8 @@ def make_handler(token, root, runner, port):
                     number = tempo.parse(value)
                     if number is None:
                         return self.error(HTTPStatus.BAD_REQUEST, "server.isnt_tempo_number_bpm_between", value=value)
-                    text = f"{number:.1f} BPM  {results.HAND}"
-                    if tempo.click_note(path, number):
-                        note = self.say("server.songs_practice_click_still_set")
-                results.save(what, [(str(path), text)])
+                    text = tempo.with_tempo(path, number)
+                results.save(path, "key" if what == "key" else "tempo", text)
                 log.info("set %s by hand: %s -> %s", what, path.name, text)
                 return self.json({"text": text, "note": note})
             if url.path == "/api/restart":
@@ -946,7 +939,7 @@ def make_handler(token, root, runner, port):
             """Page request -> (title, CLI arguments). Every path is checked to be inside the
             music folder, and nothing but these commands can be run."""
             action = body["action"]
-            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "notes", "drums", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade"):
+            if action not in ("download", "key", "bpm", "separate", "transpose", "speed", "convert", "click", "rename", "tag", "align", "chords", "notes", "drums", "delete", "archives-delete", "archives-move", "archives-add", "order", "trim", "upgrade", "tidy"):
                 raise Said("server.unknown_action", action=action)
             paths = [str(self.resolve(p)) for p in body.get("paths", [])]
             if action == "delete":
@@ -975,7 +968,8 @@ def make_handler(token, root, runner, port):
             if action == "order":
                 folder = self.resolve(str(body.get("folder", "")))
                 songs = [str(self.resolve(p)) for p in body.get("songs", [])]
-                if not os.path.isdir(folder) or not songs or any(os.path.dirname(p) != str(folder) for p in songs):
+                if not os.path.isdir(folder) or not songs or any(
+                        Path(p).parent.parent != Path(folder) and Path(p).parent != Path(folder) for p in songs):
                     raise Said("server.nothing_picked")
                 return self.say("server.order", folder=os.path.basename(folder) or self.say("server.main_folder")), \
                     ["order", str(folder), *songs]
@@ -986,6 +980,12 @@ def make_handler(token, root, runner, port):
                 return self.say("server.add_folder", folder=system.shown_path(to)), ["archives", "--add", to]
             if action == "upgrade":
                 return self.say("server.update_song_wizard"), ["upgrade"]
+            if action == "tidy":
+                folder = self.resolve(str(body.get("folder", "")))
+                if not os.path.isdir(folder):
+                    raise Said("server.nothing_picked")
+                return self.say("server.tidy", folder=os.path.basename(folder) or self.say("server.main_folder")), \
+                    ["tidy", str(folder)]
             if not paths and action not in ("click", "archives-delete"):
                 raise Said("server.no_files_are_picked")
             force = ["--force"] if body.get("force") else []
@@ -1007,7 +1007,7 @@ def make_handler(token, root, runner, port):
                 args = ["speed", f"{percent:g}", *(["--semitones", f"{n:+g}"] if n else []), *paths]
                 return self.say("server.speed", percent=f"{percent:g}", pitch=self.say("server.pitch", n=f"{n:+g}") if n else "", label=label), args
             if action == "align":
-                return self.say("server.tempo_first_beat", label=label), ["align", *paths]
+                return self.say("server.tempo_first_beat", label=label), ["align", *force, *paths]
             if action == "chords":
                 return self.say("server.chords", label=label), ["chords", *force, *paths]
             if action == "drums":
@@ -1094,10 +1094,10 @@ def page_path(root, file):
 
     target = Path(system.local_path(str(file))).resolve()
     for folder in library(root):
-        if folder_path(root, folder).resolve() != target.parent:
+        if folder.get("missing") or folder_path(root, folder).resolve() != target.parent.parent:
             continue
         for song in folder["songs"]:
-            if target.name in [song["name"], *(f["name"] for f in song["files"])]:
+            if song["folder"] == target.parent.name and target.name in [song["name"], *(f["name"] for f in song["files"])]:
                 return song["path"]
     return None
 

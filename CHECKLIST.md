@@ -132,6 +132,7 @@ The real tests were run on:
 | `convert` of a float WAV with peaks over 0 dB, a 16-bit WAV and an `.opus` | Real | ✅ Turns the volume down only where needed (final peak −1.2 dB); in a folder it skips the `.opus`; it doesn't overwrite existing files unless with `--overwrite` |
 | `convert --format m4a` | Real | ✅ AAC at 192 kbps, the same size as the MP3 |
 | `separate --cpu` (30 s, 2 instruments) | Real | ✅ 124 s, against 24 s on the card; the same result |
+| One folder per song (0.42.0): `tidy` planned on the real "Showww dic-2026" (23 songs, 345 moves) and Singles (10) without moving anything, then two real songs with their stems, takes, REAPER project, `peaks` folder and `key.txt`/`bpm.txt`/`click.txt` put in place from "Put in place" in headless Edge | Real (on a copy) | ✅ Every file to its song's folder with its short name; one tempo each, the practice click's winning; the project points to the new names; the band's PDFs stay; Practice finds every set of tracks |
 | A very old NVIDIA card (GTX 1080) | Simulated | ✅ Says so and uses the processor |
 | An NVIDIA card with an old driver | Simulated | ✅ Says to update the driver and uses the processor |
 | A card without enough memory | Simulated | ✅ Says so, switches to the processor and finishes |

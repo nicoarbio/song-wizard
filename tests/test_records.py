@@ -26,7 +26,8 @@ def show(tmp_path, monkeypatch):
     folder = music / "Show"
     monkeypatch.setenv("SONG_WIZARD_DIR", str(music))
     folder.mkdir(parents=True)
-    (folder / "001 - A.opus").write_bytes(b"a")
+    (folder / "001 - A").mkdir()
+    (folder / "001 - A" / "001 - A.opus").write_bytes(b"a")
     archives.ARCHIVE_DIR.mkdir(parents=True)
     (archives.ARCHIVE_DIR / "PLx.txt").write_text("youtube id1\nyoutube id2\n")
     archives.remember("PLx", URL, "Show", folder=str(folder), wav=True)

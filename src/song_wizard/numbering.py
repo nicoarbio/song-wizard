@@ -7,24 +7,16 @@ import subprocess
 import time
 from pathlib import Path
 
-from .audio import AUDIO_EXTS, GENERATED, MAIN_FORMATS, base_of
+from . import song
 from .rename import NUMBER
 
-# A file changed this recently may still be copying in (or syncing): it's left for later.
+# A song changed this recently may still be copying in (or syncing): it's left for later.
 SETTLING = 30
 
 
 def songs(folder):
-    """{song: its main file name} of the songs in a folder (not stems, versions or clicks)."""
-    groups = {}
-    for name in os.listdir(folder):
-        stem, ext = os.path.splitext(name)
-        if ext.lower() in AUDIO_EXTS and stem == base_of(name) and not GENERATED.search(stem) \
-                and os.path.isfile(os.path.join(folder, name)):
-            groups.setdefault(stem, []).append(name)
-    rank = lambda n: MAIN_FORMATS.index(os.path.splitext(n)[1].lower()) \
-        if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS)
-    return {base: min(names, key=rank) for base, names in groups.items()}
+    """{song: its main file} of the songs in a folder of songs."""
+    return {here.name: song.main_in(here) for here in song.songs_in(folder)}
 
 
 def number_of(base):
@@ -44,29 +36,30 @@ def name(path, number=None, digits=3, own=True):
     song-wizard got it (downloaded it), so it carries its mark. Returns where it ended up."""
     from . import rename, tags
 
+    from . import layout
     path = Path(path)
-    current = base_of(path.name)
+    if path.is_file() and not song.is_song(path.parent):
+        path = layout.fold_one(path)
+    path = song.main(path)
+    current = path.parent.name
     has = NUMBER.match(current)
     plain = current[has.end():] if has else current
     new = tags.name_for(tags.read(path)) or plain
     prefix = f"{number:0{digits}d} - " if number is not None else (has.group(0) if has else "")
     target = prefix + new
+    final = path
     if target != current:
         try:
-            rename.run(str(path), target)
+            final = rename.run(str(path), target)
         except SystemExit as e:
             if number is None or target == prefix + plain:
                 print(f"  {path.name}: kept its name ({e.code})")
-                target = current
             else:
                 # The name its data gives is taken: at least the number.
-                target = prefix + plain
                 try:
-                    rename.run(str(path), target)
+                    final = rename.run(str(path), prefix + plain)
                 except SystemExit as e:
                     print(f"  {path.name}: kept its name ({e.code})")
-                    target = current
-    final = path.with_name(target + path.suffix)
     if own and final.is_file():
         for f in tags.song_files(final):
             tags.stamp(f, f)
@@ -76,7 +69,9 @@ def name(path, number=None, digits=3, own=True):
 def tidy(folder, wav=False):
     """Number the songs added by hand to a playlist's folder after the last one, in the order
     they came, named by their data, with their .wav if the playlist keeps them. Returns them."""
+    from . import layout
     folder = Path(folder)
+    layout.fold(folder, settle=SETTLING)
     found = songs(folder)
     now = time.time()
     loose = []
@@ -84,18 +79,18 @@ def tidy(folder, wav=False):
         if NUMBER.match(base):
             continue
         try:
-            changed = (folder / main).stat().st_mtime
+            changed = main.stat().st_mtime
         except OSError:
             continue
         if now - changed >= SETTLING:
-            loose.append((changed, base.lower(), main))
+            loose.append((changed, base.lower(), str(main)))
     if not loose:
         return []
     last, digits = highest(folder)
     done = []
     for i, (_, _, main) in enumerate(sorted(loose), 1):
-        print(f"Numbering {main}, added by hand:", flush=True)
-        final = name(folder / main, last + i, digits, own=False)
+        print(f"Numbering {Path(main).name}, added by hand:", flush=True)
+        final = name(main, last + i, digits, own=False)
         if wav and final.suffix.lower() != ".wav" and not final.with_suffix(".wav").exists():
             made = subprocess.run(["ffmpeg", "-nostdin", "-n", "-loglevel", "error", "-i", str(final),
                                    str(final.with_suffix(".wav"))], capture_output=True, text=True)
@@ -122,14 +117,19 @@ def reorder(folder, order):
     if not folder.is_dir():
         die(f"{folder}: no such folder.")
     found = songs(folder)
-    by_file = {main: base for base, main in found.items()}
     wanted = []
     for item in order:
-        name = Path(item).name
-        if Path(item).is_absolute() and Path(item).parent.resolve() != folder.resolve():
-            die(f"{item}: it isn't in {folder}.")
-        base = by_file.get(name) or (name if name in found else None) or (base_of(name) if base_of(name) in found else None)
-        if base is None:
+        item = Path(item)
+        # A song's name, its folder or any of its files.
+        if item.is_absolute():
+            inside = item if item.parent.resolve() == folder.resolve() else item.parent
+            if inside.parent.resolve() != folder.resolve():
+                die(f"{item}: it isn't in {folder}.")
+            base = inside.name
+        else:
+            base = item.parts[0] if item.parts else ""
+            base = base if base in found else os.path.splitext(base)[0]
+        if base not in found:
             die(f"{item}: not a song in {folder}.")
         if base not in wanted:
             wanted.append(base)
@@ -151,9 +151,9 @@ def reorder(folder, order):
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             for b, aside in steps:
-                rename.run(str(folder / found[b]), aside)
+                rename.run(str(folder / b), aside)
             for b, aside in steps:
-                rename.run(str(folder / (aside + Path(found[b]).suffix)), target[b])
+                rename.run(str(folder / aside), target[b])
     except SystemExit as e:
         die(f"Stopped halfway, some songs have their new number and others don't ({e.code}). "
             "Running it again finishes it.")

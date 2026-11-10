@@ -142,7 +142,7 @@ class TrashError(Exception):
 
 
 def trash(paths):
-    """Send files to the system's trash: Windows' Recycle Bin for files on a Windows drive
+    """Send files (or folders) to the system's trash: Windows' Recycle Bin for files on a Windows drive
     under WSL, the Finder's Trash on a Mac, the desktop's trash on Linux. Raises TrashError
     (naming what's left) if any file couldn't go."""
     paths = [os.path.abspath(p) for p in paths]
@@ -171,7 +171,9 @@ def windows_trash(paths):
         encoded = base64.b64encode(listed.encode()).decode()
         script = ("Add-Type -AssemblyName Microsoft.VisualBasic; "
                   f"$paths = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{encoded}')) | ConvertFrom-Json; "
-                  "foreach ($p in @($paths)) { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') }")
+                  "foreach ($p in @($paths)) { if (Test-Path -LiteralPath $p -PathType Container) { "
+                  "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } "
+                  "else { [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin') } }")
         subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
                        capture_output=True, cwd="/mnt/c" if os.path.isdir("/mnt/c") else None)
 

@@ -13,16 +13,14 @@ opened as numbers only (torch's weights_only)."""
 import json
 import os
 import subprocess
-from pathlib import Path
 
 import numpy as np
 
 from . import __version__, weights
-from .audio import base_of, expand, stem_path
+from . import song as songfs
 from .audio import load as load_audio
 from .paths import MODELS_DIR
 
-SUFFIX = ".notes.json"
 PARTS = ("bass", "vocals")
 CREPE_URL = ("https://raw.githubusercontent.com/maxrmorrison/torchcrepe/745670a18bf8c5f1a2f08c910c72433badde3e08/"
              "torchcrepe/assets/full.pth")
@@ -33,13 +31,12 @@ NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 
 def path_for(song):
-    song = Path(song)
-    return song.with_name(song.stem + SUFFIX)
+    return songfs.data(song, "notes")
 
 
 def stem_for(song, part):
-    """The song's separated stem for that part ("<song> (bass).wav"), or None."""
-    return stem_path(song, part)
+    """The song's separated stem for that part ("bass.opus"), or None."""
+    return songfs.stem(song, part)
 
 
 def name(midi):
@@ -171,7 +168,7 @@ def keep_hand(new, old):
 
 def run(paths, part=None, force=False):
     parts = [part] if part else list(PARTS)
-    for song in expand(paths, skip_generated=True):
+    for song in songfs.expand(paths):
         title = os.path.basename(song)
         stems = {p: stem_for(song, p) for p in parts}
         if not any(stems.values()):

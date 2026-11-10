@@ -1,8 +1,8 @@
 """Trim a song: cut its start and/or end (a video's intro or credits), or add silence before or
 after it. Done to the song and everything made from it at once, so they stay in step: its other
 formats, stems, transposed versions and clicks with the same cut, and versions at another speed
-with the cut scaled (at 80 %, 10 s of the song are 12.5 s). The practice click (click.txt) and the
-lyrics' times move along. Takes recorded in REAPER are left alone: they line up with the REAPER
+with the cut scaled (at 80 %, 10 s of the song are 12.5 s). Where the song's beats fall (its
+tempo.txt) and the lyrics' times move along. Takes recorded in REAPER are left alone: they line up with the REAPER
 project, not with the song (whose project then needs remaking).
 
 Cuts are exact to the sample, so the song and its stems keep lining up; compressed files are
@@ -12,19 +12,15 @@ to the trash."""
 
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
 
-from . import align, lyrics, reaper, results, system
-from .audio import AUDIO_EXTS, GENERATED, base_of, die, require_ffmpeg
+from . import align, lyrics, reaper, results, song as songfs, system
+from .audio import die, require_ffmpeg
 from .click import parse_duration
-from .rename import group
 
 MAX_PAD = 60
-SPEED = re.compile(r"^ \((\d+(?:\.\d+)?)%(?:, [+-]\d+(?:\.\d+)?)?\)$")
-TAKE = re.compile(r"^ \(record [^)]*\)(-\d+)?$")
 # How each format is written again: the same format, at a quality where the second encoding
 # doesn't show. WAV and AIFF keep their sample format (32-bit float stems stay float).
 ENCODE = {
@@ -44,26 +40,12 @@ ENCODE = {
 NEW, OLD = ".trim-new", ".trim-old"
 
 
-def suffixes(name):
-    """'Title (drums) (80%).wav' -> [' (drums)', ' (80%)']: what was added to the song's name."""
-    stem = os.path.splitext(name)[0]
-    found = []
-    while (match := GENERATED.search(stem)) and match.start() > 0:
-        found.insert(0, stem[match.start():])
-        stem = stem[:match.start()]
-    return found
-
-
 def scale(name):
     """How much longer this file's timeline is than the song's (2.0 at 50 % speed), or None for
     a file that isn't on the song's timeline (a take recorded in REAPER)."""
-    factor = 1.0
-    for s in suffixes(name):
-        if TAKE.match(s):
-            return None
-        if m := SPEED.match(s):
-            factor *= 100 / float(m[1])
-    return factor
+    if songfs.kind(name) == "take":
+        return None
+    return 1 / songfs.speed_of(name)
 
 
 def probe(path):
@@ -85,7 +67,8 @@ def plan(song, start=0.0, end=None, pad_start=0.0, pad_end=0.0):
     song = os.path.abspath(song)
     if not os.path.isfile(song):
         die(f"{song}: not found")
-    folder, base = os.path.dirname(song), base_of(os.path.basename(song))
+    here = songfs.folder(song)
+    folder, base = str(here), here.name
     length = probe(reaper.preferred(song))[2]
     end = length if end is None else end
     if not 0 <= start < end:
@@ -97,10 +80,8 @@ def plan(song, start=0.0, end=None, pad_start=0.0, pad_end=0.0):
     if start == 0 and end >= length - 0.0005 and not pad_start and not pad_end:
         die("Nothing to do: no cut and no silence.")
     files, takes = [], []
-    for name in group(folder, base):
-        ext = os.path.splitext(name)[1].lower()
-        if ext not in AUDIO_EXTS:
-            continue  # lyrics, the REAPER project...
+    for path in songfs.audio_files(here, takes=True):
+        name, ext = path.name, path.suffix.lower()
         factor = scale(name)
         if factor is None:
             takes.append(name)
@@ -131,22 +112,19 @@ def ffmpeg_args(source, target, start, end, length, pad_start, pad_end, factor):
             "-map_metadata", "0", "-map_metadata:s:a:0", "0:s:a:0", "-af", ",".join(filters), *encode, str(target)]
 
 
-def shift_click(folder, names, start, pad_start, factors):
-    """The practice click's first beat, moved by the cut (by whole beats if it was cut off)."""
-    changed = []
-    clicks = results.read(folder, "click")
-    for name in names:
-        click = align.parse(clicks.get(name))
-        if not click:
-            continue
-        first = click["first"] + (pad_start - start) * factors[name]
-        beat = 60 / click["bpm"]
-        if first < 0:
-            first += -(first // beat) * beat
-        changed.append((os.path.join(folder, name), align.describe(click["bpm"], click["meter"], first)))
-    if changed:
-        results.save("click", changed)
-    return len(changed)
+def shift_click(song, start, pad_start):
+    """Where the song's beats fall, moved by the cut (by whole beats if it was cut off)."""
+    text = results.read(song, "tempo")
+    click = align.parse(text)
+    if not click:
+        return False
+    first = click["first"] + pad_start - start
+    beat = 60 / click["bpm"]
+    if first < 0:
+        first += -(first // beat) * beat
+    moved = align.describe(click["bpm"], click["meter"], first)
+    results.save(song, "tempo", results.hand(moved) if text.endswith(results.HAND) else moved)
+    return True
 
 
 def shift_lyrics(song, start, pad_start):
@@ -287,9 +265,8 @@ def run(song, start=None, end=None, pad_start=0.0, pad_end=0.0, yes=False):
     from . import tags
     for path in swapped:
         tags.stamp(path, path)
-    factors = dict(files)
-    if n := shift_click(folder, list(factors), start, pad_start, factors):
-        print(f"  moved the practice click's first beat ({n} file{'s' if n != 1 else ''})")
+    if shift_click(song, start, pad_start):
+        print("  moved where the song's beats fall (its practice click)")
     if shift_lyrics(os.path.join(folder, files[0][0]), start, pad_start):
         print("  moved the lyrics' times")
     from .ui import duration

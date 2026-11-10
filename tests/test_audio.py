@@ -74,18 +74,16 @@ def test_click_like_a_song(tmp_path):
 
 
 def test_click_named_after_its_song(tmp_path):
-    show = tmp_path / "Show"
-    show.mkdir()
-    song = synth.write(show / "001 - Song (80%).wav", synth.sine(440, 3))
-    click.run(96, like=str(song))  # --like names it after the song and saves it next to it
+    song = synth.song(tmp_path / "Show", "001 - Song.wav", synth.sine(440, 3))
+    version = synth.write(song.parent / "80%.wav", synth.sine(440, 3))
+    click.run(96, like=str(version))  # --like names it as the song's and saves it in its folder
     click.run(96, bars=2, subdivide=2, song=str(song))
-    assert sorted(os.listdir(show)) == ["001 - Song (80%) (click 96 BPM 4-4 x2).wav",
-                                       "001 - Song (80%) (click 96 BPM 4-4).wav", "001 - Song (80%).wav"]
-    assert all(audio.base_of(n) == "001 - Song" for n in os.listdir(show))
+    assert sorted(os.listdir(song.parent)) == ["001 - Song.wav", "80%.wav", "click 96 BPM 4-4 x2.wav",
+                                              "click 96 BPM 4-4.wav"]
     out = tmp_path / "out"
     out.mkdir()
     click.run(96, song=str(song), output=str(out))  # -o still decides where
-    assert os.listdir(out) == ["001 - Song (80%) (click 96 BPM 4-4).wav"]
+    assert os.listdir(out) == ["click 96 BPM 4-4.wav"]
 
 
 @pytest.mark.parametrize("args", [dict(bpm=10), dict(bpm=500), dict(bpm=120, subdivide=9), dict(bpm=120, bars=0)])
@@ -104,7 +102,7 @@ def transposed(src, semitones):
 
 def test_transpose_zero_is_the_original(tmp_path):
     original = synth.sine(440, 3, peak=1.5)
-    src = synth.write(tmp_path / "tone.wav", original)
+    src = synth.song(tmp_path, "tone.wav", original)
     shifted = transposed(src, 0)
     assert shifted.shape == original.shape
     # Only the abrupt start of the sine is smoothed; from there on it's the same audio, no delay.
@@ -115,7 +113,7 @@ def test_transpose_zero_is_the_original(tmp_path):
 @pytest.mark.parametrize("semitones, freq", [(12, 880), (-2, 392), (1, 466.2)])
 def test_transpose_changes_pitch_keeps_length_and_peaks(tmp_path, semitones, freq):
     original = synth.sine(440, 3, peak=1.5)
-    src = synth.write(tmp_path / "tone.wav", original)
+    src = synth.song(tmp_path, "tone.wav", original)
     shifted = transposed(src, semitones)
     assert shifted.shape == original.shape
     assert synth.dominant_freq(shifted[0]) == pytest.approx(freq, abs=1)
@@ -134,7 +132,7 @@ def sped(src, percent, semitones=0):
 @pytest.mark.parametrize("percent", [25, 50, 80, 87.5, 150, 200])
 def test_speed_keeps_pitch_and_peaks(tmp_path, percent):
     original = synth.sine(440, 4, peak=1.5)
-    src = synth.write(tmp_path / "tone.wav", original)
+    src = synth.song(tmp_path, "tone.wav", original)
     out = sped(src, percent)
     assert out.shape == (2, round(original.shape[1] * 100 / percent))
     assert synth.dominant_freq(out[0]) == pytest.approx(440, abs=1)
@@ -143,7 +141,7 @@ def test_speed_keeps_pitch_and_peaks(tmp_path, percent):
 
 
 def test_speed_and_semitones(tmp_path):
-    src = synth.write(tmp_path / "tone.wav", synth.sine(440, 4))
+    src = synth.song(tmp_path, "tone.wav", synth.sine(440, 4))
     out = sped(src, 80, semitones=-2)
     assert out.shape[1] == 5 * synth.SR
     assert synth.dominant_freq(out[0]) == pytest.approx(392, abs=1)
@@ -151,9 +149,9 @@ def test_speed_and_semitones(tmp_path):
 
 @pytest.mark.parametrize("percent", [75, 125])
 def test_speed_moves_beats_to_the_new_tempo(tmp_path, percent):
-    click.run(120, bars=8, output=str(tmp_path))
-    (name,) = os.listdir(tmp_path)
-    out = sped(tmp_path / name, percent)
+    (tmp_path / "beat").mkdir()
+    click.run(120, bars=8, output=str(tmp_path / "beat" / "beat.wav"))
+    out = sped(tmp_path / "beat" / "beat.wav", percent)
     starts, _ = click_onsets(out[0], threshold=0.02)
     expected = np.arange(32) * 0.5 * 100 / percent
     assert len(starts) == 32
@@ -163,27 +161,28 @@ def test_speed_moves_beats_to_the_new_tempo(tmp_path, percent):
 
 @pytest.mark.parametrize("percent", [10, 24, 201])
 def test_speed_out_of_range(tmp_path, percent):
-    src = synth.write(tmp_path / "tone.wav", synth.sine(440, 1))
+    src = synth.song(tmp_path, "tone.wav", synth.sine(440, 1))
     with pytest.raises(SystemExit):
         speed.run(percent, [str(src)])
 
 
 def test_unreadable_file_is_skipped(tmp_path, capsys):
-    (tmp_path / "broken.wav").write_bytes(b"not audio")
-    good = synth.write(tmp_path / "good.wav", synth.sine(440, 1))
-    transpose.run(1, [str(tmp_path / "broken.wav"), str(good)])
+    (tmp_path / "broken").mkdir()
+    (tmp_path / "broken" / "broken.wav").write_bytes(b"not audio")
+    good = synth.song(tmp_path, "good.wav", synth.sine(440, 1))
+    transpose.run(1, [str(tmp_path / "broken" / "broken.wav"), str(good)])
     assert "could not read" in capsys.readouterr().out
-    assert sorted(os.listdir(tmp_path)) == ["broken.wav", "good (+1).wav", "good.wav"]
+    assert sorted(os.listdir(good.parent)) == ["+1.wav", "good.wav"]
 
 
 @pytest.mark.parametrize("k, minor", [("G", False), ("A", True), ("Eb", False), ("F#", True)])
 def test_key(tmp_path, k, minor, capsys):
     name = f"{k}{'m' if minor else ''}.wav"
-    synth.write(tmp_path / name, synth.chord_song(k, minor))
+    song = synth.song(tmp_path, name, synth.chord_song(k, minor))
     key.run([str(tmp_path)])
     assert capsys.readouterr().out.split()[0] == name[:-4]
-    line = (tmp_path / "key.txt").read_text().splitlines()[1]
-    assert line.startswith(f"{name}\t{name[:-4]} ")
+    line = (song.parent / "key.txt").read_text().strip()
+    assert line.startswith(f"{name[:-4]} ")
     assert line.endswith("4/4")
 
 
@@ -196,10 +195,9 @@ def test_bpm(tmp_path, tempo):
 
 
 def test_bpm_saves_results(tmp_path):
-    synth.write(tmp_path / "beat.wav", synth.drum_song(120, bars=16))
+    song = synth.song(tmp_path, "beat.wav", synth.drum_song(120, bars=16))
     bpm.run([str(tmp_path)])
-    name, result = (tmp_path / "bpm.txt").read_text().splitlines()[1].split("\t")
-    assert name == "beat.wav" and result.endswith("BPM  steady")
+    assert (song.parent / "tempo.txt").read_text().strip().endswith("BPM  steady")
 
 
 def peak_db(path):
@@ -208,50 +206,53 @@ def peak_db(path):
 
 
 def test_convert_turns_down_only_loud_files(tmp_path):
-    synth.write(tmp_path / "loud.wav", synth.sine(440, 5, peak=1.5))
-    synth.write(tmp_path / "quiet.wav", synth.sine(440, 5, peak=0.5))
+    synth.song(tmp_path, "loud.wav", synth.sine(440, 5, peak=1.5))
+    synth.song(tmp_path, "quiet.wav", synth.sine(440, 5, peak=0.5))
     convert.run([str(tmp_path)])
     # Encoding adds a hair to the peaks: what matters is that it stays clear of 0 dB.
-    assert -1.5 < peak_db(tmp_path / "loud.mp3") < -0.5
-    assert peak_db(tmp_path / "quiet.mp3") == pytest.approx(20 * np.log10(0.5), abs=0.3)
+    assert -1.5 < peak_db(tmp_path / "loud" / "loud.mp3") < -0.5
+    assert peak_db(tmp_path / "quiet" / "quiet.mp3") == pytest.approx(20 * np.log10(0.5), abs=0.3)
 
 
 def test_convert_m4a(tmp_path):
-    src = synth.write(tmp_path / "song.wav", synth.sine(440, 3))
+    src = synth.song(tmp_path, "song.wav", synth.sine(440, 3))
     convert.run([str(src)], fmt="m4a")
-    assert peak_db(tmp_path / "song.m4a") < 0
+    assert peak_db(src.with_suffix(".m4a")) < 0
 
 
 def test_convert_folder_skips_lossy(tmp_path):
-    synth.write(tmp_path / "a.wav", synth.sine(440, 1))
-    (tmp_path / "b.opus").write_bytes(b"not really opus")
-    (tmp_path / "c.mp3").write_bytes(b"not really mp3")
+    a = synth.song(tmp_path, "a.wav", synth.sine(440, 1)).parent
+    (a / "b.opus").write_bytes(b"not really opus")
+    (a / "c.mp3").write_bytes(b"not really mp3")
     convert.run([str(tmp_path)])
-    assert sorted(os.listdir(tmp_path)) == ["a.mp3", "a.wav", "b.opus", "c.mp3"]
-    assert (tmp_path / "c.mp3").read_bytes() == b"not really mp3"
+    assert sorted(os.listdir(a)) == ["a.mp3", "a.wav", "b.opus", "c.mp3"]
+    assert (a / "c.mp3").read_bytes() == b"not really mp3"
 
 
 def test_convert_folder_takes_opus_stems_not_downloads(tmp_path):
     """Stems and versions are Opus by default: a folder converts them; the downloaded song isn't
     re-encoded, and a stem kept both ways turns into one .mp3, from the .wav."""
-    (tmp_path / "Song.opus").write_bytes(b"the download")
-    for name in ["Song (drums)", "Song (80%)"]:
-        audio.save(str(tmp_path / f"{name}.opus"), synth.sine(440, 1), synth.SR)
-    synth.write(tmp_path / "Song (bass).wav", synth.sine(110, 1))
-    audio.save(str(tmp_path / "Song (bass).opus"), synth.sine(110, 1), synth.SR)
+    here = tmp_path / "Song"
+    here.mkdir()
+    (here / "Song.opus").write_bytes(b"the download")
+    for name in ["drums", "80%"]:
+        audio.save(str(here / f"{name}.opus"), synth.sine(440, 1), synth.SR)
+    synth.write(here / "bass.wav", synth.sine(110, 1))
+    audio.save(str(here / "bass.opus"), synth.sine(110, 1), synth.SR)
     convert.run([str(tmp_path)])
-    made = sorted(n for n in os.listdir(tmp_path) if n.endswith(".mp3"))
-    assert made == ["Song (80%).mp3", "Song (bass).mp3", "Song (drums).mp3"]
+    made = sorted(n for n in os.listdir(here) if n.endswith(".mp3"))
+    assert made == ["80%.mp3", "bass.mp3", "drums.mp3"]
 
 
 def test_convert_does_not_overwrite(tmp_path):
-    src = synth.write(tmp_path / "a.wav", synth.sine(440, 1))
-    (tmp_path / "a.mp3").write_bytes(b"keep me")
+    src = synth.song(tmp_path, "a.wav", synth.sine(440, 1))
+    mp3 = src.with_suffix(".mp3")
+    mp3.write_bytes(b"keep me")
     convert.run([str(src)])
-    assert (tmp_path / "a.mp3").read_bytes() == b"keep me"
+    assert mp3.read_bytes() == b"keep me"
     convert.run([str(src)], overwrite=True)
-    assert (tmp_path / "a.mp3").read_bytes() != b"keep me"
-    assert peak_db(tmp_path / "a.mp3") < 0
+    assert mp3.read_bytes() != b"keep me"
+    assert peak_db(mp3) < 0
 
 
 @pytest.mark.slow
@@ -259,11 +260,11 @@ def test_separate_adds_up_to_the_original(tmp_path):
     from song_wizard import separate
     drums = synth.drum_song(110, bars=4)
     mix = drums + synth.sine(330, len(drums) / synth.SR, peak=0.3, channels=1)[0]
-    src = synth.write(tmp_path / "song.wav", np.tile(mix, (2, 1)) * 2)  # peaks above 0 dB too
+    src = synth.song(tmp_path, "song.wav", np.tile(mix, (2, 1)) * 2)  # peaks above 0 dB too
     separate.run(["drums"], [str(src)])
     original, _ = sf.read(src, dtype="float32", always_2d=True)
-    drums, _ = sf.read(tmp_path / "song (drums).wav", dtype="float32", always_2d=True)
-    rest, _ = sf.read(tmp_path / "song (no drums).wav", dtype="float32", always_2d=True)
+    drums, _ = sf.read(src.parent / "drums.wav", dtype="float32", always_2d=True)
+    rest, _ = sf.read(src.parent / "no drums.wav", dtype="float32", always_2d=True)
     assert np.abs(drums + rest - original).max() < 1e-5
     # The drums go to the drum stem: the rest is mostly the sine.
     assert synth.dominant_freq(rest[:, 0]) == pytest.approx(330, abs=2)

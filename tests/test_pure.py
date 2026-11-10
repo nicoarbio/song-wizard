@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from song_wizard import archives, audio, bpm, click, config, key, paths, results, ui
+from song_wizard import archives, audio, bpm, click, config, key, layout, paths, results, song, ui
 
 
 @pytest.mark.parametrize("k, scale, expected", [
@@ -43,22 +43,37 @@ def test_bpm_uncertain_only_plausible_tempos():
 
 
 GENERATED_NAMES = [
-    "Song (vocals)", "Song (no drums)", "Song (bass)", "Song (no guitar)", "Song (other)", "Song (piano)", "Song (no piano)", "Song (kick)", "Song (hihat)", "Song (drums rest)",
-    "Song (+2)", "Song (-1.5)", "Song (80%)", "Song (87.5%)", "Song (80%, -2)", "Song (120%, +1.5)", "Song (click)", "Song (drums) (count-in)", "Song (count-in)",
-    "Click 120 BPM 4-4", "Click 92.5 BPM 6-8 x2", "Song (click 120 BPM 4-4)", "Song (80%) (click 96 BPM 3-4 x2)",
+    "vocals", "no drums", "bass", "no guitar", "other", "piano", "no piano", "kick", "hihat", "drums rest",
+    "+2", "-1.5", "80%", "87.5%", "80%, -2", "120%, +1.5", "drums 80%", "no vocals +2", "drums rest 80%, -2",
+    "click 120 BPM 4-4", "click 92.5 BPM 6-8 x2", "record 2026-11-01 19-05-12", "record 2026-11-01 19-05-12-001",
 ]
-ORIGINAL_NAMES = ["Song", "Song (Live)", "Song (feat. Someone)", "001 - Song (2019 Remaster)",
-                  "Click Track", "Song (Piano)", "Song (Piano Version)", "Song +2", "Song (80)", "Song (-80%)", "Song (click track)"]
+ORIGINAL_NAMES = ["Song", "001 - Song (2019 Remaster)", "Click Track", "Piano", "drums2", "80", "-80%", "click",
+                  "drums and bass", "record", "Song (drums)"]
 
 
 @pytest.mark.parametrize("name", GENERATED_NAMES)
 def test_generated(name):
-    assert audio.GENERATED.search(name)
+    assert song.parts(name + ".opus")
 
 
 @pytest.mark.parametrize("name", ORIGINAL_NAMES)
 def test_not_generated(name):
-    assert not audio.GENERATED.search(name)
+    assert song.parts(name + ".opus") is None
+
+
+@pytest.mark.parametrize("name, what", [
+    ("drums.opus", "stem"), ("no drums.wav", "stem"), ("drums rest.opus", "stem"), ("+2.opus", "version"),
+    ("drums 80%.opus", "version"), ("80%, -2.wav", "version"), ("click 120 BPM 4-4.wav", "click"),
+    ("record 2026-11-01 19-05-12.wav", "take"), ("001 - Song.opus", None),
+])
+def test_kind(name, what):
+    assert song.kind(name) == what
+
+
+def test_speed_of():
+    assert song.speed_of("drums 80%.opus") == pytest.approx(0.8)
+    assert song.speed_of("80% 50%.opus") == pytest.approx(0.4)
+    assert song.speed_of("+2.opus") == 1
 
 
 @pytest.mark.parametrize("name, base", [
@@ -68,16 +83,47 @@ def test_not_generated(name):
     ("Click 120 BPM 4-4.wav", "Click 120 BPM 4-4"), ("Song (click 120 BPM 4-4).wav", "Song"),
     ("Song (drums) (80%) (click 96 BPM 4-4 x2).wav", "Song"),
 ])
-def test_base_of(name, base):
-    assert ui.base_of(name) == base
+def test_old_base(name, base):
+    assert layout.old_base(name) == base
 
 
-def test_expand_skips_generated_only_in_folders(tmp_path):
-    for name in ["a.opus", "a (drums).wav", "Click 120 BPM 4-4.wav", "notes.txt"]:
-        (tmp_path / name).touch()
+@pytest.mark.parametrize("old, new", [
+    ("Song (drums).wav", "drums.wav"), ("Song (drums) (80%).wav", "drums 80%.wav"), ("Song (80%, -2).opus", "80%, -2.opus"),
+    ("Song (record 2026-11-01 19-05-12).wav", "record 2026-11-01 19-05-12.wav"), ("Song.wav", "Song.wav"),
+    ("Song (click).wav", "Song (click).wav"),
+])
+def test_old_names_to_new(old, new):
+    assert layout.new_name(old, "Song") == new
+
+
+def test_expand_takes_songs(tmp_path):
+    a = tmp_path / "a"
+    a.mkdir()
+    for name in ["a.opus", "drums.wav", "notes.json"]:
+        (a / name).touch()
+    (tmp_path / "Click 120 BPM 4-4.wav").touch()
+    (tmp_path / "not a song").mkdir()
     assert [os.path.basename(f) for f in audio.expand([str(tmp_path)], skip_generated=True)] == ["a.opus"]
-    explicit = str(tmp_path / "a (drums).wav")
-    assert list(audio.expand([explicit], skip_generated=True)) == [explicit]
+    explicit = str(a / "drums.wav")
+    assert audio.expand([explicit]) == [explicit]
+    assert audio.expand([explicit], skip_generated=True) == [str(a / "a.opus")]
+    assert audio.expand([str(a)]) == [str(a / "a.opus")]
+
+
+def test_made_names(tmp_path):
+    a = tmp_path / "001 - Song"
+    a.mkdir()
+    (a / "001 - Song.opus").touch()
+    assert song.made(a / "001 - Song.opus", "drums").name == "drums.opus"
+    assert song.made(a / "drums.opus", "80%").name == "drums 80%.opus"
+    assert song.made(a / "001 - Song.wav", "+2", ".wav").name == "+2.wav"
+
+
+def test_loose_song_is_the_old_layout(tmp_path, capsys):
+    (tmp_path / "Song.opus").touch()
+    with pytest.raises(SystemExit):
+        song.folder(tmp_path / "Song.opus")
+    assert "song-wizard tidy" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("text, n", [("4/4", (4, 4)), ("3/4", (3, 4)), (" 7 / 8 ", (7, 8)), ("12/8", (12, 8))])
@@ -139,21 +185,18 @@ def test_music_dir_order(tmp_path, monkeypatch):
     assert paths.music_dir() == tmp_path / "env"
 
 
-def read_results(path):
-    lines = path.read_text(encoding="utf-8").splitlines()
-    assert lines[0].startswith("# song-wizard key")
-    return dict(line.split("\t") for line in lines[1:])
-
-
-def test_results_save_updates_only_those_songs(tmp_path):
-    a, b = tmp_path / "a" / "One.opus", tmp_path / "b" / "Two.opus"
-    a.parent.mkdir()
-    b.parent.mkdir()
-    written = results.save("key", [(str(a), "G"), (str(a.with_name("Three.opus")), "Am"), (str(b), "E")])
-    assert sorted(written) == sorted([str(a.parent / "key.txt"), str(b.parent / "key.txt")])
-    results.save("key", [(str(a), "Gm")])
-    assert read_results(a.parent / "key.txt") == {"One.opus": "Gm", "Three.opus": "Am"}
-    assert read_results(b.parent / "key.txt") == {"Two.opus": "E"}
+def test_results_one_file_per_song(tmp_path):
+    a = tmp_path / "One"
+    a.mkdir()
+    (a / "One.opus").touch()
+    assert results.read(a / "One.opus", "key") is None
+    assert results.save(a / "One.opus", "key", "G") == a / "key.txt"
+    results.save(a / "One.opus", "key", "Gm")
+    assert (a / "key.txt").read_text() == "Gm\n"
+    assert results.read(a, "key") == "Gm"
+    assert results.by_hand(a, "key") is None
+    results.save(a, "tempo", results.hand("120.0 BPM"))
+    assert results.by_hand(a, "tempo") == "120.0 BPM  set by hand"
 
 
 def make_archive(archive_id, title, songs):

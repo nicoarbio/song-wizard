@@ -19,16 +19,14 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 import numpy as np
 
-from . import __version__, align, results, weights
-from .audio import base_of, expand, stem_path
+from . import __version__, align, weights
+from . import song as songfs
 from .audio import load as load_audio
 from .paths import MODELS_DIR
 
-SUFFIX = ".drums.json"
 # What the sheet and the player know. hhopen: the hi-hat, open.
 PARTS = ("kick", "snare", "toms", "hihat", "hhopen", "ride", "crash")
 MAX_HITS = 50000
@@ -56,12 +54,11 @@ KIT = ("hihat", "ride", "crash")
 
 
 def path_for(song):
-    song = Path(song)
-    return song.with_name(song.stem + SUFFIX)
+    return songfs.data(song, "drums")
 
 
 def stem_for(song, part):
-    return stem_path(song, part)
+    return songfs.stem(song, part)
 
 
 def load(song):
@@ -208,7 +205,7 @@ def keep_hand(new, old):
 
 
 def click_of(song):
-    return align.parse(results.read(os.path.dirname(song), "click").get(os.path.basename(song)))
+    return align.grid(song)
 
 
 def agreed(accept):
@@ -273,7 +270,7 @@ def export(song, what, fold=True, lang="en"):
     data = load(song)
     if not data:
         sys.exit(f"{os.path.basename(song)} has no drums detected yet: song-wizard drums \"{song}\"")
-    out = Path(song).with_name(Path(song).stem + (".drums.mid" if what == "midi" else ".drums.html"))
+    out = songfs.export(song, ".drums.mid" if what == "midi" else ".drums.html")
     if what == "midi":
         out.write_bytes(midi(data))
     else:
@@ -284,7 +281,7 @@ def export(song, what, fold=True, lang="en"):
 
 
 def run(paths, force=False, accept=False, sheet=False, as_midi=False, full=False):
-    songs = list(expand(paths, skip_generated=True))
+    songs = songfs.expand(paths)
     if sheet or as_midi:
         for song in songs:
             for what in [w for w, on in (("sheet", sheet), ("midi", as_midi)) if on]:

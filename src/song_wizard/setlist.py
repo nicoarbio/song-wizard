@@ -52,13 +52,14 @@ def row(n, song, here):
     from .ui import duration
 
     # From the song's data ("title", "artist"), else from its file name.
-    title, artist = title_artist(here / song["name"], song.get("tags"))
+    path = here / song["folder"] / song["name"]
+    title, artist = title_artist(path, song.get("tags"))
     key = (song["key"] or "").split()
     tempo = re.match(r"([\d.]+) BPM", song["bpm"] or "")
-    return {"n": n, "title": title, "artist": artist, "path": here / song["name"],
+    return {"n": n, "title": title, "artist": artist, "path": path,
             "key": (key[0] + ("?" if "uncertain" in song["key"] else "")) if key else "",
             "bpm": f"{float(tempo[1]):.0f}" if tempo else "",
-            "seconds": duration(here / song["name"])}
+            "seconds": duration(path)}
 
 
 def rows(folder, here):
@@ -80,7 +81,7 @@ def pick(paths, root=None):
         here = folder_path(root, folder)
         for song in folder["songs"]:
             for name in [song["name"], *(f["name"] for f in song["files"])]:
-                known.setdefault(str((here / name).resolve()), (song, here))
+                known.setdefault(str((here / song["folder"] / name).resolve()), (song, here))
     out = []
     for path in paths:
         found = known.get(str(Path(system.local_path(str(path))).resolve()))

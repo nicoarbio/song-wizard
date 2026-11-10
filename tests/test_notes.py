@@ -31,9 +31,8 @@ def test_segment():
 
 
 def test_bass_line(tmp_path):
-    song = tmp_path / "001 - Song.wav"
-    synth.write(song, synth.sine(440, 4.0))
-    stem = tmp_path / "001 - Song (bass).wav"
+    song = synth.song(tmp_path, "001 - Song.wav", synth.sine(440, 4.0))
+    stem = song.parent / "bass.wav"
     synth.write(stem, line([40, 40, 45, 47, 40, 45, 47, 40]))  # E2 E2 A2 B2...
     assert notes.stem_for(song, "bass") == stem and notes.stem_for(song, "vocals") is None
     found = notes.bass_notes(stem)
@@ -43,16 +42,14 @@ def test_bass_line(tmp_path):
 
 
 def test_run_without_stems(tmp_path, capsys):
-    song = tmp_path / "001 - Song.wav"
-    synth.write(song, synth.sine(440, 1.0))
+    song = synth.song(tmp_path, "001 - Song.wav", synth.sine(440, 1.0))
     notes.run([str(song)])
     assert "separate it first" in capsys.readouterr().out and not notes.path_for(song).exists()
 
 
 def test_run_keeps_hand(tmp_path, monkeypatch):
-    song = tmp_path / "001 - Song.wav"
-    synth.write(song, synth.sine(440, 3.0))
-    synth.write(tmp_path / "001 - Song (bass).wav", synth.sine(110, 3.0))
+    song = synth.song(tmp_path, "001 - Song.wav", synth.sine(440, 3.0))
+    synth.write(song.parent / "bass.wav", synth.sine(110, 3.0))
     detected = [{"from": 0.0, "to": 1.0, "midi": 40, "hand": False}, {"from": 1.0, "to": 2.0, "midi": 45, "hand": False}]
     monkeypatch.setitem(notes.DETECT, "bass", (lambda stem: [dict(n) for n in detected], "test"))
     notes.run([str(song)])
@@ -78,22 +75,20 @@ def test_clean_rejects(bad):
 
 def test_goes_along(tmp_path):
     folder = tmp_path / "Show"
-    folder.mkdir()
-    song = folder / "001 - Band - Song.wav"
-    synth.write(song, synth.sine(440, 10.0))
+    song = synth.song(folder, "001 - Band - Song.wav", synth.sine(440, 10.0))
     notes.save(song, {"bass": {"notes": [{"from": 1.0, "to": 3.0, "midi": 40}, {"from": 8.0, "to": 9.5, "midi": 45}]}})
     trim.run(str(song), start="2", end="8", yes=True)
     assert [(n["from"], n["to"]) for n in notes.load(song)["bass"]["notes"]] == [(0.0, 1.0)]
     rename.run(str(song), "Band - Other")
-    assert (folder / "001 - Band - Other.notes.json").is_file()
+    assert (folder / "001 - Band - Other" / "notes.json").is_file()
 
 
 def test_interface(server, monkeypatch):  # noqa: F811
     port, root = server
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
-    synth.write(root / "001 - Band - Song.wav", synth.sine(440, 5.0))
-    path = "001 - Band - Song.wav"
+    synth.song(root, "001 - Band - Song.wav", synth.sine(440, 5.0))
+    path = "001 - Band - Song/001 - Band - Song.wav"
     q = path.replace(" ", "%20")
     assert get_json(port, f"/api/notes?path={q}")["notes"] is None
     data = {"vocals": {"notes": [{"from": 0, "to": 1, "midi": 64, "hand": True}]}}

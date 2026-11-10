@@ -86,8 +86,8 @@ def test_interface_in_english(tmp_path):
     from test_ui import TOKEN, request
     from song_wizard import ui
     root = tmp_path / "music"
-    (root / "Show").mkdir(parents=True)
-    (root / "Show" / "a.opus").write_bytes(b"x")
+    (root / "Show" / "a").mkdir(parents=True)
+    (root / "Show" / "a" / "a.opus").write_bytes(b"x")
     runner = ui.Runner()
     runner.run = lambda job: setattr(job, "status", "done")
     httpd = ui.Server(("127.0.0.1", 0), ui.make_handler(TOKEN, root, runner, 0))
@@ -97,7 +97,7 @@ def test_interface_in_english(tmp_path):
     try:
         response, content = request(port, "GET", "/api/info?path=../x", headers={"X-Lang": "en"})
         assert json.loads(content)["error"] == "outside the music folder"
-        response, content = request(port, "POST", "/api/jobs", {"action": "key", "paths": ["Show/a.opus"]}, headers={"X-Lang": "pt"})
+        response, content = request(port, "POST", "/api/jobs", {"action": "key", "paths": ["Show/a/a.opus"]}, headers={"X-Lang": "pt"})
         assert json.loads(content)["title"] == "Tom: a.opus"
         response, content = request(port, "POST", "/api/jobs", {"action": "nope"}, headers={"X-Lang": "en"})
         assert json.loads(content)["error"] == "unknown action: nope"

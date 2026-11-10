@@ -1,5 +1,7 @@
 """Synthetic audio for the tests: nothing here comes from a real song."""
 
+from pathlib import Path
+
 import numpy as np
 import soundfile as sf
 
@@ -12,6 +14,13 @@ def write(path, audio, sr=SR):
     audio = np.atleast_2d(np.asarray(audio, dtype=np.float32))
     sf.write(str(path), audio.T, sr, subtype="FLOAT")
     return path
+
+
+def song(folder, name, audio, sr=SR):
+    """A song as song-wizard keeps it: folder/<name without extension>/<name>, as a WAV."""
+    here = Path(folder) / Path(name).stem
+    here.mkdir(parents=True, exist_ok=True)
+    return write(here / name, audio, sr)
 
 
 def sine(freq, seconds, peak=0.5, channels=2):

@@ -1,15 +1,14 @@
 """Where a song's beats fall, for a click that plays along with it: the exact tempo, the meter
-and the time of the first beat. Detected from the audio, or set by hand; saved in click.txt next
-to the songs (one line per song, like key.txt and bpm.txt), which the practice player reads."""
+and the time of the first beat. Detected from the audio, or set by hand; saved as the song's
+tempo (tempo.txt in its folder, see results.py), which the practice player reads."""
 
-import os
 import re
 import subprocess
 
 import numpy as np
 
-from . import results
-from .audio import die, expand, load
+from . import results, song
+from .audio import die, load
 from .click import parse_meter
 
 # "120.25 BPM 4/4, first beat 0.512 s"
@@ -27,11 +26,16 @@ def describe(bpm, meter, first):
 
 
 def parse(text):
-    """click.txt result -> {"bpm", "meter", "first"}, or None."""
+    """A tempo line with where the beats fall -> {"bpm", "meter", "first"}, or None."""
     match = FORMAT.search(text or "")
     if not match:
         return None
     return {"bpm": float(match["bpm"]), "meter": match["meter"], "first": float(match["first"])}
+
+
+def grid(path):
+    """Where the song's beats fall ({"bpm", "meter", "first"}), or None if it isn't known."""
+    return parse(results.read(path, "tempo"))
 
 
 def detect(audio):
@@ -84,15 +88,21 @@ def loudness(audio, start, period, window=0.05):
     return float(np.mean(levels)) if levels else 0.0
 
 
-def run(paths, bpm=None, meter="4/4", first=None):
+def run(paths, bpm=None, meter="4/4", first=None, force=False):
     per_bar, unit = parse_meter(meter)
     meter = f"{per_bar}/{unit}"
     if bpm is not None and not 20 <= bpm <= 400:
         die("The tempo must be between 20 and 400 BPM.")
-    found = []
-    for f in expand(paths, skip_generated=True):
-        name = os.path.basename(f)
+    typed = bpm is not None or first is not None
+    for f in song.expand(paths):
+        name = f.name
+        kept = None if force or typed else results.by_hand(f, "tempo")
         song_bpm, song_first, note = bpm, first, ""
+        if kept and parse(kept):
+            print(f"  {kept}  {name}  (kept; --force detects it again)")
+            continue
+        if kept:  # a tempo typed by hand, without where the beats fall: find them at that tempo
+            song_bpm = float(re.match(r"\s*(\d+(?:\.\d+)?)", kept)[1])
         if song_bpm is None or song_first is None:
             try:
                 audio, _ = load(f, sr=44100, mono=True)
@@ -110,6 +120,4 @@ def run(paths, bpm=None, meter="4/4", first=None):
                 note = "  the tempo varies: a steady click will drift from the recording"
         text = describe(song_bpm, meter, song_first)
         print(f"  {text}  {name}{note}")
-        found.append((f, text))
-    for out in results.save("click", found):
-        print(f"Saved to {out}")
+        print(f"Saved to {results.save(f, 'tempo', results.hand(text) if typed or kept else text)}")

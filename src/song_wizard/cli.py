@@ -42,9 +42,9 @@ def build_parser():
 
     p = sub.add_parser("download", help="download the audio of a link (a song or a playlist), without re-encoding",
                        description="Download the audio of a link, a single song or a playlist, in the best quality "
-                                   "available and without re-encoding. Playlists go to <Music>/<playlist "
-                                   "name>/001 - Artist - Title.opus (as the song's data says), single songs "
-                                   "to <Music>/Singles/. <Music> is $SONG_WIZARD_DIR if set, else your Music "
+                                   "available and without re-encoding. Each song gets a folder of its own: playlists go to "
+                                   "<Music>/<playlist name>/001 - Artist - Title/001 - Artist - Title.opus (as the "
+                                   "song's data says), single songs to <Music>/Singles/. <Music> is $SONG_WIZARD_DIR if set, else your Music "
                                    "folder (the Windows one on WSL). An archive per playlist is kept: running "
                                    "it again only downloads new songs.")
     p.add_argument("--wav", action="store_true", help="also write a .wav next to each .opus")
@@ -84,29 +84,32 @@ def build_parser():
     length = p.add_mutually_exclusive_group()
     length.add_argument("--duration", metavar="M:SS", help="length, e.g. 4:30 or 270 seconds (default: 1:00)")
     length.add_argument("--bars", type=int, help="length in bars")
-    length.add_argument("--like", metavar="FILE", help="as long as this song (and named after it, like --for)")
+    length.add_argument("--like", metavar="FILE", help="as long as this song (and in its folder, like --for)")
     p.add_argument("--subdivide", type=int, default=1, metavar="N",
                    help="softer clicks between beats: 2 = eighths, 3 = triplets, 4 = sixteenths")
     p.add_argument("--for", dest="song", metavar="FILE",
-                   help='name it after this song, "Title (click 120 BPM 4-4).wav", and save it next to it')
+                   help='save it in this song\'s folder, as "click 120 BPM 4-4.wav"')
     p.add_argument("-o", "--output", metavar="PATH", help="output file or folder")
 
     p = sub.add_parser("align", help="find a song's exact tempo and first beat, for a click that plays along",
                        description="Detects the exact tempo (with decimals) and when the first beat falls, and "
-                                   "saves them in click.txt next to the song, where the practice player of "
+                                   "saves them as the song's tempo (tempo.txt in its folder), where the practice player of "
                                    '"song-wizard ui" reads them to play a click along with the song. --bpm and '
                                    "--first set them by hand instead (a detected tempo can be half or double the "
-                                   "real one).")
+                                   "real one). A tempo set by hand (here, with bpm --set or in the practice player) "
+                                   "is kept unless --force: with only its BPM known, where the beats fall is found at "
+                                   "that BPM.")
     p.add_argument("--bpm", type=float, help="tempo, instead of detecting it")
     p.add_argument("--first", type=float, metavar="SECONDS", help="time of the first beat, instead of detecting it")
     p.add_argument("--meter", default="4/4", help="time signature (default: 4/4)")
+    p.add_argument("--force", action="store_true", help="detect again also where the tempo was set by hand")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     p = sub.add_parser("chords", help="detect the chords of songs, to read them in the practice player",
-                       description="Detects each song's chords and saves them next to it as "
-                                   "\"<song>.chords.json\", which the practice player of \"song-wizard ui\" shows "
+                       description="Detects each song's chords and saves them in its folder as "
+                                   "chords.json, which the practice player of \"song-wizard ui\" shows "
                                    "and lets you correct. The chords are moved onto the song's beats, so it needs its "
-                                   "click (click.txt); a song without one gets it first, as with song-wizard align. "
+                                   "tempo with where its beats fall (tempo.txt); a song without one gets it first, as with song-wizard align. "
                                    "Chords corrected by hand are kept unless --force. The first time, it downloads "
                                    "its model (12 MB).")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
@@ -114,7 +117,7 @@ def build_parser():
 
     p = sub.add_parser("notes", help="detect the notes the bass and the voice play, from their stems",
                        description="Follows the notes of the separated bass (pYIN) and voice (CREPE) and saves "
-                                   "them next to the song as \"<song>.notes.json\", which the practice player of "
+                                   "them in the song's folder as notes.json, which the practice player of "
                                    "\"song-wizard ui\" shows, plays and lets you correct. It needs the stems: "
                                    "song-wizard separate --stem bass / --stem vocals. One line at a time: where "
                                    "several voices sing at once, it follows one. Notes corrected by hand are kept "
@@ -125,10 +128,10 @@ def build_parser():
 
     p = sub.add_parser("drums", help="detect what the drums play, to print it as a drum sheet",
                        description="Finds the drums' hits (kick, snare, toms, hi-hat open and closed, ride, crash) "
-                                   "and saves them next to the song as \"<song>.drums.json\", which the practice "
+                                   "and saves them in the song's folder as drums.json, which the practice "
                                    "player of \"song-wizard ui\" plays and prints as a drum sheet. It uses ADTOF, a "
                                    "model with its own license (CC BY-NC-SA 4.0: non-commercial use only), "
-                                   "downloaded once (2.2 MB) after asking. It needs the song's click (click.txt; found "
+                                   "downloaded once (2.2 MB) after asking. It needs where the song's beats fall (tempo.txt; found "
                                    "first if missing) and its drum kit stems (separated first if missing). With "
                                    "--sheet or --midi it writes what was detected as \"<song>.drums.html\" (to print) "
                                    "or \"<song>.drums.mid\" (for REAPER or another program).")
@@ -141,16 +144,18 @@ def build_parser():
     p.add_argument("--full", action="store_true", help="with --sheet: every bar written, none folded")
 
     p = sub.add_parser("transpose", help="shift songs up or down by semitones",
-                       description='Shift pitch without changing tempo or timing. Writes "Title (+2).opus" '
-                                   '(or .wav/.mp3, as [audio] stems in the settings says) next to the original.')
+                       description='Shift pitch without changing tempo or timing. Writes "+2.opus" '
+                                   '(or .wav/.mp3, as [audio] stems in the settings says) in the song\'s folder; '
+                                   'from a stem, "drums +2.opus".')
     p.add_argument("semitones", type=float, metavar="N",
                    help="semitones: +1 = half step up, +2 = whole step up, -1.5, ...")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
     p = sub.add_parser("speed", help="slow songs down or speed them up without changing the pitch",
-                       description='Change the speed without changing the pitch. Writes "Title (80%%).opus" '
-                                   "(or .wav/.mp3, as [audio] stems in the settings says) next to the original; "
-                                   'with --semitones, also shifts the pitch in the same pass: "Title (80%%, -2).opus".')
+                       description='Change the speed without changing the pitch. Writes "80%%.opus" '
+                                   "(or .wav/.mp3, as [audio] stems in the settings says) in the song's folder "
+                                   '("drums 80%%.opus" from a stem); with --semitones, also shifts the pitch in the '
+                                   'same pass: "80%%, -2.opus".')
     p.add_argument("percent", type=float, metavar="PERCENT",
                    help="speed in percent of the original: 80 = slower, 120 = faster (25 to 200)")
     p.add_argument("--semitones", type=float, default=0, metavar="N", help="also shift the pitch, like transpose")
@@ -158,15 +163,15 @@ def build_parser():
 
     from .separate import ALL, STEMS
     p = sub.add_parser("separate", help="split out instruments: the instrument alone plus everything else",
-                       description='For each --stem, writes "Title (drums).opus" (the instrument alone) and '
-                                   '"Title (no drums).opus" (everything else) next to the original; with '
+                       description='For each --stem, writes "drums.opus" (the instrument alone) and '
+                                   '"no drums.opus" (everything else) in the song\'s folder; with '
                                    'stems = "wav" under [audio] in the settings, 32-bit float WAV. The two add up '
                                    "to the original (to the sample in WAV). Models are "
                                    "downloaded the first time they are used. Runs on an NVIDIA GPU (GTX 16 / "
                                    "RTX 20 or newer) or an Apple Silicon GPU when available, else on the CPU.")
     p.add_argument("--stem", action="append", required=True, choices=[*STEMS, ALL],
                    help='instrument to separate; repeat for several. "all" writes the four '
-                        'instruments plus "Title (other).opus" (everything else: keys, synths, '
+                        'instruments plus "other.opus" (everything else: keys, synths, '
                         'backing vocals...), without the "no X" files; the five add up to the original. '
                         '"piano" isn\'t part of "all". "drumkit" splits the drums (separated first if '
                         'missing) into kick, snare, toms, hihat, ride and crash, plus "drums rest"; '
@@ -178,8 +183,8 @@ def build_parser():
     from .convert import FORMATS
     p = sub.add_parser("convert", help="convert to MP3 (or M4A) to share, e.g. over WhatsApp",
                        description="Converts to a small format any phone plays: MP3 at ~190 kbps by default "
-                                   '(about 7 MB for 5 minutes), or M4A (AAC). Writes "Title.mp3" next to each '
-                                   "file. Given a folder, lossless files (WAV, FLAC, AIFF) and the stems and versions made in Opus are "
+                                   '(about 7 MB for 5 minutes), or M4A (AAC). Writes "drums.mp3" next to "drums.opus" '
+                                   "(the same name). Given a folder, lossless files (WAV, FLAC, AIFF) and the stems and versions made in Opus are "
                                    "converted, not the downloaded songs; "
                                    "files named explicitly are converted whatever their format. Files whose "
                                    "peaks go above 0 dB are turned down just enough not to clip.")
@@ -187,10 +192,10 @@ def build_parser():
     p.add_argument("--overwrite", action="store_true", help="replace files that already exist")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
 
-    p = sub.add_parser("rename", help="rename a song together with its stems, versions and results",
-                       description="Renames the song and every file made from it (other formats, stems, "
-                                   'transposed and sped-up versions), and its lines in key.txt and bpm.txt. '
-                                   'The "001 - " numbering is kept unless the new name has its own. If any new '
+    p = sub.add_parser("rename", help="rename a song (its folder and its own files)",
+                       description="Renames the song's folder and the files named after it (the song in each "
+                                   "format, its REAPER project, its printed pages); its stems and versions keep "
+                                   'their short names ("drums.opus"). The "001 - " numbering is kept unless the new name has its own. If any new '
                                    "name is taken, nothing is renamed.")
     p.add_argument("path", metavar="FILE", help="the song, or any file made from it")
     p.add_argument("name", metavar="NEW_NAME", help="the new name, without extension")
@@ -199,7 +204,7 @@ def build_parser():
                        description="Without options, shows the data the file keeps (what music players show). "
                                    "--set and --unset change it in the song and every file made from it (other "
                                    "formats, stems, versions), all of them or none; REAPER takes are left alone. A "
-                                   'new artist or title renames them all to "NNN - Artist - Title". With --only, '
+                                   'new artist or title renames the song to "NNN - Artist - Title". With --only, '
                                    "only this file changes (a note on one version, say) and nothing is renamed.")
     p.add_argument("path", metavar="FILE", help="the song, or with --only any file")
     p.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
@@ -224,8 +229,8 @@ def build_parser():
 
     p = sub.add_parser("delete", help="send songs or single files to the trash",
                        description="Sends files to the system's trash (the Recycle Bin on WSL, for files on a "
-                                   "Windows drive). A song goes with everything made from it (its other formats, "
-                                   "stems, versions and clicks) and its lines in key.txt, bpm.txt and click.txt, and "
+                                   "Windows drive). A song goes with its folder and everything in it (its other formats, "
+                                   "stems, versions, clicks, data and REAPER project), and "
                                    "leaves its playlist's archive, so looking for new songs downloads it again. A "
                                    "stem or a version goes alone; --file deletes any single file alone, like an "
                                    ".mp3 copy. Asks first unless --yes.")
@@ -278,9 +283,9 @@ def build_parser():
     p.add_argument("--foreground", action="store_true",
                    help="keep it in this terminal instead (Ctrl+C closes it), like before")
 
-    p = sub.add_parser("lyrics", help="find the lyrics of songs and save them next to each song",
+    p = sub.add_parser("lyrics", help="find the lyrics of songs and save them in each song's folder",
                        description="Looks up each song's lyrics in an open lyrics database, by its name "
-                                   '("Artist - Song") and length, and saves them as "<song>.lyrics.json". '
+                                   '("Artist - Song") and length, and saves them in the song\'s folder as lyrics.json. '
                                    "Highlighting and notes are done in the interface (song-wizard ui).")
     p.add_argument("paths", nargs="+", metavar="FILE|FOLDER")
     p.add_argument("--from", dest="text_from", metavar="FILE",
@@ -300,7 +305,7 @@ def build_parser():
     p.add_argument("--bars", type=int, default=4, choices=(2, 4), help="bars per row where nobody sings (2 or 4; default 4)")
 
     p = sub.add_parser("setlist", help="a printable setlist of a folder, or of songs from any folders",
-                       description="Lists songs with their key and tempo (from key.txt and bpm.txt: run key "
+                       description="Lists songs with their key and tempo (from each song's key.txt and tempo.txt: run key "
                                    "and bpm first) and length, and the total. Of one folder: in the order of "
                                    "its files (001 - ...), saved as Setlist.txt and Setlist.html (one A4 page, "
                                    "to print) in the folder. Of songs: in the order given, from any folders; "
@@ -316,21 +321,30 @@ def build_parser():
     p.add_argument("--bars", type=int, default=4, choices=(2, 4), help="with --chords: bars per row where nobody sings")
     p.add_argument("--out", metavar="FILE.html", help="save the page here (for a folder: instead of in it)")
 
-    p = sub.add_parser("order", help="put a folder's songs in another order (renumbering their files)",
+    p = sub.add_parser("order", help="put a folder's songs in another order (renumbering their folders)",
                        description="Numbers the folder's songs (001 - ...) in the order given: each song's "
-                                   "stems, versions, results, lyrics and REAPER project follow it. Songs not "
+                                   "folder, with everything in it, follows it. Songs not "
                                    "given go after, in the order they had. Songs added by hand to a playlist's "
                                    "folder get the number after the last one on their own, and new downloads go "
                                    "on from there.")
     p.add_argument("folder", metavar="FOLDER")
     p.add_argument("songs", nargs="+", metavar="SONG", help="songs of the folder (paths or file names), in their new order")
 
+    p = sub.add_parser("tidy", help="put the songs of folders from before 0.42.0 in a folder each",
+                       description="Since 0.42.0 each song has a folder of its own, with its stems and versions "
+                                   '("drums.opus", "80%%.opus"), its key.txt and tempo.txt, its lyrics, chords, notes '
+                                   "and drums, and its REAPER project. This moves the songs of a folder from before, "
+                                   "loose in it, there: all of them or none. Without folders, every folder in the "
+                                   "library that needs it. What it did is kept in the folder, so --undo puts it back.")
+    p.add_argument("folders", nargs="*", metavar="FOLDER")
+    p.add_argument("--undo", action="store_true", help="put the songs back as they were before tidy")
+
     p = sub.add_parser("reaper", help="open the song's REAPER project, making it first if there's none",
-                       description='Opens "<song>.rpp" (next to the song) in REAPER. If there\'s none, makes it '
+                       description='Opens "<song>.rpp" (in the song\'s folder) in REAPER. If there\'s none, makes it '
                                    "first: a track per stem (the set the practice player starts with playing, the "
-                                   "other stems and the song itself muted), the tempo and meter of the practice "
-                                   "click with the song's first beat on a bar line, REAPER's own click, and a "
-                                   'track armed to record. Takes are named "<song> (record <date> <time>).wav" '
+                                   "other stems and the song itself muted), the song's tempo and meter "
+                                   "with the song's first beat on a bar line, REAPER's own click, and a "
+                                   'track armed to record. Takes go to the song\'s folder as "record <date> <time>.wav" '
                                    "so they go with their song: that's a REAPER setting for all projects, set in "
                                    "reaper.ini when REAPER is closed (a copy of it is kept). An existing project "
                                    "is never rewritten, unless --redo.")
@@ -463,6 +477,9 @@ def dispatch(argv):
             sys.exit("song-wizard setlist: --chords goes with --lyrics.")
         setlist.run(args.paths, name=args.title, with_lyrics=args.lyrics, out=args.out,
                     with_chords=args.chords, simple=args.simple, bars=args.bars)
+    elif args.command == "tidy":
+        from . import layout, system
+        layout.run([system.local_path(f) for f in args.folders], undo_it=args.undo)
     elif args.command == "order":
         from . import numbering, system
         numbering.reorder(system.local_path(args.folder), args.songs)
@@ -512,7 +529,7 @@ def dispatch(argv):
         chords.run(args.paths, force=args.force)
     elif args.command == "align":
         from . import align
-        align.run(args.paths, bpm=args.bpm, meter=args.meter, first=args.first)
+        align.run(args.paths, bpm=args.bpm, meter=args.meter, first=args.first, force=args.force)
     elif args.command == "transpose":
         from . import transpose
         transpose.run(args.semitones, args.paths)

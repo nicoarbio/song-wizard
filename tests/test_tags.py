@@ -23,13 +23,13 @@ def opus(path, **fields):
 
 @pytest.fixture
 def song(tmp_path):
-    folder = tmp_path / "Show"
-    folder.mkdir()
+    folder = tmp_path / "Show" / "001 - Someone - Song (HQ)"
+    folder.mkdir(parents=True)
     main = opus(folder / "001 - Someone - Song (HQ).opus", title="Song (HQ)", artist="Uploader", genre="Music",
                 purl="https://example.com/watch?v=1", synopsis="Line one\nLine two")
-    write(folder / "001 - Someone - Song (HQ) (drums).wav", sine(220, 0.3))
-    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(main), str(folder / "001 - Someone - Song (HQ) (80%).mp3")], check=True)
-    write(folder / "001 - Someone - Song (HQ) (record 2026-01-03 20-15-00).wav", sine(330, 0.3))
+    write(folder / "drums.wav", sine(220, 0.3))
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(main), str(folder / "80%.mp3")], check=True)
+    write(folder / "record 2026-01-03 20-15-00.wav", sine(330, 0.3))
     return main
 
 
@@ -59,12 +59,12 @@ def test_read(song):
 
 def test_set_everywhere_but_takes(song):
     tags.run(song, ["album=Live", "Mi campo=hola", "genre=Rock"], ["synopsis"])
-    for name in ["001 - Someone - Song (HQ).opus", "001 - Someone - Song (HQ) (drums).wav", "001 - Someone - Song (HQ) (80%).mp3"]:
+    for name in ["001 - Someone - Song (HQ).opus", "drums.wav", "80%.mp3"]:
         data = tags.read(song.parent / name)
         got = tuple(data.get(k) for k in ("album", "Mi campo", "genre", "artist"))
         assert got == ("Live", "hola", "Rock", "Uploader"), (name, data, raw(song.parent / name))
         assert "synopsis" not in data and data["purl"] == "https://example.com/watch?v=1", name
-    assert "album" not in tags.read(song.parent / "001 - Someone - Song (HQ) (record 2026-01-03 20-15-00).wav")
+    assert "album" not in tags.read(song.parent / "record 2026-01-03 20-15-00.wav")
     # The audio is the same: only the data changed.
     assert subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(song)],
                           capture_output=True, text=True).stdout.strip().startswith("0.5")
@@ -72,9 +72,10 @@ def test_set_everywhere_but_takes(song):
 
 def test_new_artist_or_title_renames_all(song, capsys):
     tags.run(song, ["artist=Someone", "title=Song: live?"])
-    assert names(song.parent) == ["001 - Someone - Song： live？ (80%).mp3", "001 - Someone - Song： live？ (drums).wav",
-                                  "001 - Someone - Song： live？ (record 2026-01-03 20-15-00).wav", "001 - Someone - Song： live？.opus"]
-    assert tags.read(song.parent / "001 - Someone - Song： live？.opus")["title"] == "Song: live?"
+    here = song.parent.parent / "001 - Someone - Song： live？"
+    assert names(song.parent.parent) == [here.name]
+    assert names(here) == ["001 - Someone - Song： live？.opus", "80%.mp3", "drums.wav", "record 2026-01-03 20-15-00.wav"]
+    assert tags.read(here / "001 - Someone - Song： live？.opus")["title"] == "Song: live?"
 
 
 def test_other_data_doesnt_rename(song):
@@ -83,11 +84,11 @@ def test_other_data_doesnt_rename(song):
 
 
 def test_only_one_file(song):
-    version = song.parent / "001 - Someone - Song (HQ) (80%).mp3"
+    version = song.parent / "80%.mp3"
     tags.run(version, ["comment=the show's version", "title=Other"], only=True)
     assert tags.read(version)["comment"] == "the show's version"
     assert "comment" not in tags.read(song) or tags.read(song)["comment"] != "the show's version"
-    assert "001 - Someone - Song (HQ) (80%).mp3" in names(song.parent)  # --only never renames
+    assert names(song.parent.parent) == ["001 - Someone - Song (HQ)"]  # --only never renames
 
 
 def test_field_names_ogg_takes(song, capsys):
@@ -95,7 +96,7 @@ def test_field_names_ogg_takes(song, capsys):
         tags.run(song, ["Año=1993"])
     assert "Ano instead of Año" in capsys.readouterr().err
     assert "Año" not in tags.read(song)
-    wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    wav = song.parent / "drums.wav"
     tags.run(wav, ["Año=1993"], only=True)  # a WAV (ID3) takes it
     assert tags.read(wav).get("Año") == "1993", raw(wav)
 
@@ -122,7 +123,7 @@ def test_writes_where_chmod_isnt_allowed(song, monkeypatch):
 
 def test_wav_stays_a_wav(song):
     import soundfile
-    wav = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    wav = song.parent / "drums.wav"
     tags.run(song, ["album=Live"])
     assert wav.read_bytes()[:4] == b"RIFF"  # the data inside, not in front of the file
     assert soundfile.info(str(wav)).frames == int(0.3 * 44100)  # another reader than ffmpeg opens it
@@ -160,7 +161,8 @@ def test_name_for():
 
 def test_title_artist(song):
     assert tags.title_artist(song) == ("Song", "Uploader")  # "(HQ)" off, as on a setlist
-    plain = song.parent / "002 - Band - Other (Official Video).wav"
+    plain = song.parent.parent / "002 - Band - Other (Official Video)" / "002 - Band - Other (Official Video).wav"
+    plain.parent.mkdir()
     write(plain, sine(220, 0.2))
     assert tags.title_artist(plain) == ("Other", "Band")  # no data: from the name
 
@@ -173,7 +175,7 @@ def test_matches():
 
 
 def test_list_filters_by_words_and_data(song, monkeypatch, capsys):
-    monkeypatch.setenv("SONG_WIZARD_DIR", str(song.parent.parent))
+    monkeypatch.setenv("SONG_WIZARD_DIR", str(song.parent.parent.parent))
     tags.run(song, ["album=Último show"])
     capsys.readouterr()
     listing.run("ultimo SONG")
@@ -183,31 +185,35 @@ def test_list_filters_by_words_and_data(song, monkeypatch, capsys):
 
 
 def test_download_names_by_data(song, monkeypatch, capsys):
+    show = song.parent.parent
     download.name_by_data(str(song))
-    assert "001 - Uploader - Song (HQ).opus" in names(song.parent)
-    assert "001 - Uploader - Song (HQ) (drums).wav" in names(song.parent)
-    download.name_by_data(str(song.parent / "001 - Uploader - Song (HQ).opus"))  # already so: nothing to do
-    loose = opus(song.parent / "Clip.opus")
-    download.name_by_data(str(loose))  # no data: keeps its name
-    assert "Clip.opus" in names(song.parent)
+    here = show / "001 - Uploader - Song (HQ)"
+    assert names(here) == ["001 - Uploader - Song (HQ).opus", "80%.mp3", "drums.wav", "record 2026-01-03 20-15-00.wav"]
+    download.name_by_data(str(here / "001 - Uploader - Song (HQ).opus"))  # already so: nothing to do
+    loose = opus(show / "Clip.opus")  # just downloaded, loose in the playlist's folder
+    download.name_by_data(str(loose))  # no data: keeps its name, in a folder of its own
+    assert names(show / "Clip") == ["Clip.opus"]
 
 
 def test_config_written_by_any_command(tmp_path, capsys):
     assert not config.CONFIG_PATH.exists()
-    cli.main(["tag", str(opus(tmp_path / "a.opus"))])
+    (tmp_path / "a").mkdir()
+    cli.main(["tag", str(opus(tmp_path / "a" / "a.opus"))])
     assert config.CONFIG_PATH.read_text() == config.TEMPLATE
     assert not config.ensure()
 
 
 def test_interface(server, monkeypatch):
     port, root = server
-    main = opus(root / "001 - A - B.opus", title="B", artist="A")
-    write(root / "001 - A - B (drums).wav", sine(220, 0.2))
-    data = get_json(port, f"/api/tags?path={main.name.replace(' ', '%20')}")
-    assert data["tags"]["artist"] == "A" and data["files"] == ["001 - A - B (drums).wav", "001 - A - B.opus"]
+    (root / "001 - A - B").mkdir()
+    opus(root / "001 - A - B" / "001 - A - B.opus", title="B", artist="A")
+    write(root / "001 - A - B" / "drums.wav", sine(220, 0.2))
+    path = "001 - A - B/001 - A - B.opus"
+    data = get_json(port, f"/api/tags?path={path.replace(' ', '%20')}")
+    assert data["tags"]["artist"] == "A" and data["files"] == ["001 - A - B.opus", "drums.wav"]
     (folder,) = get_json(port, "/api/library")["folders"]
     assert folder["songs"][0]["tags"] == {"title": "B", "artist": "A"}
-    response, content = request(port, "POST", "/api/jobs", {"action": "tag", "paths": [main.name],
+    response, content = request(port, "POST", "/api/jobs", {"action": "tag", "paths": [path],
                                                              "set": {"artist": "C", "album": "D"}, "unset": ["genre"]})
     job = json.loads(content)
     assert job["title"] == "Datos: 001 - A - B.opus"
@@ -215,8 +221,9 @@ def test_interface(server, monkeypatch):
     assert status == "done", lines
     (folder,) = get_json(port, "/api/library")["folders"]
     assert folder["songs"][0]["name"] == "001 - C - B.opus" and folder["songs"][0]["tags"]["album"] == "D"
-    for bad in [{"set": {"a=b": "x"}}, {"set": {}, "unset": []}, {"set": {"x": "y"}, "paths": ["001 - C - B.opus", "001 - C - B (drums).wav"]}]:
-        body = {"action": "tag", "paths": ["001 - C - B.opus"], **bad}
+    new = "001 - C - B/001 - C - B.opus"
+    for bad in [{"set": {"a=b": "x"}}, {"set": {}, "unset": []}, {"set": {"x": "y"}, "paths": [new, "001 - C - B/drums.wav"]}]:
+        body = {"action": "tag", "paths": [new], **bad}
         assert request(port, "POST", "/api/jobs", body)[0].status == 400, bad
 
 
@@ -227,8 +234,7 @@ def test_made_files_carry_the_data_and_mark(song, capsys):
     mark = f"song-wizard {__version__}"
     transpose.run(2, [str(song)])  # the version is made from the file with the data, and carries it
     click.run(120, duration="0:02", song=str(song))
-    for name in ["001 - Someone - Song (HQ) (+2).opus",
-                 "001 - Someone - Song (HQ) (click 120 BPM 4-4).wav"]:
+    for name in ["+2.opus", "click 120 BPM 4-4.wav"]:
         data = tags.read(song.parent / name)
         assert (data.get("title"), data.get("artist"), data.get("encoded_by")) == ("Song (HQ)", "Uploader", mark), (name, data)
         assert data.get("purl") == "https://example.com/watch?v=1", name
@@ -238,7 +244,7 @@ def test_made_files_carry_the_data_and_mark(song, capsys):
 
 def test_saving_keeps_each_files_mark(song):
     from song_wizard import __version__
-    drums = song.parent / "001 - Someone - Song (HQ) (drums).wav"
+    drums = song.parent / "drums.wav"
     tags.write([str(drums)], {"title": "Song (HQ)", "encoded_by": "song-wizard 0.1.0"})
     tags.run(song, ["album=Live", "encoded_by=me"])  # the mark isn't the user's to set
     assert tags.read(drums)["encoded_by"] == "song-wizard 0.1.0"  # the version that made it
@@ -251,5 +257,5 @@ def test_saving_keeps_each_files_mark(song):
 def test_download_marks_what_it_got(song):
     from song_wizard import __version__
     download.name_by_data(str(song))
-    got = song.parent / "001 - Uploader - Song (HQ).opus"
+    got = song.parent.parent / "001 - Uploader - Song (HQ)" / "001 - Uploader - Song (HQ).opus"
     assert tags.read(got)["encoded_by"] == f"song-wizard {__version__}" and tags.read(got)["artist"] == "Uploader"

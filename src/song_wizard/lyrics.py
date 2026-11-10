@@ -19,17 +19,16 @@ import urllib.request
 from pathlib import Path
 
 from . import __version__
-from .audio import base_of, die, expand
+from . import song as songfs
+from .audio import die
 
 API = "https://lrclib.net/api"
 COLORS = ("yellow", "green", "blue", "pink", "orange")
-SUFFIX = ".lyrics.json"
 LRC_LINE = re.compile(r"^\[(\d+):(\d+(?:\.\d+)?)\]\s?(.*)$")
 
 
 def path_for(song):
-    song = Path(song)
-    return song.parent / f"{base_of(song.name)}{SUFFIX}"
+    return songfs.data(song, "lyrics")
 
 
 def load(song):
@@ -155,7 +154,7 @@ def fetch(song):
 
 
 def run(paths, text_from=None, force=False, export_page=False, kind="lyrics", shift=0, simple=False, bars=4):
-    songs = list(expand(paths, skip_generated=True))
+    songs = songfs.expand(paths)
     if not songs:
         die("No songs given.")
     if export_page:
@@ -270,7 +269,7 @@ def export(song, kind="lyrics", shift=0, simple=False, bars=4):
         die(f"{os.path.basename(song)} has no bass notes yet: song-wizard notes --part bass finds them.")
     title, artist = title_artist(song)
     name = {"lyrics": "lyrics", "chords": "chords", "bass": "bass"}[kind]
-    out = Path(song).parent / f"{base_of(Path(song).name)}.{name}.html"
+    out = songfs.export(song, f".{name}.html")
     out.write_text(sheet.page(title, song, data, kind=kind, shift=shift, simple=simple, bars=bars,
                               artist=artist), encoding="utf-8")
     return out

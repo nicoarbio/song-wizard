@@ -78,10 +78,7 @@ def test_section_escapes_and_keeps_marks():
 
 @pytest.fixture
 def song(tmp_path):
-    folder = tmp_path / "Show"
-    folder.mkdir()
-    path = folder / "001 - Song.wav"
-    synth.write(path, synth.sine(440, 1.0))
+    path = synth.song(tmp_path / "Show", "001 - Song.wav", synth.sine(440, 1.0))
     chords.save(path, {"chords": [{"from": 0, "to": 4, "name": "Am"}, {"from": 4, "to": 8, "name": "G7"}], "click": CLICK})
     notes.save(path, {"bass": {"notes": [{"from": 0, "to": 1, "midi": 45}, {"from": 1, "to": 2, "midi": 45},
                                          {"from": 2, "to": 4, "midi": 43}]}})
@@ -111,16 +108,14 @@ def test_export_and_rename(song):
     assert out.name == "001 - Song.chords.html" and "Bm" in out.read_text(encoding="utf-8")
     assert lyrics.export(song, "bass").name == "001 - Song.bass.html"
     rename.run(str(song), "Other")
-    assert (song.parent / "001 - Other.chords.html").exists() and (song.parent / "001 - Other.bass.html").exists()
+    other = song.parent.parent / "001 - Other"
+    assert (other / "001 - Other.chords.html").exists() and (other / "001 - Other.bass.html").exists()
 
 
 def test_interface(server):  # noqa: F811
     port, root = server
-    folder = root / "Show"
-    folder.mkdir()
-    path = folder / "001 - Song.wav"
-    synth.write(path, synth.sine(440, 1.0))
-    q = urllib.parse.quote("Show/001 - Song.wav")
+    path = synth.song(root / "Show", "001 - Song.wav", synth.sine(440, 1.0))
+    q = urllib.parse.quote("Show/001 - Song/001 - Song.wav")
     assert request(port, "GET", f"/lyrics?path={q}")[0].status == 404  # nothing to print yet
     chords.save(path, {"chords": [{"from": 0, "to": 4, "name": "Am"}], "click": CLICK})
     response, content = request(port, "GET", f"/lyrics?path={q}")  # no lyrics: the chords, in bars
@@ -138,10 +133,10 @@ def test_setlist_with_chords(tmp_path, monkeypatch):
     folder.mkdir(parents=True)
     monkeypatch.setenv("SONG_WIZARD_DIR", str(root))
     for name in ["001 - One.wav", "002 - Two.wav"]:
-        synth.write(folder / name, synth.sine(440, 1.0))
-    chords.save(folder / "001 - One.wav", {"chords": [{"from": 0, "to": 4, "name": "Am"}], "click": CLICK})
-    results.save("click", [(str(folder / "001 - One.wav"), "120.00 BPM 4/4, first beat 0.000 s")])
-    lyrics.save(folder / "002 - Two.wav", {"text": "only words"})
+        synth.song(folder, name, synth.sine(440, 1.0))
+    chords.save(folder / "001 - One", {"chords": [{"from": 0, "to": 4, "name": "Am"}], "click": CLICK})
+    results.save(folder / "001 - One", "tempo", "120.00 BPM 4/4, first beat 0.000 s")
+    lyrics.save(folder / "002 - Two", {"text": "only words"})
     items = setlist.rows(*setlist.find(folder))
     page = setlist.page("Show", items, with_lyrics=True)
     assert page.count('<section class="song">') == 1 and "only words" in page and ">Am<" not in page

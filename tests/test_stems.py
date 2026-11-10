@@ -12,9 +12,11 @@ def write_settings(text):
     config.CONFIG_PATH.write_text(text)
 
 
-def test_default_is_opus():
+def test_default_is_opus(tmp_path):
     assert audio.stem_ext() == ".opus"
-    assert audio.output_path("/music/Song.opus", "drums") == os.path.join("/music", "Song (drums).opus")
+    (tmp_path / "Song").mkdir()
+    (tmp_path / "Song" / "Song.opus").write_bytes(b"")
+    assert audio.output_path(tmp_path / "Song" / "Song.opus", "drums") == str(tmp_path / "Song" / "drums.opus")
 
 
 def test_settings_choose_the_format_and_bad_values_fall_back():
@@ -49,27 +51,29 @@ def test_opus_is_small_and_keeps_peaks_above_0_db(tmp_path):
 
 
 def test_stem_path_finds_any_format(tmp_path):
-    song = tmp_path / "001 - Song.opus"
+    here = tmp_path / "001 - Song"
+    here.mkdir()
+    song = here / "001 - Song.opus"
     song.write_bytes(b"")
     assert audio.stem_path(song, "bass") is None
-    (tmp_path / "001 - Song (bass).wav").write_bytes(b"")  # made before the change
-    assert audio.stem_path(song, "bass").name == "001 - Song (bass).wav"
-    (tmp_path / "001 - Song (bass).opus").write_bytes(b"")
-    assert audio.stem_path(song, "bass").name == "001 - Song (bass).opus"  # the chosen format wins
-    (tmp_path / "001 - Song (bass).mp3").write_bytes(b"")
+    (here / "bass.wav").write_bytes(b"")  # made before the change
+    assert audio.stem_path(song, "bass").name == "bass.wav"
+    (here / "bass.opus").write_bytes(b"")
+    assert audio.stem_path(song, "bass").name == "bass.opus"  # the chosen format wins
+    (here / "bass.mp3").write_bytes(b"")
     write_settings('[audio]\nstems = "mp3"\n')
-    assert audio.stem_path(song, "bass").name == "001 - Song (bass).mp3"
+    assert audio.stem_path(song, "bass").name == "bass.mp3"
 
 
 def test_versions_in_mp3_when_asked(tmp_path):
     write_settings('[audio]\nstems = "mp3"\n')
     tmp_path = tmp_path / "music"  # the settings live in tmp_path too
     tmp_path.mkdir()
-    src = synth.write(tmp_path / "tone.wav", synth.sine(440, 2))
+    src = synth.song(tmp_path, "tone.wav", synth.sine(440, 2))
     transpose.run(1, [str(src)])
-    assert sorted(os.listdir(tmp_path)) == ["tone (+1).mp3", "tone.wav"]
+    assert sorted(os.listdir(src.parent)) == ["+1.mp3", "tone.wav"]
     codec = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
-                            "stream=codec_name", "-of", "csv=p=0", str(tmp_path / "tone (+1).mp3")],
+                            "stream=codec_name", "-of", "csv=p=0", str(src.parent / "+1.mp3")],
                            capture_output=True, text=True, check=True).stdout.strip()
     assert codec == "mp3"
 
@@ -92,12 +96,12 @@ def test_all_stems_add_up_to_the_original_in_mp3(tmp_path, monkeypatch):
     monkeypatch.setattr(separate, "separate_with", fake_split)
     monkeypatch.setattr(separate, "pick", lambda *a, **k: "cpu")
     write_settings('[audio]\nstems = "mp3"\n')
-    src = synth.write(tmp_path / "song.wav", synth.sine(330, 3, peak=0.5))
+    src = synth.song(tmp_path, "song.wav", synth.sine(330, 3, peak=0.5))
     separate.run(["all"], [str(src)], force_cpu=True)
     original, _ = sf.read(src, dtype="float32", always_2d=True)
     total = np.zeros_like(original)
     for stem in ["vocals", "drums", "bass", "guitar", "other"]:
-        part = audio.load(str(tmp_path / f"song ({stem}).mp3"), sr=synth.SR)[0].T
+        part = audio.load(str(src.parent / f"{stem}.mp3"), sr=synth.SR)[0].T
         total[: len(part)] += part[: len(original)]
-    assert os.path.exists(tmp_path / "song (other).mp3")
+    assert os.path.exists(src.parent / "other.mp3")
     assert np.abs(total - original).max() < 0.01  # MP3 coding noise only

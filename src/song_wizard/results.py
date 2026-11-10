@@ -1,75 +1,47 @@
-"""Results of key and bpm, saved as text next to the songs so they don't get lost in the console.
+"""A song's key and tempo, as one line of text each in its folder: "key.txt" and "tempo.txt".
 
-One file per folder ("key.txt", "bpm.txt"), one line per song: "file name<TAB>result". Running
-again on some songs only replaces their lines.
+The tempo is one for the song, whoever set it:
+  "120.0 BPM  steady"                         detected by song-wizard bpm
+  "120.25 BPM 4/4, first beat 0.512 s"        where the beats fall (song-wizard align): the click
+  "120.25 BPM 4/4, first beat 0.512 s  set by hand"   adjusted in the practice player, or typed in
+
+Detecting again never replaces what was set by hand, and song-wizard bpm doesn't replace where the
+beats fall (it only knows the tempo), unless forced.
 """
 
-import datetime
 import os
-from collections import defaultdict
+
+from . import song
 
 # Results typed in by hand end with this; detecting again leaves them alone unless forced.
 HAND = "set by hand"
-HEADER = "# song-wizard {command}, updated {date}. One line per song: file name, tab, result.\n"
+WHAT = ("key", "tempo")
 
 
-def save(command, results):
-    """results: [(song path, result text)]. Returns the files written."""
-    by_folder = defaultdict(dict)
-    for path, text in results:
-        by_folder[os.path.dirname(os.path.abspath(path))][os.path.basename(path)] = text
-
-    written = []
-    for folder, new in by_folder.items():
-        lines = read(folder, command)
-        lines.update(new)
-        written.append(write(folder, command, lines))
-    return written
+def read(path, what):
+    """The song's key or tempo as saved, or None."""
+    try:
+        text = song.data(path, what).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    lines = [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
+    return lines[0] if lines else None
 
 
-def by_hand(path, command):
-    """The result saved for this file if it was set by hand, else None."""
-    text = read(os.path.dirname(os.path.abspath(path)), command).get(os.path.basename(path))
+def save(path, what, text):
+    """Save it; returns the file written."""
+    out = song.data(path, what)
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_text(text.strip() + "\n", encoding="utf-8")
+    os.replace(tmp, out)
+    return out
+
+
+def by_hand(path, what):
+    """The result saved if it was set by hand, else None."""
+    text = read(path, what)
     return text if text and text.endswith(HAND) else None
 
 
-def rename(folder, command, names):
-    """Follow renamed files ({old name: new name}). Returns whether anything changed."""
-    lines = read(folder, command)
-    if not any(name in lines for name in names):
-        return False
-    write(folder, command, {names.get(name, name): text for name, text in lines.items()})
-    return True
-
-
-def forget(folder, command, names):
-    """Drop the lines of deleted files. Returns whether anything changed."""
-    lines = read(folder, command)
-    kept = {name: text for name, text in lines.items() if name not in names}
-    if len(kept) == len(lines):
-        return False
-    write(folder, command, kept)
-    return True
-
-
-def read(folder, command):
-    """{file name: result} from <folder>/<command>.txt; empty if there's none."""
-    lines = {}
-    path = os.path.join(folder, f"{command}.txt")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                if line.startswith("#") or "\t" not in line:
-                    continue
-                name, text = line.rstrip("\n").split("\t", 1)
-                lines[name] = text
-    return lines
-
-
-def write(folder, command, lines):
-    path = os.path.join(folder, f"{command}.txt")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(HEADER.format(command=command, date=f"{datetime.datetime.now():%Y-%m-%d %H:%M}"))
-        for name in sorted(lines):
-            f.write(f"{name}\t{lines[name]}\n")
-    return path
+def hand(text):
+    return f"{text}  {HAND}"

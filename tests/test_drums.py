@@ -68,11 +68,7 @@ def test_cymbals_and_hihats(tmp_path):
 
 @pytest.fixture
 def song(tmp_path):
-    folder = tmp_path / "Show"
-    folder.mkdir()
-    path = folder / "001 - Band - Song.wav"
-    synth.write(path, synth.sine(440, 4.0))
-    return path
+    return synth.song(tmp_path / "Show", "001 - Band - Song.wav", synth.sine(440, 4.0))
 
 
 def fake_model(monkeypatch, frames=400):
@@ -89,9 +85,9 @@ def test_detect(song, monkeypatch):
     hits = drums.detect(song, CLICK)
     # Too few to measure a delay; without the kit's stems a cymbal is a crash and the hi-hat closed.
     assert [(h["t"], h["part"]) for h in hits] == [(0.5, "kick"), (1.0, "snare"), (1.52, "kick"), (2.0, "crash"), (3.0, "hihat")]
-    synth.write(song.with_name("001 - Band - Song (ride).wav"), burst([2.0], 10))
-    synth.write(song.with_name("001 - Band - Song (crash).wav"), burst([3.5], 10))
-    synth.write(song.with_name("001 - Band - Song (hihat).wav"), burst([3.0], 3))
+    synth.write(song.with_name("ride.wav"), burst([2.0], 10))
+    synth.write(song.with_name("crash.wav"), burst([3.5], 10))
+    synth.write(song.with_name("hihat.wav"), burst([3.0], 3))
     assert [h["part"] for h in drums.detect(song, CLICK)][3:] == ["ride", "hhopen"]
 
 
@@ -114,7 +110,7 @@ def test_keep_hand():
 
 
 def test_run_asks_for_the_model_first(song, monkeypatch, capsys):
-    results.save("click", [(str(song), "120.00 BPM 4/4, first beat 0.000 s")])
+    results.save(song, "tempo", "120.00 BPM 4/4, first beat 0.000 s")
     monkeypatch.setattr(drums, "model_ready", lambda: False)
     monkeypatch.setattr(drums, "model_path", lambda: pytest.fail("downloaded without asking"))
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
@@ -124,9 +120,9 @@ def test_run_asks_for_the_model_first(song, monkeypatch, capsys):
 
 
 def test_run_keeps_hand_and_exports(song, monkeypatch, capsys):
-    results.save("click", [(str(song), "120.00 BPM 4/4, first beat 0.000 s")])
+    results.save(song, "tempo", "120.00 BPM 4/4, first beat 0.000 s")
     for part in drums.KIT:  # the kit's stems are there: nothing to separate
-        synth.write(song.with_name(f"001 - Band - Song ({part}).wav"), burst([3.9], 50))
+        synth.write(song.with_name(f"{part}.wav"), burst([3.9], 50))
     fake_model(monkeypatch)
     drums.run([str(song)])
     data = drums.load(song)
@@ -215,7 +211,7 @@ def test_goes_along(song):
     data = drums.load(song)
     assert [(h["t"], h["part"]) for h in data["hits"]] == [(2.0, "snare")] and data["click"]["first"] == 0.25
     rename.run(str(song), "Band - Other")
-    assert song.with_name("001 - Band - Other.drums.json").is_file()
+    assert (song.parent.parent / "001 - Band - Other" / "drums.json").is_file()
 
 
 def test_interface(server, monkeypatch):  # noqa: F811
@@ -223,21 +219,22 @@ def test_interface(server, monkeypatch):  # noqa: F811
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
     monkeypatch.setattr(drums, "model_ready", lambda: False)
-    synth.write(root / "001 - Song.wav", synth.sine(440, 3.0))
-    q = urllib.parse.quote("001 - Song.wav")
+    synth.song(root, "001 - Song.wav", synth.sine(440, 3.0))
+    path = "001 - Song/001 - Song.wav"
+    q = urllib.parse.quote(path)
     assert get_json(port, f"/api/drums?path={q}")["drums"] is None
     assert request(port, "GET", f"/drums?path={q}")[0].status == 404
     # The model isn't here: the page is asked to agree first; then it's passed on.
-    response, content = request(port, "POST", "/api/jobs", {"action": "drums", "paths": ["001 - Song.wav"]})
+    response, content = request(port, "POST", "/api/jobs", {"action": "drums", "paths": [path]})
     assert response.status == 409 and json.loads(content)["consent"] == "drums" and not ran
-    response, content = request(port, "POST", "/api/jobs", {"action": "drums", "paths": ["001 - Song.wav"], "accept": True})
+    response, content = request(port, "POST", "/api/jobs", {"action": "drums", "paths": [path], "accept": True})
     assert response.status == 200
     for _ in range(50):
         if ran:
             break
         __import__("time").sleep(0.05)
     assert ran and ran[0][:2] == ["drums", "--accept-model-license"]
-    drums.save(root / "001 - Song.wav", {"hits": beat(2), "click": CLICK})
+    drums.save(root / path, {"hits": beat(2), "click": CLICK})
     assert get_json(port, "/api/library")["folders"][0]["songs"][0]["drums"]
     response, content = request(port, "GET", f"/drums?path={q}&fold=0")
     assert response.status == 200 and b"<svg" in content and b'value="1" onchange' in content
@@ -249,7 +246,7 @@ def test_interface(server, monkeypatch):  # noqa: F811
 @pytest.mark.network
 def test_real_model(tmp_path):
     """ADTOF on a synthetic rock beat: kicks on 1 and 3, snares on 2 and 4."""
-    song = synth.write(tmp_path / "001 - Beat.wav", synth.drum_song(bpm=120, bars=8))
+    song = synth.song(tmp_path, "001 - Beat.wav", synth.drum_song(bpm=120, bars=8))
     hits = drums.detect(song, CLICK)
     on = lambda part: [round(h["t"] / 0.5) % 4 for h in hits if h["part"] == part]
     kicks, snares = on("kick"), on("snare")

@@ -14,7 +14,7 @@ import subprocess
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
-from .audio import AUDIO_EXTS, base_of, die
+from .audio import die
 
 # The fields shown first, in this order, and the ones the library and the filter use.
 MAIN = ("title", "artist", "album", "date", "genre")
@@ -25,8 +25,6 @@ MARK = "encoded_by"
 # Fields with their own ID3 frame in a WAV (others go as TXXX, by name).
 FRAMES = {"encoded_by": "TENC", "title": "TIT2", "artist": "TPE1", "album": "TALB", "genre": "TCON", "composer": "TCOM",
           "album_artist": "TPE2", "track": "TRCK", "disc": "TPOS", "publisher": "TPUB", "copyright": "TCOP"}
-# A take recorded in REAPER: "Title (record 2026-01-03 2015).wav".
-TAKE = re.compile(r"^ \(record [^)]*\)(-\d+)?$")
 # Not allowed in Windows file names: the look-alikes yt-dlp also uses.
 LOOKALIKE = str.maketrans({"\\": "⧹", "/": "⧸", ":": "：", "*": "＊", "?": "？", '"': "＂", "<": "＜", ">": "＞", "|": "｜"})
 
@@ -133,12 +131,8 @@ def matches(words, *texts):
 
 def song_files(path):
     """The song's audio files (it, its other formats, stems and versions), without REAPER takes."""
-    folder, name = os.path.split(os.path.abspath(path))
-    base = base_of(name)
-    return [os.path.join(folder, n) for n in sorted(os.listdir(folder))
-            if os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base
-            and not TAKE.match(os.path.splitext(n)[0][len(base):])
-            and os.path.isfile(os.path.join(folder, n))]
+    from . import song
+    return [str(f) for f in song.audio_files(path)]
 
 
 def _id3(tags):
@@ -316,8 +310,9 @@ def run(path, set_=(), unset=(), only=False):
     print(f"Saved the data in {len(files)} file{'s' if len(files) != 1 else ''}.")
     # A new artist or title renames the song (and all that goes with it), like a download.
     if not only and any((tags.get(k) or "") != (old.get(k) or "") for k in ("artist", "title")):
+        from . import song
         new = name_for(tags)
-        current = base_of(os.path.basename(path))
+        current = song.name(path)
         number = re.match(r"^\d+ - ", current)
         if new and (number.group(0) if number else "") + new != current:
             from . import rename

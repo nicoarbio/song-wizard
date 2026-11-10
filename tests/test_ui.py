@@ -139,29 +139,55 @@ def test_bad_requests(server, body):
 
 def test_library_groups_files_under_their_song(server):
     port, root = server
-    show = root / "Show"
-    show.mkdir()
-    names = ["001 - Song.opus", "001 - Song.wav", "001 - Song.mp3", "001 - Song (drums).wav",
-             "001 - Song (no drums).wav", "001 - Song (+2).wav", "002 - Other (Live).opus",
-             "Click 120 BPM 4-4.wav", "notes.txt"]
+    here = root / "Show" / "001 - Song"
+    here.mkdir(parents=True)
+    names = ["001 - Song.opus", "001 - Song.wav", "001 - Song.mp3", "drums.wav", "no drums.wav", "+2.wav",
+             "drums 80%.wav", "record 2026-11-01 19-05-12.wav", "lyrics.json", "001 - Song.rpp"]
     for name in names:
-        (show / name).write_bytes(b"x")
-    (show / "key.txt").write_text("# header\n001 - Song.opus\tG    G major\n")
-    (show / "bpm.txt").write_text("# header\n001 - Song (drums).wav\t120.0 BPM  steady\n")
-    (root / "Loose.mp3").write_bytes(b"x")
+        (here / name).write_bytes(b"x")
+    (here / "key.txt").write_text("G    G major\n")
+    (here / "tempo.txt").write_text("120.25 BPM 4/4, first beat 0.512 s  set by hand\n")
+    (root / "Show" / "002 - Other (Live)").mkdir()
+    (root / "Show" / "002 - Other (Live)" / "002 - Other (Live).opus").write_bytes(b"x")
+    (root / "Show" / "Click 120 BPM 4-4.wav").write_bytes(b"x")
+    (root / "Show" / "notes.txt").write_bytes(b"x")
+    (root / "Loose").mkdir()
+    (root / "Loose" / "Loose.mp3").write_bytes(b"x")
     library = get_json(port, "/api/library")
     assert library["root"] == str(root)
     main, folder = library["folders"]
     assert main["name"] == "(carpeta principal)" and [s["name"] for s in main["songs"]] == ["Loose.mp3"]
+    assert main["songs"][0]["path"] == "Loose/Loose.mp3"
     assert folder["name"] == "Show" and folder["path"] == "Show"
     song, other = folder["songs"]
-    assert song["name"] == "001 - Song.opus" and song["key"] == "G    G major" and song["bpm"] is None
-    assert sorted(f["name"] for f in song["files"]) == sorted(
-        ["001 - Song.wav", "001 - Song.mp3", "001 - Song (drums).wav", "001 - Song (no drums).wav", "001 - Song (+2).wav"])
-    drums = next(f for f in song["files"] if f["name"] == "001 - Song (drums).wav")
-    assert drums["bpm"] == "120.0 BPM  steady" and drums["key"] is None
+    assert song["name"] == "001 - Song.opus" and song["path"] == "Show/001 - Song/001 - Song.opus"
+    assert song["key"] == "G    G major" and song["bpm"] == "120.25 BPM 4/4, first beat 0.512 s  set by hand"
+    assert song["click"] == {"bpm": 120.25, "meter": "4/4", "first": 0.512}
+    assert song["lyrics"] and song["reaper"]
+    kinds = {f["name"]: (f["kind"], f["part"]) for f in song["files"]}
+    assert kinds == {"001 - Song.wav": ("copy", None), "001 - Song.mp3": ("copy", None), "drums.wav": ("stem", "drums"),
+                     "no drums.wav": ("stem", "no drums"), "+2.wav": ("version", None), "drums 80%.wav": ("version", None),
+                     "record 2026-11-01 19-05-12.wav": ("take", None)}
+    assert next(f for f in song["files"] if f["name"] == "drums 80%.wav")["speed"] == pytest.approx(0.8)
     assert other["name"] == "002 - Other (Live).opus" and other["files"] == []
     assert [e["name"] for e in folder["extras"]] == ["Click 120 BPM 4-4.wav"]
+
+
+def test_library_shows_folders_from_before_closed(server):
+    """Songs loose in their folder, as before 0.42.0: shown only as needing tidy."""
+    port, root = server
+    (root / "Show").mkdir()
+    for name in ["001 - Song.opus", "001 - Song (drums).wav", "002 - Other.opus"]:
+        (root / "Show" / name).write_bytes(b"x")
+    (folder,) = get_json(port, "/api/library")["folders"]
+    assert folder["name"] == "Show" and folder["songs"] == [] and folder["old"] == 2
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "tidy", "folder": "Show"})[1])
+    assert job["title"] == "Acomodar en carpetas: Show"
+    status, lines = wait_for(port, job["id"])
+    assert status == "done", lines
+    (folder,) = get_json(port, "/api/library")["folders"]
+    assert [s["path"] for s in folder["songs"]] == ["Show/001 - Song/001 - Song.opus", "Show/002 - Other/002 - Other.opus"]
+    assert [f["name"] for f in folder["songs"][0]["files"]] == ["drums.wav"]
 
 
 def test_audio_ranges(server):
@@ -209,42 +235,43 @@ def test_click_job(server):
 
 def test_speed_job(server):
     port, root = server
-    synth.write(root / "tone.wav", synth.sine(440, 2))
+    synth.song(root, "tone.wav", synth.sine(440, 2))
     response, content = request(port, "POST", "/api/jobs",
-                                {"action": "speed", "percent": 80, "semitones": -2, "paths": ["tone.wav"]})
+                                {"action": "speed", "percent": 80, "semitones": -2, "paths": ["tone/tone.wav"]})
     job = json.loads(content)
     assert job["title"] == "Velocidad 80% y tono -2: tone.wav"
     status, lines = wait_for(port, job["id"])
     assert status == "done", lines
     song = get_json(port, "/api/library")["folders"][0]["songs"][0]
     assert song["name"] == "tone.wav"
-    assert [f["name"] for f in song["files"]] == ["tone (80%, -2).opus"]
+    assert [f["name"] for f in song["files"]] == ["80%, -2.opus"]
 
 
 def test_job_on_a_single_stem(server):
     port, root = server
-    synth.write(root / "tone.wav", synth.sine(440, 2))
-    synth.write(root / "tone (drums).wav", synth.sine(220, 2))
-    response, content = request(port, "POST", "/api/jobs", {"action": "speed", "percent": 50, "paths": ["tone (drums).wav"]})
+    synth.song(root, "tone.wav", synth.sine(440, 2))
+    synth.write(root / "tone" / "drums.wav", synth.sine(220, 2))
+    response, content = request(port, "POST", "/api/jobs", {"action": "speed", "percent": 50, "paths": ["tone/drums.wav"]})
     status, lines = wait_for(port, json.loads(content)["id"])
     assert status == "done", lines
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
-    assert sorted(f["name"] for f in song["files"]) == ["tone (drums) (50%).opus", "tone (drums).wav"]
-    assert sf.info(root / "tone (drums) (50%).opus").duration == pytest.approx(4, abs=0.05)  # Opus: lossy, 48 kHz
+    assert sorted(f["name"] for f in song["files"]) == ["drums 50%.opus", "drums.wav"]
+    assert sf.info(root / "tone" / "drums 50%.opus").duration == pytest.approx(4, abs=0.05)  # Opus: lossy, 48 kHz
 
 
 def test_rename_job(server):
     port, root = server
-    for name in ["Song (HQ).opus", "Song (HQ) (drums).wav"]:
-        (root / name).write_bytes(b"x")
-    response, content = request(port, "POST", "/api/jobs", {"action": "rename", "paths": ["Song (HQ).opus"], "name": "Song"})
+    (root / "Song (HQ)").mkdir()
+    for name in ["Song (HQ).opus", "drums.wav"]:
+        (root / "Song (HQ)" / name).write_bytes(b"x")
+    response, content = request(port, "POST", "/api/jobs", {"action": "rename", "paths": ["Song (HQ)/Song (HQ).opus"], "name": "Song"})
     job = json.loads(content)
     assert job["title"] == "Renombrar Song (HQ).opus → Song"
     status, lines = wait_for(port, job["id"])
     assert status == "done", lines
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
-    assert song["name"] == "Song.opus" and [f["name"] for f in song["files"]] == ["Song (drums).wav"]
-    two = {"action": "rename", "paths": ["Song.opus", "Song (drums).wav"], "name": "X"}
+    assert song["path"] == "Song/Song.opus" and [f["name"] for f in song["files"]] == ["drums.wav"]
+    two = {"action": "rename", "paths": ["Song/Song.opus", "Song/drums.wav"], "name": "X"}
     assert request(port, "POST", "/api/jobs", two)[0].status == 400
 
 
@@ -272,13 +299,13 @@ def test_playlist_update(server, monkeypatch):
 
 def test_click_for_one_song(server):
     port, root = server
-    (root / "Show").mkdir()
-    synth.write(root / "Show" / "001 - Song.wav", synth.sine(440, 2))
-    body = {"action": "click", "bpm": 120, "like": "Show/001 - Song.wav", "for": "Show/001 - Song.wav", "folder": "Show"}
+    synth.song(root / "Show", "001 - Song.wav", synth.sine(440, 2))
+    path = "Show/001 - Song/001 - Song.wav"
+    body = {"action": "click", "bpm": 120, "like": path, "for": path, "folder": "Show"}
     status, lines = wait_for(port, json.loads(request(port, "POST", "/api/jobs", body)[1])["id"])
     assert status == "done", lines
     (song,) = get_json(port, "/api/library")["folders"][-1]["songs"]
-    assert [f["name"] for f in song["files"]] == ["001 - Song (click 120 BPM 4-4).wav"]
+    assert [(f["name"], f["kind"]) for f in song["files"]] == [("click 120 BPM 4-4.wav", "click")]
     assert request(port, "POST", "/api/jobs", {**body, "for": "../x.wav"})[0].status == 403
 
 
@@ -298,21 +325,25 @@ def test_peaks(server):
 
 def test_click_settings(server, monkeypatch):
     port, root = server
-    (root / "001 - Song.opus").write_bytes(b"x")
-    body = {"path": "001 - Song.opus", "bpm": 97.3, "meter": "3/4", "first": 1.25}
+    (root / "001 - Song").mkdir()
+    (root / "001 - Song" / "001 - Song.opus").write_bytes(b"x")
+    path = "001 - Song/001 - Song.opus"
+    body = {"path": path, "bpm": 97.3, "meter": "3/4", "first": 1.25}
     response, content = request(port, "POST", "/api/click-settings", body)
     assert response.status == 200 and json.loads(content) == {"bpm": 97.3, "meter": "3/4", "first": 1.25}
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
+    # Set in the practice player: the song's tempo, by hand (detecting again keeps it).
     assert song["click"] == {"bpm": 97.3, "meter": "3/4", "first": 1.25}
-    for bad in [{**body, "bpm": 5}, {**body, "meter": "fast"}, {**body, "first": "x"}, {"path": "001 - Song.opus"}]:
+    assert song["bpm"] == "97.30 BPM 3/4, first beat 1.250 s  set by hand"
+    for bad in [{**body, "bpm": 5}, {**body, "meter": "fast"}, {**body, "first": "x"}, {"path": path}]:
         assert request(port, "POST", "/api/click-settings", bad)[0].status == 400
     assert request(port, "POST", "/api/click-settings", {**body, "path": "../x"})[0].status == 403
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
-    job = json.loads(request(port, "POST", "/api/jobs", {"action": "align", "paths": ["001 - Song.opus"]})[1])
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "align", "paths": [path], "force": True})[1])
     assert job["title"] == "Tempo y primer golpe: 001 - Song.opus"
     wait_for(port, job["id"])
-    assert ran == [["align", str((root / "001 - Song.opus").resolve())]]
+    assert ran == [["align", "--force", str((root / path).resolve())]]
 
 
 def test_failed_job(server):
@@ -396,8 +427,7 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
     from song_wizard import archives
     port, root = server
     drive = tmp_path / "drive" / "Show"
-    drive.mkdir(parents=True)
-    synth.write(drive / "001 - A.wav", synth.sine(440, 1))
+    synth.song(drive, "001 - A.wav", synth.sine(440, 1))
     (tmp_path / "secret.wav").write_bytes(b"s")
     archives.ARCHIVE_DIR.mkdir(parents=True)
     (archives.ARCHIVE_DIR / "PLx.txt").write_text("site a\n")
@@ -405,16 +435,16 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
     (key,) = ui.outside(root)
     (folder,) = get_json(port, "/api/library")["folders"]
     assert folder["path"] == f"{key}/Show" and folder["location"] == str(drive.parent)
-    assert folder["songs"][0]["path"] == f"{key}/Show/001 - A.wav" and folder["playlist"]["id"] == "PLx"
+    assert folder["songs"][0]["path"] == f"{key}/Show/001 - A/001 - A.wav" and folder["playlist"]["id"] == "PLx"
     quoted = key.replace("@", "%40")
-    assert request(port, "GET", f"/api/audio?path={quoted}/Show/001%20-%20A.wav")[0].status == 200
+    assert request(port, "GET", f"/api/audio?path={quoted}/Show/001%20-%20A/001%20-%20A.wav")[0].status == 200
     assert request(port, "GET", f"/api/audio?path={quoted}/../../secret.wav")[0].status == 403
     assert request(port, "GET", "/api/audio?path=%40deadbeef/x.wav")[0].status == 403
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
-    job = json.loads(request(port, "POST", "/api/jobs", {"action": "key", "paths": [f"{key}/Show/001 - A.wav"]})[1])
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "key", "paths": [f"{key}/Show/001 - A/001 - A.wav"]})[1])
     wait_for(port, job["id"])
-    assert ran[-1] == ["key", str((drive / "001 - A.wav").resolve())]
+    assert ran[-1] == ["key", str((drive / "001 - A" / "001 - A.wav").resolve())]
     other = tmp_path / "elsewhere"
     other.mkdir()
     job = json.loads(request(port, "POST", "/api/jobs", {"action": "archives-move", "id": "PLx", "title": "Show", "to": str(other)})[1])
@@ -423,9 +453,9 @@ def test_playlist_outside_the_music_folder(server, monkeypatch, tmp_path):
     job = json.loads(request(port, "POST", "/api/jobs", {"action": "download", "url": "https://example.com/x", "to": str(other)})[1])
     wait_for(port, job["id"])
     assert ran[-1] == ["download", "--to", str(other), "https://example.com/x"]
-    job = json.loads(request(port, "POST", "/api/jobs", {"action": "order", "folder": f"{key}/Show", "songs": [f"{key}/Show/001 - A.wav"]})[1])
+    job = json.loads(request(port, "POST", "/api/jobs", {"action": "order", "folder": f"{key}/Show", "songs": [f"{key}/Show/001 - A/001 - A.wav"]})[1])
     wait_for(port, job["id"])
-    assert ran[-1] == ["order", str(drive.resolve()), str((drive / "001 - A.wav").resolve())]
+    assert ran[-1] == ["order", str(drive.resolve()), str((drive / "001 - A" / "001 - A.wav").resolve())]
     job = json.loads(request(port, "POST", "/api/jobs", {"action": "archives-add", "to": str(other)})[1])
     wait_for(port, job["id"])
     assert ran[-1] == ["archives", "--add", str(other)]
@@ -461,11 +491,11 @@ def test_folder_on_an_unmounted_drive(server, monkeypatch):
 def test_singles_in_two_places(server, tmp_path):
     from song_wizard import archives
     port, root = server
-    (root / "Singles").mkdir()
-    (root / "Singles" / "Here.opus").write_bytes(b"x")
+    (root / "Singles" / "Here").mkdir(parents=True)
+    (root / "Singles" / "Here" / "Here.opus").write_bytes(b"x")
     drive = tmp_path / "drive"
-    (drive / "Singles").mkdir(parents=True)
-    (drive / "Singles" / "There.opus").write_bytes(b"x")
+    (drive / "Singles" / "There").mkdir(parents=True)
+    (drive / "Singles" / "There" / "There.opus").write_bytes(b"x")
     (drive / "empty").mkdir()  # no audio: not listed
     archives.ARCHIVE_DIR.mkdir(parents=True)
     (archives.ARCHIVE_DIR / "singles.txt").write_text("site a\nsite b\n")

@@ -81,8 +81,10 @@ def run(bpm, meter="4/4", duration=None, bars=None, like=None, subdivide=1, outp
     label = f"{bpm:g} BPM {per_bar}-{unit}" + (f" x{subdivide}" if subdivide > 1 else "")
     song = song or (like if output is None else None)
     if song:
-        name = f"{os.path.splitext(os.path.basename(song))[0]} (click {label}).wav"
-        out = os.path.join(os.path.dirname(os.path.abspath(song)), name) if output is None else None
+        from .song import folder
+        place = folder(song) / f"click {label}.wav"
+        name = place.name
+        out = str(place) if output is None else None
     else:
         name = f"Click {label}.wav"
         out = name if output is None else None

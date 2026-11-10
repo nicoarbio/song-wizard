@@ -1,11 +1,10 @@
-"""A REAPER project for a song: "<song>.rpp" next to it, with a track per stem (or the song
-itself), the project's tempo and meter from the practice click (click.txt) and the audio placed so
+"""A REAPER project for a song: "<song>.rpp" in its folder, with a track per stem (or the song
+itself), the project's tempo and meter from the song's tempo (tempo.txt) and the audio placed so
 the song's first beat falls on a bar line, REAPER's own click on a track of its own, and a track
 armed to record. If the project exists it's just opened, never rewritten: it may have been edited
 in REAPER.
 
-Takes recorded in REAPER are named "<song> (record 2026-11-01 19-05-12).wav", so they're grouped
-with their song. REAPER only has that setting globally (Preferences > Recording > recorded
+Takes recorded in REAPER go to the song's folder as "record 2026-11-01 19-05-12.wav". REAPER only has that setting globally (Preferences > Recording > recorded
 filenames), so it's set in reaper.ini when REAPER is closed, with a copy of the file kept first."""
 
 import datetime
@@ -19,16 +18,18 @@ import sys
 import uuid
 from pathlib import Path
 
-from . import align, log, results, system
-from .audio import AUDIO_EXTS, MAIN_FORMATS, base_of, die
+from . import align, log, results, song as songfs, system
+from .audio import AUDIO_EXTS, die
 from .paths import DATA_DIR, is_wsl
 
 SUFFIX = ".rpp"
 BACKUP = "reaper.ini.before-song-wizard"
 # What song-wizard changed in REAPER's settings, to say so and to put it back.
 STATE = DATA_DIR / "reaper.json"
-# Recorded takes: "$project" is the project's file name, which is the song's.
-TAKES = "$project (record $year-$month-$day $hour-$minute-$second)"
+# Recorded takes, in the song's folder (where the project is).
+TAKES = "record $year-$month-$day $hour-$minute-$second"
+# What song-wizard set before 0.42.0 (the takes went loose next to the song, named after it).
+OLD_TAKES = "$project (record $year-$month-$day $hour-$minute-$second)"
 STEM_NAMES = {"vocals": "Voz", "drums": "Batería", "bass": "Bajo", "guitar": "Guitarra", "piano": "Piano", "other": "Otros",
               "kick": "Bombo", "snare": "Redoblante", "toms": "Toms", "hihat": "Hi-hat", "ride": "Ride", "crash": "Crash",
               "drums rest": "Resto de la batería"}
@@ -37,17 +38,15 @@ FULL_SET = ["vocals", "drums", "bass", "guitar", "other"]
 
 
 def path_for(song):
-    song = Path(song)
-    return song.parent / f"{base_of(song.name)}{SUFFIX}"
+    return songfs.export(song, SUFFIX)
 
 
 def existing(song):
     """The song's project if there is one ("<song>.rpp", any case), else None."""
-    song = Path(song)
-    wanted = f"{base_of(song.name)}{SUFFIX}".lower()
+    here = songfs.folder(song)
+    wanted = f"{here.name}{SUFFIX}".lower()
     try:
-        return next((song.parent / n for n in os.listdir(song.parent)
-                     if n.lower() == wanted and (song.parent / n).is_file()), None)
+        return next((here / n for n in os.listdir(here) if n.lower() == wanted and (here / n).is_file()), None)
     except OSError:
         return None
 
@@ -59,12 +58,11 @@ def tracks_for(song):
     player starts with: every stem, or an instrument with the rest, or the song itself), and the
     other stems and the original song muted, so they're there to switch to."""
     song = Path(song)
-    base = base_of(song.name)
-    stem = re.compile(rf"^{re.escape(base)} \(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\)\.(wav|opus|mp3)$", re.I)
     found = {}
-    for n in sorted(os.listdir(song.parent)):
-        if (m := stem.match(n)) and (song.parent / n).is_file():
-            found[m[1].lower()] = n
+    for f in songfs.audio_files(song):
+        if songfs.kind(f.name) == "stem" and f.suffix.lower() in (".wav", ".opus", ".mp3") \
+                and len(parts := songfs.parts(f.name)) == 1:
+            found.setdefault(parts[0].lower(), f.name)
     name = lambda k: f"Sin {STEM_NAMES[k[3:]].lower()}" if k.startswith("no ") else STEM_NAMES[k]
     if all(k in found for k in FULL_SET):
         playing = FULL_SET
@@ -83,9 +81,8 @@ def tracks_for(song):
 def timing(song):
     """(bpm, beats per bar, beat unit, where the audio starts in the project, problem): problem is
     None, "unaligned" (a tempo, but not where the beats fall) or "no-tempo"."""
-    song = Path(song)
-    folder = str(song.parent)
-    click = align.parse(results.read(folder, "click").get(song.name))
+    text = results.read(song, "tempo")
+    click = align.parse(text)
     if click:
         beats, unit = (int(x) for x in click["meter"].split("/"))
         bar = beats * 60 / click["bpm"]
@@ -93,7 +90,6 @@ def timing(song):
         # first beat lands on that bar line, with at least a bar of click before it.
         start = (math.floor(click["first"] / bar) + 1) * bar - click["first"]
         return click["bpm"], beats, unit, start, None
-    text = results.read(folder, "bpm").get(song.name)
     if text and (m := re.match(r"\s*(\d+(?:\.\d+)?)", text)):
         return float(m[1]), 4, 4, 0.0, "unaligned"
     return 120.0, 4, 4, 0.0, "no-tempo"
@@ -364,6 +360,9 @@ def take_names(ini=None):
     before = current_value(read_ini(ini))
     if before == TAKES:
         return None
+    state = load_state()
+    if before == OLD_TAKES and state.get("changed"):
+        before = state.get("before")  # song-wizard's own, from before 0.42.0: the user's is the one before
     if running():
         return "running"
     backup = ini.with_name(BACKUP)
@@ -468,15 +467,7 @@ def make(song, redo=False):
 
 def preferred(path):
     """Of the song's own files (not its stems or versions), the one the library shows."""
-    path = Path(path)
-    base = base_of(path.name)
-    own = [n for n in os.listdir(path.parent)
-           if os.path.splitext(n)[0] == base and os.path.splitext(n)[1].lower() in AUDIO_EXTS]
-    if not own:
-        die(f"{path.name}: its song isn't in this folder")
-    rank = lambda n: (MAIN_FORMATS.index(os.path.splitext(n)[1].lower())
-                      if os.path.splitext(n)[1].lower() in MAIN_FORMATS else len(MAIN_FORMATS))
-    return path.parent / min(own, key=rank)
+    return songfs.main(path)
 
 
 def notes(info):
@@ -484,7 +475,7 @@ def notes(info):
     if info["trashed"]:
         lines.append("the project from before went to the trash")
     if info["timing"] == "unaligned":
-        lines.append("tempo from bpm.txt, but the song isn't lined up with the bars: set the practice click "
+        lines.append("the song's tempo is known, but not where its beats fall: set the practice click "
                      "(song-wizard align, or practice → adjust the click) and --redo")
     elif info["timing"] == "no-tempo":
         lines.append("no tempo known for this song (run bpm or align first): the project is at 120 BPM")

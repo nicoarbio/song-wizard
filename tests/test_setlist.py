@@ -34,11 +34,12 @@ def show(tmp_path, monkeypatch):
     monkeypatch.setenv("SONG_WIZARD_DIR", str(root))
     tone = synth.sine(440, 2.0)
     for name in ["002 - Band - Second <b>.wav", "001 - Band - First (Official Video).wav", "003 - Third.wav"]:
-        synth.write(folder / name, tone)
-    synth.write(folder / "001 - Band - First (Official Video) (drums).wav", tone)  # a stem: not a song
-    results.save("key", [(str(folder / "001 - Band - First (Official Video).wav"), "Am   A minor   relative C     4/4"),
-                         (str(folder / "002 - Band - Second <b>.wav"), "E    E major   relative C#m   2/4  uncertain, also: Em")])
-    results.save("bpm", [(str(folder / "001 - Band - First (Official Video).wav"), "120.4 BPM  steady")])
+        synth.song(folder, name, tone)
+    first = folder / "001 - Band - First (Official Video)"
+    synth.write(first / "drums.wav", tone)  # a stem: not a song
+    results.save(first, "key", "Am   A minor   relative C     4/4")
+    results.save(folder / "002 - Band - Second <b>", "key", "E    E major   relative C#m   2/4  uncertain, also: Em")
+    results.save(first, "tempo", "120.4 BPM  steady")
     return root, folder
 
 
@@ -63,9 +64,7 @@ def test_run_not_a_library_folder(show, tmp_path):
 
 def test_interface(server):  # noqa: F811
     port, root = server
-    folder = root / "Show"
-    folder.mkdir()
-    synth.write(folder / "001 - Song.wav", synth.sine(440, 1.0))
+    synth.song(root / "Show", "001 - Song.wav", synth.sine(440, 1.0))
     response, content = request(port, "GET", f"/setlist?folder=Show&t={TOKEN}", token=None)
     assert response.status == 200 and b"Song" in content and b"<title>Show - setlist by song-wizard" in content
     assert request(port, "GET", "/setlist?folder=Show", token=None)[0].status == 403
@@ -78,9 +77,8 @@ def loose(show):
     """Songs in two folders, one with lyrics."""
     root, folder = show
     other = root / "Other"
-    other.mkdir()
-    synth.write(other / "001 - Band - Elsewhere.wav", synth.sine(440, 3.0))
-    lyrics.save(folder / "003 - Third.wav", {"text": "First line <i>\nSecond line", "legend": {"yellow": "all"},
+    synth.song(other, "001 - Band - Elsewhere.wav", synth.sine(440, 3.0))
+    lyrics.save(folder / "003 - Third" / "003 - Third.wav", {"text": "First line <i>\nSecond line", "legend": {"yellow": "all"},
                                              "marks": [{"line": 0, "from": 0, "to": 5, "color": "yellow"}],
                                              "notes": {"1": "softly"}})
     return root, folder, other
@@ -88,8 +86,8 @@ def loose(show):
 
 def test_chosen_in_the_order_given(loose):
     root, folder, other = loose
-    items = setlist.chosen([folder / "003 - Third.wav", other / "001 - Band - Elsewhere.wav",
-                            folder / "001 - Band - First (Official Video) (drums).wav"])  # a stem: its song
+    items = setlist.chosen([folder / "003 - Third" / "003 - Third.wav", other / "001 - Band - Elsewhere" / "001 - Band - Elsewhere.wav",
+                            folder / "001 - Band - First (Official Video)" / "drums.wav"])  # a stem: its song
     assert [r["title"] for r in items] == ["Third", "Elsewhere", "First"]
     assert [r["n"] for r in items] == [1, 2, 3] and items[2]["key"] == "Am"
     with pytest.raises(LookupError):
@@ -98,7 +96,7 @@ def test_chosen_in_the_order_given(loose):
 
 def test_page_with_lyrics(loose):
     root, folder, other = loose
-    items = setlist.chosen([other / "001 - Band - Elsewhere.wav", folder / "003 - Third.wav"])
+    items = setlist.chosen([other / "001 - Band - Elsewhere" / "001 - Band - Elsewhere.wav", folder / "003 - Third" / "003 - Third.wav"])
     assert "class=\"song\"" not in setlist.page("Show", items)
     page = setlist.page("Show", items, with_lyrics=True)
     assert page.count('<section class="song">') == 1  # only the one with lyrics
@@ -109,14 +107,14 @@ def test_page_with_lyrics(loose):
 def test_run_songs(loose, capsys, tmp_path):
     root, folder, other = loose
     before = sorted(p.name for p in folder.iterdir())
-    setlist.run([str(other / "001 - Band - Elsewhere.wav"), str(folder / "003 - Third.wav")], name="Gig")
+    setlist.run([str(other / "001 - Band - Elsewhere" / "001 - Band - Elsewhere.wav"), str(folder / "003 - Third" / "003 - Third.wav")], name="Gig")
     out = capsys.readouterr().out
     assert out.startswith("Gig\n") and "1. Elsewhere" in out and "2. Third" in out and "2 songs, 0:05" in out
     assert sorted(p.name for p in folder.iterdir()) == before  # nothing saved in the folders
-    setlist.run([str(folder / "003 - Third.wav")], with_lyrics=True, out=str(tmp_path / "gig.html"))
+    setlist.run([str(folder / "003 - Third" / "003 - Third.wav")], with_lyrics=True, out=str(tmp_path / "gig.html"))
     assert "Second line" in (tmp_path / "gig.html").read_text()
     with pytest.raises(SystemExit):
-        setlist.run([str(folder / "003 - Third.wav"), str(tmp_path / "nope.wav")])
+        setlist.run([str(folder / "003 - Third" / "003 - Third.wav"), str(tmp_path / "nope.wav")])
 
 
 def test_run_folder_out(show, tmp_path, capsys):
@@ -128,10 +126,10 @@ def test_run_folder_out(show, tmp_path, capsys):
 def test_interface_songs(server):  # noqa: F811
     port, root = server
     for name in ["A", "B"]:
-        (root / name).mkdir()
-        synth.write(root / name / f"001 - Song {name}.wav", synth.sine(440, 1.0))
-    lyrics.save(root / "B" / "001 - Song B.wav", {"text": "la la"})
-    query = "path=B/001%20-%20Song%20B.wav&path=A/001%20-%20Song%20A.wav&title=Gig%20%3Cb%3E"
+        synth.song(root / name, f"001 - Song {name}.wav", synth.sine(440, 1.0))
+    lyrics.save(root / "B" / "001 - Song B" / "001 - Song B.wav", {"text": "la la"})
+    query = ("path=B/001%20-%20Song%20B/001%20-%20Song%20B.wav&path=A/001%20-%20Song%20A/001%20-%20Song%20A.wav"
+             "&title=Gig%20%3Cb%3E")
     response, content = request(port, "GET", f"/setlist?{query}")
     assert response.status == 200 and b"<title>Gig -b- - setlist by song-wizard" in content
     assert content.index(b"Song B") < content.index(b"Song A") and b"la la" not in content

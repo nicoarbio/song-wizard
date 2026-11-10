@@ -5,8 +5,8 @@ import subprocess
 
 import numpy as np
 
-from . import tags
-from .audio import GENERATED, expand, load, require_ffmpeg
+from . import song, tags
+from .audio import expand, load, require_ffmpeg
 
 FORMATS = {
     # LAME VBR quality 2 is ~190 kbps: transparent for practice tracks, ~7 MB for 5 minutes.
@@ -24,7 +24,7 @@ def in_folder(f):
     stem, ext = os.path.splitext(f)
     if ext.lower() in LOSSLESS:
         return True
-    return (ext.lower() == ".opus" and bool(GENERATED.search(os.path.basename(stem)))
+    return (ext.lower() == ".opus" and song.parts(f) is not None
             and not any(os.path.exists(stem + e) for e in LOSSLESS))
 # Lossy formats clip whatever goes above 0 dB when played, and encoding itself adds a little
 # to the peaks, so louder files are turned down to -1 dB first (the usual margin for MP3/AAC).
@@ -36,7 +36,8 @@ def run(paths, fmt="mp3", overwrite=False):
     files = []
     for p in paths:
         if os.path.isdir(p):
-            files += [f for f in expand([p]) if in_folder(f)]
+            # A song's folder, or a folder of songs: every file of each song.
+            files += [str(f) for m in expand([p]) for f in song.audio_files(m) if in_folder(str(f))]
         else:
             files += list(expand([p]))
 

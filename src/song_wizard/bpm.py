@@ -1,13 +1,12 @@
 """Tempo detection with Essentia, plus how steady the tempo is across the song."""
 
-import os
 import re
 import subprocess
 
 import numpy as np
 
-from . import align, results
-from .audio import die, expand, load
+from . import align, results, song
+from .audio import die, load
 
 # Tempo is measured over sliding windows of this many beats.
 WINDOW = 8
@@ -52,46 +51,43 @@ def parse(text):
     return value if value and 20 <= value <= 400 else None
 
 
-def click_note(path, bpm):
-    """A warning when the practice click saved for this song (click.txt) is at another tempo."""
-    folder, name = os.path.split(os.path.abspath(path))
-    click = align.parse(results.read(folder, "click").get(name))
-    if click and abs(click["bpm"] - bpm) > 0.5:
-        return (f"the practice click is still at {click['bpm']:.2f} BPM: adjust it in the practice "
-                f"player or with song-wizard align")
-    return None
-
-
 def set_by_hand(paths, text):
     value = parse(str(text))
     if value is None:
         die(f'"{text}" is not a tempo: a number of BPM between 20 and 400.')
-    result = f"{value:.1f} BPM  {results.HAND}"
-    done = [(f, result) for f in expand(paths, skip_generated=True)]
-    for f, _ in done:
-        note = click_note(f, value)
-        print(f"  {value:6.1f} BPM  {os.path.basename(f)}" + (f"  ({note})" if note else ""))
-    for out in results.save("bpm", done):
-        print(f"Saved to {out}")
+    for f in song.expand(paths):
+        result = with_tempo(f, value)
+        print(f"  {value:6.1f} BPM  {f.name}")
+        print(f"Saved to {results.save(f, 'tempo', result)}")
+
+
+def with_tempo(path, value):
+    """The song's tempo line at this BPM, set by hand. Where the beats fall stays (the first
+    beat and the meter), so the practice click follows the new tempo."""
+    found = align.grid(path)
+    if found:
+        return results.hand(align.describe(value, found["meter"], found["first"]))
+    return results.hand(f"{value:.1f} BPM")
 
 
 def run(paths, value=None, force=False):
     if value is not None:
         return set_by_hand(paths, value)
-    found = []
-    for f in expand(paths, skip_generated=True):
-        kept = None if force else results.by_hand(f, "bpm")
-        if kept:
-            print(f"  {kept.split()[0]:>6} BPM  {os.path.basename(f)}  set by hand, kept (--force detects it again)")
+    for f in song.files(paths):
+        saved = results.read(f, "tempo")
+        if not force and saved and (saved.endswith(results.HAND) or align.parse(saved)):
+            why = "set by hand" if saved.endswith(results.HAND) else "where the beats fall is known (song-wizard align)"
+            print(f"  {saved.split()[0]:>6} BPM  {f.name}  {why}, kept (--force detects it again)")
             continue
         try:
             audio, _ = load(f, sr=44100, mono=True)
         except subprocess.CalledProcessError:
-            print(f"  {'??':>6}      {os.path.basename(f)}  (could not read)")
+            print(f"  {'??':>6}      {f.name}  (could not read)")
             continue
         bpm, _, low, high, confidence = analyze(audio[0])
         note, _ = describe(bpm, low, high, confidence)
-        print(f"  {bpm:6.1f} BPM  {os.path.basename(f)}  {note}")
-        found.append((f, f"{bpm:.1f} BPM  {note}"))
-    for out in results.save("bpm", found):
-        print(f"Saved to {out}")
+        print(f"  {bpm:6.1f} BPM  {f.name}  {note}")
+        if song.kind(f.name) == "version":
+            print("  (a version at another speed: not saved as the song's tempo)")
+            continue
+        print(f"Saved to {results.save(f, 'tempo', f'{bpm:.1f} BPM  {note}')}")

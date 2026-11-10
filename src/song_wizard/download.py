@@ -49,7 +49,11 @@ def fetch(url, wav=False, extra=(), to=None):
     known = archives.read_meta(archive_id).get("folder") if archive_id != archives.SINGLES else None
     last = None
     if known and Path(known).is_dir():
-        from . import numbering
+        from . import layout, numbering
+        from .song import old_layout_message
+
+        if layout.needed(known):
+            sys.exit(old_layout_message(known))
 
         # Another computer may have downloaded more songs into it (a synced folder): its record says.
         archives.adopt(known)
@@ -96,6 +100,8 @@ def fetch(url, wav=False, extra=(), to=None):
     from . import numbering
 
     for i, path in enumerate(files, 1):
+        if not Path(path).is_file():
+            continue
         if last is not None and Path(path).parent.resolve() == Path(known).resolve():
             numbering.name(path, last[0] + i, last[1])
         else:

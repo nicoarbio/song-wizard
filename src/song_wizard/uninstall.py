@@ -82,8 +82,8 @@ def run(keep_data=False, yes=False):
         print(f"  - song-wizard itself, with its own Python and everything it uses: {system.shown_path(program)} "
               f"({human(size(program))})")
     print("\nIt doesn't touch:")
-    print(f"  - your music ({system.shown_path(paths.music_dir())}): songs, stems, versions, key.txt, bpm.txt, "
-          "click.txt, lyrics and REAPER projects stay")
+    print(f"  - your music ({system.shown_path(paths.music_dir())}): each song's folder, with its stems, "
+          "versions, key and tempo, lyrics and REAPER project, stays")
     print("  - ffmpeg, rubberband, deno or uv: other programs may use them (if you don't, uninstall them "
           "yourself: sudo apt remove / brew uninstall)")
     print("  - uv's download cache, shared with whatever else you install with uv (uv cache clean empties it)")

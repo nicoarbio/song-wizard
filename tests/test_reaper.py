@@ -10,17 +10,17 @@ import pytest
 import synth
 from test_ui import get_json, request, server  # noqa: F401  (the fixture)
 
-from song_wizard import align, delete, reaper, rename, results
-from song_wizard.audio import base_of
+from song_wizard import align, delete, reaper, rename, results, song
+
 
 SONG = '001 - Band "Live" & Co'
 
 
 def make_song(folder, stems=(), seconds=3.0, name=SONG):
-    folder.mkdir(parents=True, exist_ok=True)
-    song = synth.write(folder / f"{name}.wav", synth.sine(220, seconds))
+    """The song in folder/<name>/, with these stems."""
+    song = synth.song(folder, f"{name}.wav", synth.sine(220, seconds))
     for s in stems:
-        synth.write(folder / f"{name} ({s}).wav", synth.sine(330, seconds))
+        synth.write(song.parent / f"{s}.wav", synth.sine(330, seconds))
     return song
 
 
@@ -38,7 +38,7 @@ def test_tracks_every_stem(tmp_path):
     tracks = reaper.tracks_for(song)
     assert [(n, m) for n, _, m in tracks] == [("Voz", False), ("Batería", False), ("Bajo", False), ("Guitarra", False),
                                               ("Otros", False), ("Sin batería", True), ("Tema original", True)]
-    assert tracks[1][1] == f"{SONG} (drums).wav"
+    assert tracks[1][1] == "drums.wav"
 
 
 def test_tracks_with_piano(tmp_path):
@@ -65,7 +65,7 @@ def test_tracks_one_instrument_or_none(tmp_path):
 
 def test_build_lines_up_the_first_beat(tmp_path):
     song = make_song(tmp_path, ["drums", "no drums"])
-    results.save("click", [(str(song), align.describe(123.4, "4/4", 0.5))])
+    results.save(song, "tempo", align.describe(123.4, "4/4", 0.5))
     text, problem = reaper.build(song)
     assert problem is None
     assert "  TEMPO 123.4 4 4 0" in text and '  RECORD_PATH "" ""' in text
@@ -73,8 +73,9 @@ def test_build_lines_up_the_first_beat(tmp_path):
     bar = 4 * 60 / 123.4
     # The audio starts where its first beat (0.5 s in) lands on the bar line after it.
     assert float(tracks[0]["POSITION"]) == pytest.approx(bar - 0.5)
+    assert tracks[0]["FILE"] == '"drums.wav"'
     # Names with double quotes go in single quotes: REAPER has no escaping.
-    assert tracks[0]["FILE"] == f"'{SONG} (drums).wav'"
+    assert tracks[2]["FILE"] == f"'{SONG}.wav'"
     assert [t["NAME"] for t in tracks] == ['"Batería"', '"Sin batería"', '"Tema original"', '"Click"', '"Grabación"']
     assert "BPM 123.4" in text and "PATTERNSTR ABBB" in text
     # Armed to record from inputs 1/2, monitoring off; every track at 0 dB.
@@ -84,18 +85,18 @@ def test_build_lines_up_the_first_beat(tmp_path):
 
 def test_build_without_click(tmp_path):
     song = make_song(tmp_path)
-    results.save("bpm", [(str(song), "98.5 BPM  steady")])
+    results.save(song, "tempo", "98.5 BPM  steady")
     text, problem = reaper.build(song)
     assert problem == "unaligned" and "  TEMPO 98.5 4 4 0" in text and float(blocks(text)[0]["POSITION"]) == 0
-    (tmp_path / "bpm.txt").unlink()
+    (song.parent / "tempo.txt").unlink()
     text, problem = reaper.build(song)
     assert problem == "no-tempo" and "  TEMPO 120 4 4 0" in text
 
 
 def test_make_never_rewrites(tmp_path, monkeypatch):
     song = make_song(tmp_path, ["drums", "no drums"])
-    project, created, info = reaper.make(tmp_path / f"{SONG} (drums).wav")  # a stem finds its song
-    assert created and project.name == f"{SONG}.rpp" and info["timing"] == "no-tempo"
+    project, created, info = reaper.make(song.parent / "drums.wav")  # a stem finds its song
+    assert created and project == song.parent / f"{SONG}.rpp" and info["timing"] == "no-tempo"
     project.write_text("edited in REAPER")
     again, created, _ = reaper.make(song)
     assert again == project and not created and project.read_text() == "edited in REAPER"
@@ -132,28 +133,41 @@ def test_take_names(tmp_path, monkeypatch):
 
 
 def test_takes_go_with_their_song():
-    assert base_of(f"{SONG} (record 2026-11-01 19-05-12).wav") == SONG
-    assert base_of(f"{SONG} (record 2026-11-01 19-05-12)-001.wav") == SONG
+    assert song.kind("record 2026-11-01 19-05-12.wav") == "take"
+    assert song.kind("record 2026-11-01 19-05-12-001.wav") == "take"
+    assert reaper.TAKES == "record $year-$month-$day $hour-$minute-$second"
+
+
+def test_takes_setting_from_before(tmp_path):
+    """Set by song-wizard before 0.42.0 (takes named after the project): moved to the new one,
+    and what the user had before is still what restoring puts back."""
+    ini = reaper.ini_path()
+    ini.parent.mkdir(parents=True)
+    ini.write_text("[reaper]\nrecfile_wildcards=$track\n")
+    reaper.take_names()
+    ini.write_text(f"[reaper]\nrecfile_wildcards={reaper.OLD_TAKES}\n")  # as 0.41 left it
+    assert reaper.take_names() == "set" and reaper.setting()["ours"] and reaper.setting()["before"] == "$track"
 
 
 def test_follows_rename_and_delete(tmp_path, monkeypatch):
-    song = make_song(tmp_path, ["drums", "no drums"])
-    project, _, _ = reaper.make(song)
-    take = synth.write(tmp_path / f"{SONG} (record 2026-11-01 19-05-12).wav", synth.sine(440, 1.0))
-    (tmp_path / f"{SONG} (drums).wav.reapeaks").write_bytes(b"peaks")
-    (tmp_path / f"{SONG}.rpp-bak").write_text(project.read_text())
+    first = make_song(tmp_path, ["drums", "no drums"])
+    here = first.parent
+    project, _, _ = reaper.make(first)
+    take = synth.write(here / "record 2026-11-01 19-05-12.wav", synth.sine(440, 1.0))
+    (here / "drums.wav.reapeaks").write_bytes(b"peaks")
+    (here / f"{SONG}.wav.reapeaks").write_bytes(b"peaks")
+    (here / f"{SONG}.rpp-bak").write_text(project.read_text())
     project.write_text(project.read_text() + f'      FILE "{take.name}"\n')
-    rename.run(str(song), "New")
-    new = tmp_path / "001 - New.rpp"
-    text = new.read_text()
-    assert "FILE '001 - New (drums).wav'" in text and 'FILE "001 - New (record 2026-11-01 19-05-12).wav"' in text
-    assert SONG not in text and SONG not in (tmp_path / "001 - New.rpp-bak").read_text()
-    assert (tmp_path / "001 - New (drums).wav.reapeaks").exists()
+    rename.run(str(first), "New")
+    new = tmp_path / "001 - New"
+    text = (new / "001 - New.rpp").read_text()
+    assert 'FILE "drums.wav"' in text and 'FILE "record 2026-11-01 19-05-12.wav"' in text and "FILE '001 - New.wav'" in text
+    assert SONG not in text and SONG not in (new / "001 - New.rpp-bak").read_text()
+    assert (new / "drums.wav.reapeaks").exists() and (new / "001 - New.wav.reapeaks").exists()
     trashed = []
     monkeypatch.setattr(delete.system, "trash", lambda paths: trashed.extend(paths))
-    delete.run(songs=[str(tmp_path / "001 - New.wav")], yes=True)
-    assert {p.rsplit("/", 1)[1] for p in trashed} >= {"001 - New.rpp", "001 - New.rpp-bak", "001 - New (drums).wav.reapeaks",
-                                                      "001 - New (record 2026-11-01 19-05-12).wav"}
+    delete.run(songs=[str(new / "001 - New.wav")], yes=True)
+    assert trashed == [str(new)]
 
 
 def test_interface(server, monkeypatch):  # noqa: F811
@@ -161,15 +175,15 @@ def test_interface(server, monkeypatch):  # noqa: F811
     make_song(root, name="001 - Song")
     library = get_json(port, "/api/library")
     assert library["reaper"] is False and library["folders"][0]["songs"][0]["reaper"] is False
-    response, content = request(port, "POST", "/api/reaper", {"path": "001 - Song.wav"})
+    response, content = request(port, "POST", "/api/reaper", {"path": "001 - Song/001 - Song.wav"})
     got = json.loads(content)
     assert response.status == 200 and got["created"] and not got["opened"] and got["name"] == "001 - Song.rpp"
     assert get_json(port, "/api/library")["folders"][0]["songs"][0]["reaper"] is True
     opened = []
     monkeypatch.setattr(reaper, "installed", lambda: True)
     monkeypatch.setattr(reaper, "open_project", opened.append)
-    got = json.loads(request(port, "POST", "/api/reaper", {"path": "001 - Song.wav"})[1])
-    assert not got["created"] and opened == [root / "001 - Song.rpp"]
+    got = json.loads(request(port, "POST", "/api/reaper", {"path": "001 - Song/001 - Song.wav"})[1])
+    assert not got["created"] and opened == [root / "001 - Song" / "001 - Song.rpp"]
     assert request(port, "POST", "/api/reaper", {"path": "../x.wav"})[0].status == 403
     assert request(port, "POST", "/api/reaper", {"path": "nope.wav"})[0].status == 404
 
@@ -226,7 +240,7 @@ def test_interface_setting(server, monkeypatch):  # noqa: F811
     make_song(root, name="001 - Song")
     monkeypatch.setattr(reaper, "installed", lambda: True)
     monkeypatch.setattr(reaper, "open_project", lambda p: True)
-    got = json.loads(request(port, "POST", "/api/reaper", {"path": "001 - Song.wav"})[1])
+    got = json.loads(request(port, "POST", "/api/reaper", {"path": "001 - Song/001 - Song.wav"})[1])
     assert got["takes"] == "set" and got["setting"]["ours"] and got["setting"]["before"] is None
     got = json.loads(request(port, "POST", "/api/reaper/setting", {"do": "restore"})[1])
     assert got["done"] == "restored" and got["declined"] and not got["ours"]
@@ -240,12 +254,12 @@ def test_source_type_per_format(tmp_path):
     from song_wizard.audio import AUDIO_EXTS
     assert set(reaper.SOURCES) == AUDIO_EXTS
     assert reaper.source("a.opus")[0] == "<SOURCE OPUS" and reaper.source("b.WAV")[0] == "<SOURCE WAVE"
-    folder = tmp_path / "s"
+    folder = tmp_path / "001 - Song"
     folder.mkdir()
     import subprocess
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=220:d=2", "-c:a", "libopus",
                     str(folder / "001 - Song.opus")], check=True)
-    synth.write(folder / "001 - Song (drums).wav", synth.sine(330, 2.0))
-    synth.write(folder / "001 - Song (no drums).wav", synth.sine(330, 2.0))
+    synth.write(folder / "drums.wav", synth.sine(330, 2.0))
+    synth.write(folder / "no drums.wav", synth.sine(330, 2.0))
     text, _ = reaper.build(folder / "001 - Song.opus")
     assert text.count("<SOURCE WAVE") == 2 and re.search(r'<SOURCE OPUS\n\s*FILE "001 - Song.opus"', text)

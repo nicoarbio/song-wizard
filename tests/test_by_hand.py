@@ -1,6 +1,7 @@
 """Key and tempo typed in by hand, over what was detected."""
 
 import json
+import os
 
 import pytest
 
@@ -37,60 +38,74 @@ def test_parse_tempo_invalid(text):
 
 
 def test_set_by_hand_and_detection_keeps_it(tmp_path, capsys):
-    song = tmp_path / "Song.wav"
-    synth.write(song, synth.drum_song(120, 8))
+    song = synth.song(tmp_path, "Song.wav", synth.drum_song(120, 8))
     key.run([str(song)], value="La menor")
     bpm.run([str(song)], value="121,5")
-    lines = {c: results.read(str(tmp_path), c)["Song.wav"] for c in ("key", "bpm")}
+    lines = {c: results.read(song, c) for c in ("key", "tempo")}
     assert lines["key"].split()[:3] == ["Am", "A", "minor"] and lines["key"].endswith(results.HAND)
-    assert lines["bpm"] == f"121.5 BPM  {results.HAND}"
+    assert lines["tempo"] == f"121.5 BPM  {results.HAND}"
     # Detecting again leaves them alone (and doesn't even read the audio)...
     key.run([str(song)])
     bpm.run([str(song)])
-    assert {c: results.read(str(tmp_path), c)["Song.wav"] for c in ("key", "bpm")} == lines
+    assert {c: results.read(song, c) for c in ("key", "tempo")} == lines
     assert "--force" in capsys.readouterr().out
     # ...unless forced.
     bpm.run([str(song)], force=True)
-    assert not results.read(str(tmp_path), "bpm")["Song.wav"].endswith(results.HAND)
+    assert not results.read(song, "tempo").endswith(results.HAND)
 
 
 def test_set_by_hand_invalid(tmp_path):
-    song = tmp_path / "Song.wav"
+    (tmp_path / "Song").mkdir()
+    song = tmp_path / "Song" / "Song.wav"
     song.write_bytes(b"x")
     with pytest.raises(SystemExit):
         key.run([str(song)], value="H")
     with pytest.raises(SystemExit):
         bpm.run([str(song)], value="500")
-    assert not (tmp_path / "key.txt").exists() and not (tmp_path / "bpm.txt").exists()
+    assert os.listdir(song.parent) == ["Song.wav"]
 
 
-def test_tempo_by_hand_warns_about_the_practice_click(tmp_path, capsys):
-    song = tmp_path / "Song.wav"
+def test_one_tempo_where_the_beats_fall_stays(tmp_path, capsys):
+    """A tempo typed in over the practice click's: the click follows it, from the same first beat."""
+    (tmp_path / "Song").mkdir()
+    song = tmp_path / "Song" / "Song.wav"
     song.write_bytes(b"x")
-    results.save("click", [(str(song), "100.00 BPM 4/4, first beat 0.500 s")])
-    bpm.run([str(song)], value="100.2")
-    assert "practice click" not in capsys.readouterr().out
+    results.save(song, "tempo", "100.00 BPM 4/4, first beat 0.500 s")
     bpm.run([str(song)], value="120")
-    assert "practice click is still at 100.00 BPM" in capsys.readouterr().out
+    assert results.read(song, "tempo") == f"120.00 BPM 4/4, first beat 0.500 s  {results.HAND}"
+    bpm.run([str(song)])  # detecting doesn't replace it
+    assert results.read(song, "tempo") == f"120.00 BPM 4/4, first beat 0.500 s  {results.HAND}"
+
+
+def test_detecting_keeps_where_the_beats_fall(tmp_path, capsys):
+    song = synth.song(tmp_path, "Song.wav", synth.drum_song(120, 8))
+    results.save(song, "tempo", "120.10 BPM 4/4, first beat 0.010 s")  # from align: more than bpm knows
+    bpm.run([str(song)])
+    assert results.read(song, "tempo") == "120.10 BPM 4/4, first beat 0.010 s"
+    assert "--force" in capsys.readouterr().out
 
 
 def test_interface(server, monkeypatch):  # noqa: F811
     port, root = server
-    (root / "001 - Song.opus").write_bytes(b"x")
-    response, content = request(port, "POST", "/api/set-result", {"path": "001 - Song.opus", "what": "key", "value": "Fa#m"})
+    (root / "001 - Song").mkdir()
+    (root / "001 - Song" / "001 - Song.opus").write_bytes(b"x")
+    path = "001 - Song/001 - Song.opus"
+    response, content = request(port, "POST", "/api/set-result", {"path": path, "what": "key", "value": "Fa#m"})
     assert response.status == 200 and json.loads(content)["text"].startswith("F#m")
-    response, content = request(port, "POST", "/api/set-result", {"path": "001 - Song.opus", "what": "bpm", "value": "98.5"})
+    response, content = request(port, "POST", "/api/set-result", {"path": path, "what": "bpm", "value": "98.5"})
     assert json.loads(content) == {"text": f"98.5 BPM  {results.HAND}", "note": None}
     (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
     assert song["key"].startswith("F#m") and song["bpm"] == f"98.5 BPM  {results.HAND}"
-    # A saved practice click at another tempo is pointed out.
-    results.save("click", [(str(root / "001 - Song.opus"), "98.50 BPM 4/4, first beat 0.500 s")])
-    content = request(port, "POST", "/api/set-result", {"path": "001 - Song.opus", "what": "bpm", "value": "140"})[1]
-    assert "click" in json.loads(content)["note"]
+    # Over a practice click: the click follows the new tempo.
+    results.save(root / path, "tempo", "98.50 BPM 4/4, first beat 0.500 s")
+    content = request(port, "POST", "/api/set-result", {"path": path, "what": "bpm", "value": "140"})[1]
+    assert json.loads(content)["text"] == f"140.00 BPM 4/4, first beat 0.500 s  {results.HAND}"
+    (song,) = get_json(port, "/api/library")["folders"][0]["songs"]
+    assert song["click"] == {"bpm": 140, "meter": "4/4", "first": 0.5}
     for bad in [{"what": "key", "value": "H"}, {"what": "bpm", "value": "fast"}, {"what": "click", "value": "1"}, {"what": "key"}]:
-        response, content = request(port, "POST", "/api/set-result", {"path": "001 - Song.opus", **bad})
+        response, content = request(port, "POST", "/api/set-result", {"path": path, **bad})
         assert response.status == 400
     assert "no es una tonalidad" in json.loads(request(port, "POST", "/api/set-result",
-                                                       {"path": "001 - Song.opus", "what": "key", "value": "H"})[1])["error"]
+                                                       {"path": path, "what": "key", "value": "H"})[1])["error"]
     assert request(port, "POST", "/api/set-result", {"path": "../x.opus", "what": "key", "value": "Am"})[0].status == 403
     assert request(port, "POST", "/api/set-result", {"path": "none.opus", "what": "key", "value": "Am"})[0].status == 404

@@ -47,10 +47,11 @@ def test_keep_hand():
 
 
 def test_save_any_name_escaped(tmp_path):
-    song = tmp_path / "001 - Band - Song.opus"
+    (tmp_path / "001 - Band - Song").mkdir()
+    song = tmp_path / "001 - Band - Song" / "001 - Band - Song.opus"
     song.write_bytes(b"x")
     data = chords.save(song, {"chords": [{"from": 0, "to": 2, "name": 'A "riff" \\ <b>', "hand": True}], "click": CLICK})
-    raw = (tmp_path / "001 - Band - Song.chords.json").read_text(encoding="utf-8")
+    raw = (song.parent / "chords.json").read_text(encoding="utf-8")
     assert json.loads(raw)["chords"][0]["name"] == 'A "riff" \\ <b>' and data == chords.load(song)
 
 
@@ -67,29 +68,24 @@ def test_clean_rejects(bad):
 
 
 def test_long_name_cut(tmp_path):
-    song = tmp_path / "s.opus"
+    (tmp_path / "s").mkdir()
+    song = tmp_path / "s" / "s.opus"
     song.write_bytes(b"x")
     assert chords.save(song, {"chords": [{"from": 0, "to": 1, "name": "x" * 100}]})["chords"][0]["name"] == "x" * 24
 
 
 def test_goes_along_with_rename(tmp_path):
     folder = tmp_path / "Show"
-    folder.mkdir()
-    song = folder / "001 - Band - Song.opus"
-    synth.write(song.with_suffix(".wav"), synth.sine(440, 1.0))
-    song.with_suffix(".wav").rename(song)
+    song = synth.song(folder, "001 - Band - Song.wav", synth.sine(440, 1.0))
     chords.save(song, {"chords": [{"from": 0, "to": 1, "name": "A"}]})
     rename.run(str(song), "Band - Other")
-    assert (folder / "001 - Band - Other.chords.json").is_file()
-    assert not (folder / "001 - Band - Song.chords.json").exists()
+    assert chords.load(folder / "001 - Band - Other")["chords"][0]["name"] == "A"
+    assert not (folder / "001 - Band - Song").exists()
 
 
 def test_follows_trim(tmp_path):
-    folder = tmp_path / "Show"
-    folder.mkdir()
-    song = folder / "001 - Song.wav"
-    synth.write(song, synth.sine(440, 10.0))
-    results.save("click", [(str(song), align.describe(120, "4/4", 0.25))])
+    song = synth.song(tmp_path / "Show", "001 - Song.wav", synth.sine(440, 10.0))
+    results.save(song, "tempo", align.describe(120, "4/4", 0.25))
     chords.save(song, {"chords": [{"from": 0.25, "to": 3.0, "name": "A"}, {"from": 3.0, "to": 9.5, "name": "E", "hand": True}],
                        "click": {"bpm": 120, "meter": "4/4", "first": 0.25}})
     trim.run(str(song), start="2", end="8", yes=True)
@@ -138,8 +134,8 @@ def test_interface(server, monkeypatch):  # noqa: F811
     port, root = server
     ran = []
     monkeypatch.setattr(ui.Runner, "run", lambda self, job: ran.append(job.args) or setattr(job, "status", "done"))
-    synth.write(root / "001 - Band - Song.wav", synth.sine(440, 5.0))
-    path = "001 - Band - Song.wav"
+    synth.song(root, "001 - Band - Song.wav", synth.sine(440, 5.0))
+    path = "001 - Band - Song/001 - Band - Song.wav"
     q = path.replace(" ", "%20")
     assert get_json(port, f"/api/chords?path={q}")["chords"] is None
     assert get_json(port, "/api/library")["folders"][0]["songs"][0]["chords"] is None

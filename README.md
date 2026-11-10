@@ -37,7 +37,7 @@ song-wizard is written in Python, but it uses a few outside programs that are in
 | [**uv**](https://docs.astral.sh/uv/) | Installs song-wizard and its Python libraries in an isolated environment, without touching the system's Python. If needed, it also gets Python 3.12. | `uv tool install` makes the `song-wizard` command available, and `song-wizard upgrade` updates it. |
 | [**ffmpeg**](https://ffmpeg.org) | Reads and converts any audio format (Opus, MP3, M4A, WAV…). | Decodes songs before detecting the key, transposing or separating. In `download`, yt-dlp uses it to extract the audio (and to make the `.wav` files with `--wav`). |
 | [**deno**](https://deno.com) | Some sites require solving a JavaScript challenge before letting you download, and deno is the program that runs that JavaScript. Node v20 or newer works too. | yt-dlp, the download engine, finds it and uses it only in `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Changes the pitch without changing the tempo, or the tempo without changing the pitch, with very good quality. | `transpose` gives it the semitones and makes `Title (+2).opus`; `speed` gives it the speed and makes `Title (80%).opus`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Changes the pitch without changing the tempo, or the tempo without changing the pitch, with very good quality. | `transpose` gives it the semitones and makes `+2.opus`; `speed` gives it the speed and makes `80%.opus`. |
 
 On Linux and WSL, `curl` is also installed (to get the official uv and deno installers), and `build-essential` + `python3-dev`, to compile a Python library that doesn't come precompiled. On a Mac they're not needed, because Homebrew already installs the compiler.
 
@@ -198,7 +198,7 @@ The player fills the whole window. The controls are at the top: play, speed, pit
 
 - "detect" finds them in the song (the same as `song-wizard align`, see below). If the tempo came out half or double the real one, ÷2 and ×2 fix it.
 - The zoomed view shows the start of the song with the click's lines on top (the marked one is the first beat of each bar): dragging over the picture moves them until they fall on the hits. For fine-tuning, −10 ms and +10 ms; if the first beat landed on another beat of the bar, −1 beat and +1 beat. "listen to the start" plays it with the click to check by ear. If the start is no good for lining it up (a song that starts with no clear beat), let it play until the rhythm comes in and press "look where it's playing": the view goes there, and since the lines are one grid for the whole song, lining them up there lines them up everywhere. "look at the start" goes back.
-- It's saved on its own, in `click.txt` in the song's folder (like `key.txt` and `bpm.txt`), and `rename` renames it with the song.
+- It's saved on its own, as the song's tempo (`tempo.txt` in its folder), marked "set by hand": what you adjust by ear is the song's tempo from then on, and detecting again doesn't replace it (see [Detecting the tempo](#detecting-the-tempo)). The speed (%) of the player doesn't change it: that's for practicing slower, not the song's tempo.
 - With the click adjusted, the bar and beat playing show next to the time ("bar 12 · 3"), counting from the first beat.
 
 **The count-in.** With the click on, pressing play from the start plays the count-in (one or two bars, or none) and the music comes in on time: if the song starts with silence, part of the count falls over that silence, so the music comes in exactly where it should. With "also when resuming", the count-in also plays when resuming from any point, to practice a part.
@@ -269,6 +269,7 @@ Everything the interface does can also be done from the terminal; it's almost al
 | "shut down" | `song-wizard ui --stop` (`--restart` closes it and opens it again) |
 | The version, at the top, and "update to …" | `song-wizard upgrade` (`--check` only tells you if there's a new one; `--list` (`--all` includes the retired ones) and `--to VERSION`, only in the terminal) |
 | "save the order in the folder" (a folder's setlist) | `song-wizard order FOLDER SONG SONG...` |
+| "Put in place" on a folder from before 0.42.0 | `song-wizard tidy FOLDER` (`--undo`) |
 | A folder's "setlist", or "setlist of the picked songs" | `song-wizard setlist FOLDER`, or `song-wizard setlist SONG SONG...` (`--lyrics`, `--chords`, `--out FILE.html`) |
 | "more › Lyrics": find, write or paste, print | `song-wizard lyrics SONG` (`--from FILE`, `--export`); colors and notes are marked in the browser |
 | Chord sheet: "print" on Practice's chords' row, and its choices | `song-wizard lyrics --export --chords SONG` (`--bass`, `--shift N`, `--simple`, `--bars 2`) |
@@ -280,6 +281,29 @@ Everything the interface does can also be done from the terminal; it's almost al
 | Notes: "detect notes" next to the track's name, "detect" on the chords' row (chords and notes), "more › Detect the notes" | `song-wizard notes SONG` (`--part`, `--force`); correcting them is done in the browser |
 | Practice | It's a player, so it lives in the browser: `song-wizard ui --practice SONG` opens it straight on that song |
 
+### One folder per song
+
+Each song has a folder of its own, with everything that goes with it inside:
+
+```
+Music/Show/                               a playlist (or Singles, or any folder of songs)
+  003 - Artist - Song/                    the song's folder
+    003 - Artist - Song.opus              the song (and its .wav or .mp3, if any)
+    drums.opus  no drums.opus  bass.opus  its stems, named by what they are
+    +2.opus  80%.opus  drums 80%.opus     versions in another key or at another speed
+    click 120 BPM 4-4.wav                 its click
+    record 2026-11-01 19-05-12.wav        takes recorded in REAPER
+    key.txt  tempo.txt                    its key and its tempo
+    lyrics.json  chords.json  notes.json  drums.json
+    003 - Artist - Song.rpp               its REAPER project (REAPER keeps its peaks here too)
+```
+
+The files made to take somewhere else keep the song's name: the REAPER project, the printed pages (`003 - Artist - Song.lyrics.html`) and the drums' MIDI. The stems don't: inside the folder "drums.opus" is enough, and the song's name is in the file's [data](#song-data), so a stem sent on its own still says what song it's from.
+
+**Folders from before 0.42.0**, with the songs loose in the playlist's folder (`001 - Song (drums).opus` next to `001 - Song.opus`), show in the library as "previous layout", with "Put in place"; in the terminal, `song-wizard tidy` (every folder that needs it) or `song-wizard tidy "Music/Show"`. It moves each song to its folder with everything it had, the short names, its line of `key.txt` to its `key.txt` and its lines of `bpm.txt` and `click.txt` to its `tempo.txt`, and points its REAPER project to the new names: all of it or nothing. Close REAPER first. Files that aren't a song's (PDFs, say) stay where they are. `song-wizard tidy --undo "Music/Show"` puts everything back as it was. Until then, the commands don't work on that folder and say so.
+
+A song dropped loose in a folder of songs (copied from a USB stick, say) goes to its own folder on its own when the library opens.
+
 ### Downloading songs
 
 ```bash
@@ -287,7 +311,7 @@ song-wizard download "https://.../playlist?list=..."   # a playlist
 song-wizard download "https://.../watch?v=..."         # a single song
 ```
 
-- Playlists are saved in `Music/<playlist name>/001 - Artist - Title.opus`, numbered in order, with the artist and title the song comes with. For videos that aren't from a label or YouTube Music, the "artist" is often whoever uploaded the video and the title carries extras like "(HQ)": it shows that way from the start so you can correct it in [Song data](#song-data). Single songs go to `Music/Singles/`. On WSL, "Music" is the Windows Music folder.
+- Playlists are saved in `Music/<playlist name>/001 - Artist - Title/001 - Artist - Title.opus`, numbered in order, with the artist and title the song comes with. For videos that aren't from a label or YouTube Music, the "artist" is often whoever uploaded the video and the title carries extras like "(HQ)": it shows that way from the start so you can correct it in [Song data](#song-data). Single songs go to `Music/Singles/`. On WSL, "Music" is the Windows Music folder.
 - If you run the same playlist again, it only downloads the new songs, numbered by their place in the playlist (and with `.wav` if you used `--wav` the first time, in the interface). In the interface it's the "check for new songs" button on the playlist's folder. Songs taken off the playlist aren't deleted from your folder.
 - `--wav` also makes a `.wav` of each song (same quality, 10 times the size).
 - For private playlists: add `--cookies-from-browser chrome` (or `firefox`, `safari`) at the end.
@@ -322,9 +346,9 @@ Each playlist keeps its record (where it came from and which songs were already 
 
 #### Songs added by hand and the folder's order
 
-A song you already have as a file (sent over WhatsApp, from a CD, a rehearsal recording) is used where it is: put it in the playlist's folder and, when the library opens, it takes the number after the last one, is named by its data ("004 - Artist - Title"; without data, it keeps its name) and gets its `.wav` if the playlist keeps them. From then on it's one more song. Songs downloaded afterwards go on from that number. A file that changed less than 30 seconds ago (still copying in) waits for the next time. Outside playlists (Singles, folders of your own) nothing is renumbered on its own.
+A song you already have as a file (sent over WhatsApp, from a CD, a rehearsal recording) is used as it is: put it in the playlist's folder and, when the library opens, it goes to its own folder, takes the number after the last one, is named by its data ("004 - Artist - Title"; without data, it keeps its name) and gets its `.wav` if the playlist keeps them. From then on it's one more song. Songs downloaded afterwards go on from that number. A file that changed less than 30 seconds ago (still copying in) waits for the next time. Outside playlists (Singles, folders of your own) it only goes to its folder: nothing is renumbered on its own.
 
-To change the folder's order: in its "setlist" window, put the songs in order and click "save the order in the folder"; or `song-wizard order "Music/Show" "004 - Artist - Title.mp3" "001 - Other.opus"` (the songs not given go after, in the order they had). Each song's stems, versions, results, lyrics and REAPER project go with it. "Check for new songs" isn't affected: the record knows each song by its video, not by its name or number.
+To change the folder's order: in its "setlist" window, put the songs in order and click "save the order in the folder"; or `song-wizard order "Music/Show" "004 - Artist - Title" "001 - Other"` (the songs not given go after, in the order they had). Each song's folder, with everything in it, goes with it. "Check for new songs" isn't affected: the record knows each song by its video, not by its name or number.
 
 To forget a playlist, so it's downloaded whole again next time: `song-wizard archives --delete 1` (or several numbers, or `all` for all of them). It asks for confirmation and never deletes the songs already downloaded.
 
@@ -340,7 +364,7 @@ song-wizard key "song.opus"
   Em   E minor   relative G     2/4  02 - Song two.opus  uncertain, also: G
 ```
 
-The results are also kept in `key.txt`, in the songs' folder; if you later analyze a single song, only its line is updated. In a folder only the original songs are analyzed, not the stems or the versions made from them.
+The result is also kept in `key.txt`, in the song's folder. In a folder only the songs are analyzed, not the stems or the versions made from them; a stem named on its own (the bass, say) is analyzed and its result is the song's.
 
 `4/4` means the four detection methods agree. With fewer, it's worth confirming by ear: the most common mix-up is a key with its relative (Em and G use the same notes), which is why it's always shown. It detects the main key; if the song modulates, it doesn't say.
 
@@ -357,7 +381,7 @@ song-wizard bpm "song.opus"
    178.2 BPM  03 - Song three.opus  uncertain, check by ear (could be 89.1)
 ```
 
-The results are also kept in `bpm.txt`, in the songs' folder, as with `key`.
+The result is also kept as the song's tempo, in `tempo.txt` in its folder. A song has a single tempo: the one detected here, the one typed by hand, or the practice click's, which also knows where the beats fall (see [Practice](#practice)). Detecting again replaces only one that was detected here: not one set by hand, nor the click's; `--force` does.
 
 - `steady`: the tempo stays fixed, as when recorded with a click.
 - `varies`: the tempo changes along the song (many songs from the 80s and 90s were recorded without a click). The range it moves in is shown; a steady click will drift away from it.
@@ -373,7 +397,7 @@ song-wizard key --set "Sib mayor" "song.opus"   # Spanish works too: La menor, F
 song-wizard bpm --set 98.5 "song.opus"
 ```
 
-It's marked "set by hand" in `key.txt` / `bpm.txt` (✍ in the interface), and analyzing the folder again doesn't overwrite it. To detect it again from the audio: `--force`, or "detect" in the interface. If the song has its practice click set to another tempo, it tells you so you can fix it in [Practice](#practice).
+It's marked "set by hand" in `key.txt` / `tempo.txt` (✍ in the interface), and analyzing the folder again doesn't overwrite it. To detect it again from the audio: `--force`, or "detect" in the interface. If the song has its practice click adjusted, a tempo typed in keeps its first beat, so the click follows the new tempo.
 
 ### Click track
 
@@ -383,13 +407,13 @@ Makes a steady click, with the first beat of each bar accented:
 song-wizard click 120                            # 120 BPM, 4/4, 1 minute
 song-wizard click 96 --meter 3/4 --bars 32       # 32 bars of 3/4
 song-wizard click 123 --duration 4:30            # four and a half minutes
-song-wizard click 105.6 --like "song.opus"       # as long as a song, and named after it
-song-wizard click 92 --bars 8 --for "song.opus"  # named after the song, but 8 bars long
+song-wizard click 105.6 --like "song.opus"       # as long as a song, and in its folder
+song-wizard click 92 --bars 8 --for "song.opus"  # in the song's folder, but 8 bars long
 song-wizard click 90 --subdivide 2               # with eighth notes
 ```
 
 - It makes `Click 120 BPM 4-4.wav` in the folder you run it from; `-o` picks another file or folder.
-- With `--like` or `--for`, the click carries the song's name and sits next to it: `song (click 105.6 BPM 4-4).wav`. That way the interface shows it with the song's files, and `rename` renames it along with the rest. The interface does the same when a single song (or a file of one song) is picked.
+- With `--like` or `--for`, the click goes to the song's folder: `click 105.6 BPM 4-4.wav`. That way the interface shows it with the song's files. The interface does the same when a single song (or a file of one song) is picked.
 - It takes tempos with decimals, so you can use the exact number `song-wizard bpm` gives.
 - The length is rounded up to whole bars. Without `--duration`, `--bars` or `--like`, it lasts a minute.
 - `--subdivide` adds softer clicks between beats: `2` = eighth notes, `3` = triplets, `4` = sixteenth notes.
@@ -405,7 +429,7 @@ song-wizard align --bpm 103.06 --first 1.554 "song.opus"   # by hand
 song-wizard align "Music/Show"                             # every song in the folder
 ```
 
-Finds the exact tempo (with decimals) and where the first beat falls, and saves them in `click.txt`, which the practice player's click uses to follow the song. `--meter` changes the meter (4/4 if not given). Like any tempo detector, it can give half or double the real one: fix it with `--bpm` or with ÷2 and ×2 in the interface. If the song's tempo varies (recorded without a click), it says so: a steady click will drift away.
+Finds the exact tempo (with decimals) and where the first beat falls, and saves them as the song's tempo (`tempo.txt`), which the practice player's click uses to follow the song. A tempo set by hand is kept unless `--force`; if only its BPM is known (typed in the library), it finds where the beats fall at that BPM. `--meter` changes the meter (4/4 if not given). Like any tempo detector, it can give half or double the real one: fix it with `--bpm` or with ÷2 and ×2 in the interface. If the song's tempo varies (recorded without a click), it says so: a steady click will drift away.
 
 ### Chords
 
@@ -415,7 +439,7 @@ song-wizard chords "Music/Show"         # every song in the folder
 song-wizard chords --force "song.opus"  # detect again also what was corrected by hand
 ```
 
-Detects the song's chords and saves them next to it as `<song>.chords.json`, which the practice player shows and lets you correct (see [Practice](#practice)). The changes are moved onto the song's beats, from its click (`click.txt`, see [Tempo and first beat for the click](#tempo-and-first-beat-for-the-click)); a song without one gets it first. Chords corrected by hand are kept, unless `--force`. Renaming, trimming and deleting the song take its chords along.
+Detects the song's chords and saves them in its folder as `chords.json`, which the practice player shows and lets you correct (see [Practice](#practice)). The changes are moved onto the song's beats, from its tempo (`tempo.txt`, see [Tempo and first beat for the click](#tempo-and-first-beat-for-the-click)); a song without one gets it first. Chords corrected by hand are kept, unless `--force`. Renaming, trimming and deleting the song take its chords along.
 
 It's a guide to correct by ear, not a transcription: on rock and pop songs, in our tests, it got the chord's root right about 95 % of the time (checked against what the bass plays), and major or minor almost always. It names richer chords too (7, maj7, m7, sus...) when it hears them; "simplify" in the player hides them.
 
@@ -429,16 +453,16 @@ song-wizard notes --part vocals "song.opus"   # only one
 song-wizard notes --force "song.opus"         # detect again also what was corrected by hand
 ```
 
-Follows the notes of the separated bass and voice (separate them first with `song-wizard separate --stem bass` / `--stem vocals`) and saves them next to the song as `<song>.notes.json`, which the practice player shows, plays and lets you correct (see [Practice](#practice)). Renaming, trimming and deleting the song take them along.
+Follows the notes of the separated bass and voice (separate them first with `song-wizard separate --stem bass` / `--stem vocals`) and saves them in the song's folder as `notes.json`, which the practice player shows, plays and lets you correct (see [Practice](#practice)). Renaming, trimming and deleting the song take them along.
 
 The bass's come out solid. The voice's do well with a clear, upfront voice; a rough voice or backing vocals singing over it throw it off: it follows one line at a time. The bass is followed with pYIN (in librosa), and the voice with [CREPE](https://github.com/maxrmorrison/torchcrepe), a model made for following a voice's pitch, copied into song-wizard (`third_party/crepe`, with its MIT license) like the chords' model; its model (89 MB) is downloaded the first time from a fixed address, used only if its SHA-256 matches and opened as numbers only.
 
 ### Chord sheet
 
 ```bash
-song-wizard lyrics --export --chords "song.opus"            # the chords over the words: Song.chords.html
+song-wizard lyrics --export --chords "song.opus"            # the chords over the words: <song>.chords.html
 song-wizard lyrics --export --chords --shift -2 --simple "song.opus"
-song-wizard lyrics --export --bass "song.opus"              # the bass's notes instead: Song.bass.html
+song-wizard lyrics --export --bass "song.opus"              # the bass's notes instead: <song>.bass.html
 song-wizard setlist "Music/Show" --lyrics --chords          # every song's sheet after the list
 ```
 
@@ -452,12 +476,12 @@ Every printed page (lyrics, chords, setlist) carries "song-wizard" small and ver
 
 ```bash
 song-wizard drums "song.opus"                 # detect what the drums play
-song-wizard drums --sheet "song.opus"         # the drum sheet to print: Song.drums.html
+song-wizard drums --sheet "song.opus"         # the drum sheet to print: <song>.drums.html
 song-wizard drums --sheet --full "song.opus"  # every bar written, none folded
-song-wizard drums --midi "song.opus"          # the hits as MIDI: Song.drums.mid
+song-wizard drums --midi "song.opus"          # the hits as MIDI: <song>.drums.mid
 ```
 
-Finds the drums' hits (kick, snare, toms, hi-hat open and closed, ride and crash) and saves them next to the song as `<song>.drums.json`. In the interface: "more › Drums" in the library, or "detect" on the drums row in Practice (see [Practice](#practice)). It needs the song's click (`click.txt`; a song without one gets it first) and its drum kit separated (`separate --stem drumkit`; separated first if missing). Renaming, trimming and deleting the song take its drums along.
+Finds the drums' hits (kick, snare, toms, hi-hat open and closed, ride and crash) and saves them in the song's folder as `drums.json`. In the interface: "more › Drums" in the library, or "detect" on the drums row in Practice (see [Practice](#practice)). It needs where the song's beats fall (`tempo.txt`; a song without it gets it first) and its drum kit separated (`separate --stem drumkit`; separated first if missing). Renaming, trimming and deleting the song take its drums along.
 
 **The drum sheet** ("print" on the drums row, or "more › Drum sheet") is written in standard drum notation, on the click's grid (sixteenths), in A4: hands up, the kick down, cymbals with x heads and the open hi-hat with a circled x. Bars equal to the one before are folded: the first is written and the rest become the "repeat the bar" sign with ×N over it; bars where the drums don't play become one rest with how many bars. The first page has the title centered with the artist under it and song-wizard's icon (and so fewer lines of music, at the same size as on the other pages), and each page says "drum tab by song-wizard" and its number at the bottom; the browser adds no date or address, and offers "Artist - Song - drum tab by song-wizard" as the PDF's name (without the characters a file name can't have, and "&" as "and"). At the top of the page (not printed): "print", "fold repeated bars" (off, every bar is written) and the MIDI to open in REAPER or another program, with each hit where it was played. The toms all go on one line, and triplets or shuffle come out on the nearest sixteenth. It's a guide to read and correct by ear, not an exact transcription: on our songs, a groove with its kick, snare and hi-hat comes out right, and the fills and the open hi-hat need checking.
 
@@ -471,7 +495,7 @@ song-wizard transpose -1 "song.opus"      # a half step down
 song-wizard transpose -1 "Music/Show"     # every song in the folder
 ```
 
-The number is in semitones: `+1` = a half step, `+2` = a whole step. It takes decimals (`-0.5`) in case a song is out of tune with A 440. It makes `Title (+2).opus` next to the original without touching it. The tempo and length don't change, so it stays lined up with the click.
+The number is in semitones: `+1` = a half step, `+2` = a whole step. It takes decimals (`-0.5`) in case a song is out of tune with A 440. It makes `+2.opus` in the song's folder without touching the song (from a stem, `drums +2.opus`). The tempo and length don't change, so it stays lined up with the click.
 
 ### Changing the speed
 
@@ -481,7 +505,7 @@ song-wizard speed 70 "song (no guitar).wav"        # the song without your instr
 song-wizard speed 90 --semitones -2 "song.opus"    # slower and a whole step down, in one go
 ```
 
-The number is the percentage of the original speed, from 25 to 200: under 100 is slower, over 100 faster. The pitch doesn't change, unless you add `--semitones` (as in `transpose`). It makes `Title (80%).opus` (or `Title (90%, -2).opus`) next to the original without touching it.
+The number is the percentage of the original speed, from 25 to 200: under 100 is slower, over 100 faster. The pitch doesn't change, unless you add `--semitones` (as in `transpose`). It makes `80%.opus` (or `90%, -2.opus`) in the song's folder without touching the song (from a stem, `drums 80%.opus`).
 
 It's for learning a song bit by bit: practice it at 70 %, then at 85 % and finally at full speed. To practice with a click, make the click at the new tempo: if the song is at 120 BPM, at 80 % it's 96. The slower, the more you hear that the audio is stretched, especially the drums.
 
@@ -498,7 +522,7 @@ song-wizard separate --stem piano  "song.opus"    # piano
 song-wizard separate --stem drumkit "song.opus"   # the drum kit in pieces
 ```
 
-It makes, for example, `Title (drums).opus` and `Title (no drums).opus` next to the original. Several can be asked for at once, and a whole folder processed:
+It makes, for example, `drums.opus` and `no drums.opus` in the song's folder. Several can be asked for at once, and a whole folder processed:
 
 ```bash
 song-wizard separate --stem drums --stem bass "Music/Show"
@@ -510,14 +534,14 @@ To get **every stem** (to mix in REAPER, say):
 song-wizard separate --stem all "song.opus"
 ```
 
-It makes `Title (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` and `(other)`, where "other" is everything else: keyboards, synths, backing vocals, effects. The five add up exactly to the original song: with every fader at 0 dB it sounds the same as the recording. It doesn't make the "no X" files, because they're made by muting a track. Since the stems come from different models, "other" may hold some leftovers of the other instruments.
+It makes `vocals`, `drums`, `bass`, `guitar` and `other`, where "other" is everything else: keyboards, synths, backing vocals, effects. The five add up exactly to the original song: with every fader at 0 dB it sounds the same as the recording. It doesn't make the "no X" files, because they're made by muting a track. Since the stems come from different models, "other" may hold some leftovers of the other instruments.
 
 - Each instrument is separated with the model that does it best: Mel-Band Roformer for vocals, Demucs `htdemucs_ft` for drums and bass, and BS-Roformer SW (6 instruments) for guitar and piano, which come out together from a single pass if both are asked for.
 - Instrument + rest add up **exactly** to the original song, and everything stays lined up.
 - **Piano** is for songs with a real piano (acoustic or electric): synths stay in the rest, and in some songs it takes something else (horns, for example). That's why it isn't in "All": it's asked for separately (`--stem all --stem piano` gives both).
 - The first time it downloads the models: about 2 GB for the four instruments (the vocals one is 870 MB and the guitar and piano one, 670 MB; piano adds nothing), and 420 MB more for the drum kit.
 - Guitar is the least precise separation: some keyboards or other guitars may get mixed in. Up to 0.11 it was separated with Demucs `htdemucs_6s`, which also took horns and piano; songs separated back then keep that guitar until they're separated again.
-- **The drum kit** (`--stem drumkit`, or "Drum kit" in the interface) splits the drums into kick, snare, toms, hi-hat, ride and crash, with MDX23C DrumSep: `Title (kick).opus`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, plus `(drums rest)`, what's left of the drums, so everything adds up to the exact drums. It works on the drums already separated, so if the song doesn't have them, it separates them first. In "practice" it shows as "Drum kit": each piece with its volume, along with the other instruments (or with the song without drums). The model is 438 MB and takes about a minute per song.
+- **The drum kit** (`--stem drumkit`, or "Drum kit" in the interface) splits the drums into kick, snare, toms, hi-hat, ride and crash, with MDX23C DrumSep: `kick.opus`, `snare`, `toms`, `hihat`, `ride`, `crash`, plus `drums rest`, what's left of the drums, so everything adds up to the exact drums. It works on the drums already separated, so if the song doesn't have them, it separates them first. In "practice" it shows as "Drum kit": each piece with its volume, along with the other instruments (or with the song without drums). The model is 438 MB and takes about a minute per song.
 - An open horns model (UVR `17_HP-Wind_Inst`) and piano on songs without piano were tried too: they separate, but not as well as the rest, so they're not in for now.
 
 #### Where does separation run?
@@ -543,12 +567,12 @@ The files are Opus, about 1 MB a minute each: Practice jumps around in them as e
 Opus files go over WhatsApp as they are, but not every player reads them (Windows' own, some iPhones), and WAVs are big. To share them as MP3 or M4A, which every phone plays:
 
 ```bash
-song-wizard convert "song (no drums).opus"        # one file
+song-wizard convert "Song/no drums.opus"          # one file
 song-wizard convert "Music/Show"                  # every stem and version in the folder
 song-wizard convert --format m4a "song.wav"       # M4A (AAC) instead of MP3
 ```
 
-- It makes `Title.mp3` next to the original: MP3 at ~190 kbps, which any phone plays. A 5-minute song ends up at about 7 MB. M4A takes the same space and sounds slightly better; MP3 is the most compatible.
+- It makes an `.mp3` with the same name next to it (`no drums.mp3`): MP3 at ~190 kbps, which any phone plays. A 5-minute song ends up at about 7 MB. M4A takes the same space and sounds slightly better; MP3 is the most compatible.
 - On a folder it converts the lossless files (WAV, FLAC, AIFF) and the stems and versions song-wizard made in Opus, but not the downloaded `.opus` songs, so as not to re-encode them for nothing. If you name a file, it converts any format.
 - If the file has peaks over 0 dB (stems do), it turns the volume down just enough so they don't clip, and tells you how much.
 - It doesn't overwrite existing files; `--overwrite` replaces them.
@@ -559,12 +583,12 @@ song-wizard convert --format m4a "song.wav"       # M4A (AAC) instead of MP3
 ```bash
 song-wizard tag "001 - Band - Song.opus"                                  # shows all its data
 song-wizard tag "001 - Band - Song.opus" --set "artist=Band" --set "album=Live" --unset genre
-song-wizard tag "001 - Band - Song (80%).mp3" --set "comment=the show's one" --only
+song-wizard tag "001 - Band - Song/80%.mp3" --set "comment=the show's one" --only
 ```
 
 The data is what the file keeps and music players show (your phone, WhatsApp, REAPER): title, artist, album, year, genre and any other, under whatever name you like. It's changed in the song and everything made from it (the `.wav` or `.mp3`, the stems, the versions), all of them or none; takes recorded in REAPER are left as they are. The audio isn't touched. With `--only`, only that file changes: a note on one version, say.
 
-If the artist or title changes, the song and all of its files become `001 - Artist - Title` (like `rename`, with the lyrics, the REAPER project and the results). Characters Windows doesn't allow in a file name are replaced by look-alikes (`:` by `：`); in the data they stay as you typed them.
+If the artist or title changes, the song becomes `001 - Artist - Title`: its folder and the files named after it (like `rename`). Characters Windows doesn't allow in a file name are replaced by look-alikes (`:` by `：`); in the data they stay as you typed them.
 
 In the interface, "more › Song data…" (or `E`) shows everything the file has, including what the download brought (the video's description, the date it was uploaded), without filtering anything. Changed fields are marked, × removes a field and "add a field" adds a known one (composer, comment, track number…) or another with any name you like. At the bottom it tells you if the song is going to be renamed. "save and next" (Ctrl+Enter) goes on to the next song. On a stem or a version, "data" changes only that file.
 
@@ -578,10 +602,10 @@ In the interface, "more › Song data…" (or `E`) shows everything the file has
 ### Renaming a song
 
 ```bash
-song-wizard rename "001 - Song (Official Video).opus" "Song"
+song-wizard rename "001 - Song (Official Video)/001 - Song (Official Video).opus" "Song"
 ```
 
-Renames the song and everything made from it: the `.wav` or `.mp3`, the stems, the versions transposed or at another speed, the takes recorded in REAPER, the lyrics, the REAPER project (and the file names inside it, so it keeps opening), and its lines in `key.txt` and `bpm.txt`. It ends up `001 - Song.opus`, `001 - Song (drums).opus`, etc. Any file of the song can be given, not only the original.
+Renames the song's folder and the files named after it: the song in each format, the REAPER project (and the names inside it, so it keeps opening, and REAPER's peaks) and the printed pages. The stems, versions, takes and data keep their names (`drums.opus`, `key.txt`), so they don't move. It ends up `001 - Song/001 - Song.opus`. Any file of the song can be given, not only the original.
 
 The numbering (`001 - `) is kept, unless the new name brings its own (`"005 - Song"`). If any of the new names already exists, nothing is renamed. It doesn't take the characters Windows doesn't allow in file names (`\ / : * ? " < > |`) either.
 
@@ -599,7 +623,7 @@ song-wizard trim "001 - Song.opus" --pad-start 2 --pad-end 1    # adds 2 s of si
 
 Cuts the start or end of the song (a video's intro or credits), or adds silence before or after it. Times go in seconds (`12.5`) or in minutes and seconds (`0:12.5`); the silence, in seconds, with decimals.
 
-It's done on the song and everything made from it at once, so they stay lined up: its other formats, the stems, the transposed versions and the clicks, with the same cut; and the versions at another speed, with the cut in proportion (at 80 %, 10 s of the song are 12.5 s). The practice click's first beat and the lyrics' times move the same, so "practice" stays in sync. Takes recorded in REAPER are left as they are, because they're lined up to the REAPER project; that project is now out of step, so it's best to redo it (`reaper --redo`).
+It's done on the song and everything made from it at once, so they stay lined up: its other formats, the stems, the transposed versions and the clicks, with the same cut; and the versions at another speed, with the cut in proportion (at 80 %, 10 s of the song are 12.5 s). Where the song's beats fall (its tempo) and the lyrics' times move the same, so "practice" stays in sync. Takes recorded in REAPER are left as they are, because they're lined up to the REAPER project; that project is now out of step, so it's best to redo it (`reaper --redo`).
 
 The cut is sample-exact, so the song and its stems stay lined up; compressed files (like the `.opus`) are encoded again at a high quality, because cutting them without doing so rounds to about 20 ms. It first writes all the new files and only if they all come out right does it replace the old ones, which go to the trash. It asks first, unless with `--yes`.
 
@@ -608,14 +632,14 @@ In the interface, "more › Trim…" shows the song's waveform with two handles 
 ### Deleting
 
 ```bash
-song-wizard delete "001 - Song.opus"              # the song with everything that's its
-song-wizard delete "001 - Song (drums).opus"      # only that stem
-song-wizard delete --file "001 - Song.mp3"        # only that copy
+song-wizard delete "001 - Song/001 - Song.opus"   # the song with everything that's its
+song-wizard delete "001 - Song/drums.opus"        # only that stem
+song-wizard delete --file "001 - Song/001 - Song.mp3"   # only that copy
 ```
 
 Everything goes to the system's trash (on WSL, to the Windows Recycle Bin if the file is on a Windows drive), so it can be recovered. If something can't be sent to the trash, it stops and deletes nothing else.
 
-- A song goes with everything made from it (its other formats, stems, versions and clicks) and with its lines in `key.txt`, `bpm.txt` and `click.txt`.
+- A song goes with its folder and everything in it (its other formats, stems, versions, clicks, data and REAPER project).
 - If it was from a playlist, it also leaves its record: "check for new songs" (or running `download` again) downloads it again.
 - A stem, a version or a click goes alone; `--file` deletes only that file even if it's a copy of the song, like the `.mp3`.
 - It asks for confirmation before deleting; `--yes` doesn't ask.
@@ -628,7 +652,7 @@ song-wizard lyrics --from lyrics.txt "song.opus"   # or takes them from a file
 song-wizard lyrics --export "song.opus"            # saves them ready to print
 ```
 
-Looks up each song's lyrics in an open lyrics database, by its artist and title (from [its data](#song-data), or if it has none, from the file name "Artist - Song") and its length, and saves them next to the song as `Song.lyrics.json`. If they're not found, they can be typed or pasted by hand. They go with the song: `rename` renames them and `delete` deletes them with it.
+Looks up each song's lyrics in an open lyrics database, by its artist and title (from [its data](#song-data), or if it has none, from the file name "Artist - Song") and its length, and saves them in the song's folder as `lyrics.json`. If they're not found, they can be typed or pasted by hand. They go with the song: `delete` deletes them with it.
 
 In the interface, "more › Lyrics" ("Lyrics ✓" if the song already has them) shows them to work on:
 
@@ -637,7 +661,7 @@ In the interface, "more › Lyrics" ("Lyrics ✓" if the song already has them) 
 - **Note** (N): click a line to write it a comment ("drums come in", "break", "repeat twice"). Clicking the note changes it, and leaving it empty deletes it.
 - Esc lets go of the tool and Ctrl+Z (or "undo") goes back.
 - **Write or paste**: to correct the lyrics or enter them by hand. The lines you don't change keep their colors and notes.
-- **Print**: opens the lyrics with their colors, notes and legend in another tab, to print them or save them as PDF; if they're long, they go in two columns. `lyrics --export` saves the same page as `Song.lyrics.html`. At the top, "with chords" or "with the bass's notes" puts them over the words (see [Chord sheet](#chord-sheet)).
+- **Print**: opens the lyrics with their colors, notes and legend in another tab, to print them or save them as PDF; if they're long, they go in two columns. `lyrics --export` saves the same page as `<song>.lyrics.html`. At the top, "with chords" or "with the bass's notes" puts them over the words (see [Chord sheet](#chord-sheet)).
 
 Everything is saved on its own. Looking up the lyrics again replaces them and the colors and notes are lost (the legend stays), which is why it asks first.
 
@@ -649,21 +673,21 @@ song-wizard reaper --redo "001 - Song.opus"   # makes a new one (the old one goe
 song-wizard reaper --setting show             # what song-wizard changed in REAPER (restore puts it back)
 ```
 
-Opens the song's REAPER project, `Song.rpp`, which sits next to the song. If it doesn't exist, it first makes it with whatever is there at that moment:
+Opens the song's REAPER project, `<song>.rpp`, which sits in the song's folder. If it doesn't exist, it first makes it with whatever is there at that moment:
 
 - **A track per stem**, with the instrument's name: the same ones the practice player starts with (every instrument, or the separated instrument and the rest). The other stems and the original song are there as muted tracks, to switch between them. If the song isn't separated, the song goes alone. All at 0 dB.
-- **The tempo and meter** of the click adjusted in "practice" (or `align`), with decimals, and the audio shifted so the song's first beat falls right on a bar, with one bar of count-in before. If the click isn't adjusted, it uses the tempo from `bpm.txt` without lining it up (or 120 BPM if there's none), and says so. If it doesn't fall exactly, fix it in REAPER.
+- **The song's tempo and meter** (the click adjusted in "practice", or `align`), with decimals, and the audio shifted so the song's first beat falls right on a bar, with one bar of count-in before. If where the beats fall isn't known, it uses the tempo without lining it up (or 120 BPM if there's none), and says so. If it doesn't fall exactly, fix it in REAPER.
 - **A "Click" track** with REAPER's click, which follows the project's tempo: if you fix the tempo in REAPER, the click follows it.
 - **A "Recording" track** ready to record (with Ctrl+R) from inputs 1 and 2, with monitoring (hearing what comes in) off; turn it on in the track if you want it.
 - The files go by name, without copying them: the project keeps working if you move the folder, on Drive too.
 
 An existing project is never overwritten, because it may have changes made in REAPER. `--redo` (or "more › Redo REAPER project") sends the old one to the trash and makes a new one, after separating more instruments, say. If REAPER isn't installed, the project is created all the same, but not opened ("Open in REAPER" is disabled).
 
-**Takes.** For what you record in REAPER to show up with its song in the library, the takes have to be named `Song (record 2026-11-01 19-05-12).wav`. That's a REAPER preference that applies to all your projects (Options › Preferences › Recording › "Recorded filenames"), so song-wizard changes it the first time you create or open a project, with REAPER closed (REAPER saves its preferences when closing and would overwrite the change). It tells you when it does, with the old value and the new one, and keeps a copy of REAPER's preferences as `reaper.ini.before-song-wizard`.
+**Takes.** What you record goes to the song's folder (where the project is), and for it to show up with its song in the library the takes have to be named `record 2026-11-01 19-05-12.wav`. That's a REAPER preference that applies to all your projects (Options › Preferences › Recording › "Recorded filenames"), so song-wizard changes it the first time you create or open a project, with REAPER closed (REAPER saves its preferences when closing and would overwrite the change). It tells you when it does, with the old value and the new one, and keeps a copy of REAPER's preferences as `reaper.ini.before-song-wizard`.
 
 In the interface, the **REAPER** box (below Jobs) always shows what changed, when and how it was before, with a button to put it back. In the terminal: `song-wizard reaper --setting show`, and `--setting restore` to go back. Restoring puts only that preference back as it was, without touching anything else in REAPER, and song-wizard doesn't change it again until you ask (`--setting apply`, or "set it again"). By hand: in that REAPER preference, put the old value.
 
-Takes follow the song: `rename` renames them and `delete` deletes them with it, like the project.
+Takes follow the song: they're in its folder, so `delete` deletes them with it, like the project. REAPER keeps its waveform caches (`.reapeaks`) next to the files or in a `peaks` folder: also in the song's folder.
 
 ### Setlist
 
@@ -761,7 +785,8 @@ They use synthetic audio made in the test itself (tones, chords and a simple dru
 - `transpose`: the pitch changes by what was asked (an A 440 goes up to 880 with +12), the length doesn't change and peaks over 0 dB are kept intact; with 0 semitones it gives back the original.
 - `speed`: from 25 % to 200 %, the length changes exactly as asked, the pitch stays the same (and changes as asked with `--semitones`) and peaks over 0 dB are kept intact; a click's hits fall in place at the new tempo.
 - `convert`: turns down only what goes over 0 dB; in a folder it skips compressed files; it doesn't overwrite files without `--overwrite`.
-- `key.txt` and `bpm.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite), the settings, the music folder and the `archives` records (also the one each playlist keeps in its folder: taken by another computer, updated by downloading and deleting, removed when forgetting, a copy that doesn't take over, and a damaged or odd record ignored).
+- One folder per song: the names of stems and versions, finding a song from any of its files, `tidy` (all or nothing, the old `key.txt`/`bpm.txt`/`click.txt` to one `key.txt` and one `tempo.txt` per song with the practice click winning, the REAPER project and its `peaks` folder, PDFs left where they were, not with REAPER open, `--undo` back to the very same files) and the commands refusing a folder still in the old layout.
+- `key.txt` and `tempo.txt` (also the key and tempo set by hand, in English or Spanish, which analyzing again doesn't overwrite; a tempo typed in keeping where the beats fall), the settings, the music folder and the `archives` records (also the one each playlist keeps in its folder: taken by another computer, updated by downloading and deleting, removed when forgetting, a copy that doesn't take over, and a damaged or odd record ignored).
 - `lyrics`: picks the version with the closest length, lyrics with times, no internet or no results, pasting from a file (keeping the marks if the text didn't change), checking what the page saves, the page to print (with names as text, never HTML), and that they follow the song when renaming and deleting it (the lyrics database isn't queried in the tests).
 - `sheet`: chord names moved and simplified, each chord over the right word, bars where nobody sings and for lyrics without times (rows of the same length), the bass's notes without repeats, the page's choices (and the defaults for unexpected ones), names escaped, the export and rename, the setlist with chords and the watermark.
 - `separate`: the drum kit in the terminal, which instruments go in "All" (not piano, unless asked), and that guitar and piano use the same model (a single pass).

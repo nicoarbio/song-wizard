@@ -5,8 +5,8 @@ import os
 import re
 import subprocess
 
-from . import results
-from .audio import die, expand, load
+from . import results, song
+from .audio import die, load
 
 PROFILES = ["krumhansl", "edma", "bgate", "shaath"]
 NOTES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
@@ -52,11 +52,9 @@ def set_by_hand(paths, text):
     if not found:
         die(f'"{text}" is not a key. Examples: Am, C#, "Bb major", "F# minor".')
     result = describe(*found, results.HAND)
-    done = [(f, result) for f in expand(paths, skip_generated=True)]
-    for f, _ in done:
-        print(f"  {result}  {os.path.basename(f)}")
-    for out in results.save("key", done):
-        print(f"Saved to {out}")
+    for f in song.expand(paths):
+        print(f"  {result}  {f.name}")
+        print(f"Saved to {results.save(f, 'key', result)}")
 
 
 def run(paths, value=None, force=False):
@@ -67,8 +65,7 @@ def run(paths, value=None, force=False):
     essentia.log.warningActive = False
     import essentia.standard as es
 
-    found = []
-    for f in expand(paths, skip_generated=True):
+    for f in song.files(paths):
         kept = None if force else results.by_hand(f, "key")
         if kept:
             print(f"  {kept}  {os.path.basename(f)}  (kept; --force detects it again)")
@@ -91,6 +88,7 @@ def run(paths, value=None, force=False):
             doubt = "  uncertain, also: " + ", ".join(short(*k) for k, _ in votes.most_common())
         result = describe(key, scale, f"{n}/{len(PROFILES)}")
         print(f"  {result}  {os.path.basename(f)}{doubt}")
-        found.append((f, result + doubt))
-    for out in results.save("key", found):
-        print(f"Saved to {out}")
+        if song.kind(f.name) == "version":
+            print("  (a version in another key or speed: not saved as the song's key)")
+            continue
+        print(f"Saved to {results.save(f, 'key', result + doubt)}")

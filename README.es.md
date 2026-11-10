@@ -37,7 +37,7 @@ song-wizard está escrito en Python, pero usa algunos programas externos que hay
 | [**uv**](https://docs.astral.sh/uv/) | Instala song-wizard y sus librerías de Python en un entorno aislado, sin tocar el Python del sistema. Si hace falta, también baja Python 3.12. | `uv tool install` deja disponible el comando `song-wizard`, y `song-wizard upgrade` lo actualiza. |
 | [**ffmpeg**](https://ffmpeg.org) | Lee y convierte cualquier formato de audio (Opus, MP3, M4A, WAV…). | Decodifica los temas antes de detectar la tonalidad, transponer o separar. En `download`, yt-dlp lo usa para extraer el audio (y para generar los `.wav` con `--wav`). |
 | [**deno**](https://deno.com) | Algunos sitios exigen resolver un desafío en JavaScript antes de dejar descargar, y deno es el programa que ejecuta ese JavaScript. Node v20 o más nuevo también sirve. | yt-dlp, el motor de descarga, lo detecta y lo usa solo en `download`. |
-| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `Título (+2).opus`; `speed` le pasa la velocidad y genera `Título (80%).opus`. |
+| [**rubberband**](https://breakfastquay.com/rubberband/) | Cambia el tono sin cambiar el tempo, o el tempo sin cambiar el tono, con muy buena calidad. | `transpose` le pasa los semitonos y genera `+2.opus`; `speed` le pasa la velocidad y genera `80%.opus`. |
 
 En Linux y WSL además se instalan `curl` (para bajar los instaladores oficiales de uv y deno) y `build-essential` + `python3-dev`, para compilar una librería de Python que no viene precompilada. En Mac no hace falta, porque el compilador ya lo instala Homebrew.
 
@@ -198,7 +198,7 @@ El reproductor ocupa toda la ventana. Arriba están los controles: reproducir, v
 
 - "detectar" los busca en el tema (lo mismo que `song-wizard align`, ver abajo). Si el tempo quedó a la mitad o al doble del real, ÷2 y ×2 lo corrigen.
 - La vista ampliada muestra el principio del tema con las líneas del click encima (la marcada es el primer tiempo de cada compás): arrastrando sobre el dibujo se mueven hasta que caigan sobre los golpes. Para el ajuste fino, −10 ms y +10 ms; si el primer tiempo quedó en otro tiempo del compás, −1 tiempo y +1 tiempo. "escuchar el principio" lo reproduce con el click para comprobarlo de oído. Si el principio no sirve para calibrar (un tema que arranca sin golpes marcados), dejalo sonar hasta donde entra el ritmo y tocá "ver donde suena": la vista va a ese punto, y como las líneas son una sola grilla para todo el tema, ajustarlas ahí las ajusta en todo el tema. "ver el principio" vuelve.
-- Se guarda solo, en `click.txt` en la carpeta del tema (como `key.txt` y `bpm.txt`), y `rename` lo renombra con el tema.
+- Se guarda solo, como el tempo del tema (`tempo.txt` en su carpeta), marcado "puesto a mano": lo que ajustás de oído pasa a ser el tempo del tema, y volver a detectar no lo pisa (ver [Detectar el tempo](#detectar-el-tempo)). La velocidad (%) del reproductor no lo cambia: es para practicar más lento, no es el tempo del tema.
 - Con el click ajustado, al lado del tiempo se ve el compás y el tiempo que suenan ("compás 12 · 3"), contando desde el primer golpe.
 
 **La cuenta.** Con el click encendido, al dar play desde el principio suena la cuenta (uno o dos compases, o ninguna) y la música entra en su tiempo: si el tema empieza con un silencio, parte de la cuenta cae sobre ese silencio, así que la música entra justo donde corresponde. Con "también al seguir desde una pausa", la cuenta suena también al retomar desde cualquier punto, para practicar una parte.
@@ -269,6 +269,7 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | "apagar" | `song-wizard ui --stop` (`--restart` la cierra y la vuelve a abrir) |
 | La versión, arriba, y "actualizar a …" | `song-wizard upgrade` (`--check` solo dice si hay una nueva; `--list` (`--all` incluye las retiradas) y `--to VERSIÓN`, solo en la terminal) |
 | "guardar el orden en la carpeta" (setlist de una carpeta) | `song-wizard order CARPETA TEMA TEMA...` |
+| "Acomodar" en una carpeta de antes de la 0.42.0 | `song-wizard tidy CARPETA` (`--undo`) |
 | "setlist" de una carpeta, o "setlist con lo elegido" | `song-wizard setlist CARPETA`, o `song-wizard setlist TEMA TEMA...` (`--lyrics`, `--chords`, `--out ARCHIVO.html`) |
 | "más › Letra": buscar, escribir o pegar, imprimir | `song-wizard lyrics TEMA` (`--from ARCHIVO`, `--export`); los colores y las notas se marcan en el navegador |
 | Hoja con acordes: "imprimir" en la fila de acordes de Practicar, y sus opciones | `song-wizard lyrics --export --chords TEMA` (`--bass`, `--shift N`, `--simple`, `--bars 2`) |
@@ -280,6 +281,29 @@ Todo lo que hace la interfaz se puede hacer también desde la terminal; casi sie
 | Notas: "detectar notas" al lado del nombre de la pista, "detectar" en la fila de acordes (acordes y notas), "más › Detectar las notas" | `song-wizard notes TEMA` (`--part`, `--force`); corregirlas se hace en el navegador |
 | Practicar | Es un reproductor, así que vive en el navegador: `song-wizard ui --practice TEMA` lo abre directo en ese tema |
 
+### Una carpeta por tema
+
+Cada tema tiene su carpeta, con todo lo suyo adentro:
+
+```
+Música/Show/                              una playlist (o Singles, o cualquier carpeta de temas)
+  003 - Artista - Tema/                   la carpeta del tema
+    003 - Artista - Tema.opus             el tema (y su .wav o .mp3, si hay)
+    drums.opus  no drums.opus  bass.opus  sus stems, con el nombre de lo que son
+    +2.opus  80%.opus  drums 80%.opus     versiones en otro tono o a otra velocidad
+    click 120 BPM 4-4.wav                 su click
+    record 2026-11-01 19-05-12.wav        tomas grabadas en Reaper
+    key.txt  tempo.txt                    su tonalidad y su tempo
+    lyrics.json  chords.json  notes.json  drums.json
+    003 - Artista - Tema.rpp              su proyecto de Reaper (Reaper guarda acá también sus peaks)
+```
+
+Lo que está hecho para llevarse a otro lado conserva el nombre del tema: el proyecto de Reaper, las hojas impresas (`003 - Artista - Tema.lyrics.html`) y el MIDI de la batería. Los stems no: adentro de la carpeta alcanza con "drums.opus", y el nombre del tema va en los [datos](#datos-del-tema) del archivo, así un stem que mandás suelto sigue diciendo de qué tema es.
+
+**Las carpetas de antes de la 0.42.0**, con los temas sueltos en la carpeta de la playlist (`001 - Tema (drums).opus` al lado de `001 - Tema.opus`), aparecen en la biblioteca como "formato anterior", con "Acomodar"; en la terminal, `song-wizard tidy` (todas las que lo necesiten) o `song-wizard tidy "Música/Show"`. Mueve cada tema a su carpeta con todo lo que tenía, los nombres cortos, su línea de `key.txt` a su `key.txt` y sus líneas de `bpm.txt` y `click.txt` a su `tempo.txt`, y apunta su proyecto de Reaper a los nombres nuevos: todo o nada. Cerrá Reaper antes. Lo que no es de ningún tema (los PDF, por ejemplo) queda donde está. `song-wizard tidy --undo "Música/Show"` deja todo como estaba. Hasta acomodarla, los comandos no trabajan sobre esa carpeta y lo avisan.
+
+Un tema que dejás suelto en una carpeta de temas (copiado de un pendrive, por ejemplo) pasa solo a su carpeta al abrir la biblioteca.
+
 ### Bajar temas
 
 ```bash
@@ -287,7 +311,7 @@ song-wizard download "https://.../playlist?list=..."   # una playlist
 song-wizard download "https://.../watch?v=..."         # un tema suelto
 ```
 
-- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Artista - Título.opus`, numeradas en orden, con el artista y el título que trae el tema. En los videos que no son de un sello o de YouTube Music, el "artista" suele ser quien subió el video y el título trae agregados como "(HQ)": se ve así de entrada para corregirlo en [Datos del tema](#datos-del-tema). Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
+- Las playlists se guardan en `Música/<nombre de la playlist>/001 - Artista - Título/001 - Artista - Título.opus`, numeradas en orden, con el artista y el título que trae el tema. En los videos que no son de un sello o de YouTube Music, el "artista" suele ser quien subió el video y el título trae agregados como "(HQ)": se ve así de entrada para corregirlo en [Datos del tema](#datos-del-tema). Los temas sueltos van a `Música/Singles/`. En WSL, "Música" es la carpeta Música de Windows.
 - Si volvés a correr la misma playlist, solo baja los temas nuevos, numerados según su lugar en la playlist (y con `.wav` si la primera vez usaste `--wav`, en la interfaz). En la interfaz es el botón "buscar temas nuevos" de la carpeta de la playlist. Los temas que se sacaron de la playlist no se borran de tu carpeta.
 - `--wav` además genera un `.wav` de cada tema (misma calidad, ocupa 10 veces más).
 - Para playlists privadas: agregá `--cookies-from-browser chrome` (o `firefox`, `safari`) al final.
@@ -322,9 +346,9 @@ Cada playlist guarda su registro (de dónde salió y qué temas ya se bajaron) e
 
 #### Temas agregados a mano y el orden de la carpeta
 
-Un tema que ya tenés como archivo (te lo pasaron por WhatsApp, de un CD, una grabación del ensayo) se usa donde está: ponelo en la carpeta de la playlist y, al abrir la biblioteca, toma el número siguiente al último, se nombra por sus datos ("004 - Artista - Título"; sin datos, conserva su nombre) y recibe su `.wav` si la playlist los usa. Desde ahí es un tema más. Los que se bajen después siguen desde ese número. Un archivo que cambió hace menos de 30 segundos (se está copiando) espera a la próxima vez. Fuera de las playlists (Singles, carpetas tuyas) no se renumera nada solo.
+Un tema que ya tenés como archivo (te lo pasaron por WhatsApp, de un CD, una grabación del ensayo) se usa tal cual: ponelo en la carpeta de la playlist y, al abrir la biblioteca, pasa a su carpeta, toma el número siguiente al último, se nombra por sus datos ("004 - Artista - Título"; sin datos, conserva su nombre) y recibe su `.wav` si la playlist los usa. Desde ahí es un tema más. Los que se bajen después siguen desde ese número. Un archivo que cambió hace menos de 30 segundos (se está copiando) espera a la próxima vez. Fuera de las playlists (Singles, carpetas tuyas) solo pasa a su carpeta: no se renumera nada solo.
 
-Para cambiar el orden de la carpeta: en su ventana de "setlist", ordená los temas y tocá "guardar el orden en la carpeta"; o `song-wizard order "Música/Show" "004 - Artista - Título.mp3" "001 - Otro.opus"` (los temas que no nombrás van después, en el orden que tenían). Los stems, versiones, resultados, letra y proyecto de Reaper de cada tema van con él. "Buscar temas nuevos" no se ve afectado: el registro conoce cada tema por su video, no por su nombre ni su número.
+Para cambiar el orden de la carpeta: en su ventana de "setlist", ordená los temas y tocá "guardar el orden en la carpeta"; o `song-wizard order "Música/Show" "004 - Artista - Título" "001 - Otro"` (los temas que no nombrás van después, en el orden que tenían). La carpeta de cada tema, con todo lo que tiene, va con él. "Buscar temas nuevos" no se ve afectado: el registro conoce cada tema por su video, no por su nombre ni su número.
 
 Para olvidar una playlist, de modo que la próxima vez se baje entera de nuevo: `song-wizard archives --delete 1` (o varios números, o `all` para todas). Pide confirmación y nunca borra los temas ya bajados.
 
@@ -340,7 +364,7 @@ song-wizard key "tema.opus"
   Em   E minor   relative G     2/4  02 - Tema dos.opus  uncertain, also: G
 ```
 
-Los resultados también quedan en `key.txt`, en la carpeta de los temas; si después analizás un solo tema, se actualiza solo su línea. En una carpeta se analizan solo los temas originales, no los stems ni las versiones generadas.
+El resultado también queda en `key.txt`, en la carpeta del tema. En una carpeta se analizan solo los temas, no los stems ni las versiones generadas; un stem que nombrás solo (el bajo, por ejemplo) se analiza y su resultado es el del tema.
 
 `4/4` significa que los cuatro métodos de detección coinciden. Con menos, conviene confirmarlo de oído: lo más común es confundir una tonalidad con su relativa (Em y G usan las mismas notas), por eso siempre se muestra. Detecta la tonalidad predominante; si el tema modula, no lo indica.
 
@@ -357,7 +381,7 @@ song-wizard bpm "tema.opus"
    178.2 BPM  03 - Tema tres.opus  uncertain, check by ear (could be 89.1)
 ```
 
-Los resultados también quedan en `bpm.txt`, en la carpeta de los temas, igual que con `key`.
+El resultado también queda como el tempo del tema, en `tempo.txt` en su carpeta. Un tema tiene un solo tempo: el que se detecta acá, el que se escribe a mano, o el del click de práctica, que además sabe dónde caen los tiempos (ver [Practicar](#practicar)). Volver a detectar reemplaza solo uno detectado acá: no uno puesto a mano ni el del click; `--force` sí.
 
 - `steady`: el tempo se mantiene fijo, como cuando se graba con click.
 - `varies`: el tempo cambia a lo largo del tema (muchos temas de los 80 y 90 se grabaron sin click). Se muestra el rango en el que se mueve; un click fijo se va a ir desfasando.
@@ -373,7 +397,7 @@ song-wizard key --set "Sib mayor" "tema.opus"   # también en español: La menor
 song-wizard bpm --set 98.5 "tema.opus"
 ```
 
-Queda marcado "set by hand" en `key.txt` / `bpm.txt` (✍ en la interfaz), y volver a analizar la carpeta no lo pisa. Para detectarlo de nuevo desde el audio: `--force`, o "detectar" en la interfaz. Si el tema tiene el click de práctica ajustado a otro tempo, avisa para que lo corrijas en [Practicar](#practicar).
+Queda marcado "set by hand" en `key.txt` / `tempo.txt` (✍ en la interfaz), y volver a analizar la carpeta no lo pisa. Para detectarlo de nuevo desde el audio: `--force`, o "detectar" en la interfaz. Si el tema tiene el click de práctica ajustado, un tempo escrito a mano conserva su primer golpe, así el click sigue al tempo nuevo.
 
 ### Pista de click
 
@@ -383,13 +407,13 @@ Genera un click fijo, con el primer tiempo de cada compás acentuado:
 song-wizard click 120                            # 120 BPM, 4/4, 1 minuto
 song-wizard click 96 --meter 3/4 --bars 32       # 32 compases de 3/4
 song-wizard click 123 --duration 4:30            # 4 minutos y medio
-song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema, y con su nombre
-song-wizard click 92 --bars 8 --for "tema.opus"  # con el nombre del tema, pero de 8 compases
+song-wizard click 105.6 --like "tema.opus"       # tan largo como un tema, y en su carpeta
+song-wizard click 92 --bars 8 --for "tema.opus"  # en la carpeta del tema, pero de 8 compases
 song-wizard click 90 --subdivide 2               # con corcheas
 ```
 
 - Genera `Click 120 BPM 4-4.wav` en la carpeta donde lo corrés; `-o` elige otro archivo o carpeta.
-- Con `--like` o `--for`, el click lleva el nombre del tema y queda a su lado: `tema (click 105.6 BPM 4-4).wav`. Así la interfaz lo muestra con los archivos del tema, y `rename` lo renombra junto con el resto. En la interfaz pasa lo mismo cuando hay un solo tema (o un archivo de un tema) elegido.
+- Con `--like` o `--for`, el click va a la carpeta del tema: `click 105.6 BPM 4-4.wav`. Así la interfaz lo muestra con los archivos del tema. En la interfaz pasa lo mismo cuando hay un solo tema (o un archivo de un tema) elegido.
 - Acepta tempos con decimales, así podés usar el número exacto que da `song-wizard bpm`.
 - La duración se redondea hacia arriba a compases completos. Sin `--duration`, `--bars` ni `--like`, dura un minuto.
 - `--subdivide` agrega clicks más suaves entre tiempo y tiempo: `2` = corcheas, `3` = tresillos, `4` = semicorcheas.
@@ -405,7 +429,7 @@ song-wizard align --bpm 103.06 --first 1.554 "tema.opus"   # a mano
 song-wizard align "Música/Show"                     # todos los temas de la carpeta
 ```
 
-Busca el tempo exacto (con decimales) y dónde cae el primer golpe, y lo guarda en `click.txt`, que el click del reproductor de práctica usa para acompañar al tema. `--meter` cambia el compás (4/4 si no se dice). Como cualquier detector de tempo, puede dar la mitad o el doble del real: se corrige con `--bpm` o con ÷2 y ×2 en la interfaz. Si el tempo del tema varía (grabado sin click), lo avisa: un click fijo se va a ir desfasando.
+Busca el tempo exacto (con decimales) y dónde cae el primer golpe, y lo guarda como el tempo del tema (`tempo.txt`), que el click del reproductor de práctica usa para acompañar al tema. Un tempo puesto a mano se mantiene salvo con `--force`; si solo se sabe su BPM (escrito en la biblioteca), busca dónde caen los tiempos a ese BPM. `--meter` cambia el compás (4/4 si no se dice). Como cualquier detector de tempo, puede dar la mitad o el doble del real: se corrige con `--bpm` o con ÷2 y ×2 en la interfaz. Si el tempo del tema varía (grabado sin click), lo avisa: un click fijo se va a ir desfasando.
 
 ### Acordes
 
@@ -415,7 +439,7 @@ song-wizard chords "Música/Show"        # todos los temas de la carpeta
 song-wizard chords --force "tema.opus"  # volver a detectar también lo corregido a mano
 ```
 
-Detecta los acordes del tema y los guarda al lado, como `<tema>.chords.json`, que el reproductor de práctica muestra y deja corregir (ver [Practicar](#practicar)). Los cambios se ubican sobre los tiempos del tema, según su click (`click.txt`, ver [Tempo y primer golpe para el click](#tempo-y-primer-golpe-para-el-click)); un tema sin click lo recibe primero. Los acordes corregidos a mano se mantienen, salvo con `--force`. Renombrar, recortar y borrar el tema llevan sus acordes con él.
+Detecta los acordes del tema y los guarda en su carpeta como `chords.json`, que el reproductor de práctica muestra y deja corregir (ver [Practicar](#practicar)). Los cambios se ubican sobre los tiempos del tema, según su tempo (`tempo.txt`, ver [Tempo y primer golpe para el click](#tempo-y-primer-golpe-para-el-click)); un tema sin click lo recibe primero. Los acordes corregidos a mano se mantienen, salvo con `--force`. Renombrar, recortar y borrar el tema llevan sus acordes con él.
 
 Es una guía para corregir de oído, no una transcripción: en temas de rock y pop, en nuestras pruebas, acertó la nota base del acorde cerca del 95 % de las veces (comparando con lo que toca el bajo), y mayor o menor casi siempre. También nombra acordes más ricos (7, maj7, m7, sus...) cuando los escucha; "simplificar" en el reproductor los oculta.
 
@@ -429,16 +453,16 @@ song-wizard notes --part vocals "tema.opus"   # solo una
 song-wizard notes --force "tema.opus"         # volver a detectar también lo corregido a mano
 ```
 
-Sigue las notas del bajo y de la voz separados (separalos antes con `song-wizard separate --stem bass` / `--stem vocals`) y las guarda al lado del tema, como `<tema>.notes.json`, que el reproductor de práctica muestra, hace sonar y deja corregir (ver [Practicar](#practicar)). Renombrar, recortar y borrar el tema las llevan con él.
+Sigue las notas del bajo y de la voz separados (separalos antes con `song-wizard separate --stem bass` / `--stem vocals`) y las guarda en la carpeta del tema como `notes.json`, que el reproductor de práctica muestra, hace sonar y deja corregir (ver [Practicar](#practicar)). Renombrar, recortar y borrar el tema las llevan con él.
 
 Las del bajo salen sólidas. Las de la voz andan bien con una voz clara y al frente; una voz rasposa o coros cantando encima la confunden: sigue una sola línea a la vez. El bajo se sigue con pYIN (de librosa), y la voz con [CREPE](https://github.com/maxrmorrison/torchcrepe), un modelo hecho para seguir la altura de una voz, copiado dentro de song-wizard (`third_party/crepe`, con su licencia MIT) como el modelo de acordes; su modelo (89 MB) se baja la primera vez de una dirección fija, se usa solo si su SHA-256 coincide y se abre solo como números.
 
 ### Hoja con acordes
 
 ```bash
-song-wizard lyrics --export --chords "tema.opus"             # los acordes sobre las palabras: Tema.chords.html
+song-wizard lyrics --export --chords "tema.opus"             # los acordes sobre las palabras: <tema>.chords.html
 song-wizard lyrics --export --chords --shift -2 --simple "tema.opus"
-song-wizard lyrics --export --bass "tema.opus"               # las notas del bajo en su lugar: Tema.bass.html
+song-wizard lyrics --export --bass "tema.opus"               # las notas del bajo en su lugar: <tema>.bass.html
 song-wizard setlist "Música/Show" --lyrics --chords          # la hoja de cada tema después de la lista
 ```
 
@@ -452,12 +476,12 @@ Toda hoja impresa (letra, acordes, setlist) lleva "song-wizard" chico y muy clar
 
 ```bash
 song-wizard drums "tema.opus"                 # detecta lo que toca la batería
-song-wizard drums --sheet "tema.opus"         # la partitura para imprimir: Tema.drums.html
+song-wizard drums --sheet "tema.opus"         # la partitura para imprimir: <tema>.drums.html
 song-wizard drums --sheet --full "tema.opus"  # todos los compases escritos, sin plegar
-song-wizard drums --midi "tema.opus"          # los golpes en MIDI: Tema.drums.mid
+song-wizard drums --midi "tema.opus"          # los golpes en MIDI: <tema>.drums.mid
 ```
 
-Encuentra los golpes de la batería (bombo, redoblante, toms, hi-hat abierto y cerrado, ride y crash) y los guarda al lado del tema como `<tema>.drums.json`. En la interfaz: "más › Batería" en la biblioteca, o "detectar" en la fila de batería de Practicar (ver [Practicar](#practicar)). Necesita el click del tema (`click.txt`; un tema sin click lo recibe primero) y su batería en partes (`separate --stem drumkit`; si falta, la separa primero). Renombrar, recortar y borrar el tema llevan su batería con él.
+Encuentra los golpes de la batería (bombo, redoblante, toms, hi-hat abierto y cerrado, ride y crash) y los guarda en la carpeta del tema como `drums.json`. En la interfaz: "más › Batería" en la biblioteca, o "detectar" en la fila de batería de Practicar (ver [Practicar](#practicar)). Necesita dónde caen los tiempos del tema (`tempo.txt`; un tema sin eso lo recibe primero) y su batería en partes (`separate --stem drumkit`; si falta, la separa primero). Renombrar, recortar y borrar el tema llevan su batería con él.
 
 **La partitura** ("imprimir" en la fila de batería, o "más › Partitura de batería") va en la notación de batería de siempre, sobre la grilla del click (semicorcheas), en A4: manos arriba, bombo abajo, platillos con cabeza en cruz y el hi-hat abierto con la cruz en un círculo. Los compases iguales al anterior se pliegan: se escribe el primero y el resto queda como el signo de repetir compás con ×N arriba; donde la batería no toca, un silencio que dice cuántos compases dura. La primera hoja lleva el título centrado con el artista debajo y el ícono de song-wizard (y por eso menos renglones, del mismo tamaño que en las demás), y cada hoja dice abajo "drum tab by song-wizard" y su número; el navegador no agrega la fecha ni la dirección, y ofrece "Artista - Tema - drum tab by song-wizard" como nombre del PDF (sin los caracteres que un nombre de archivo no admite, y "&" como "and"). Arriba de la página (no sale impreso): "imprimir", "plegar los compases repetidos" (sin tildar, se escriben todos los compases) y el MIDI para abrir en Reaper u otro programa, con cada golpe donde se tocó. Los toms van todos en una línea, y los tresillos o el shuffle quedan en la semicorchea más cercana. Es una guía para leer y corregir de oído, no una transcripción exacta: en nuestros temas, el groove con su bombo, redoblante y hi-hat sale bien, y los fills y el hi-hat abierto hay que revisarlos.
 
@@ -471,7 +495,7 @@ song-wizard transpose -1 "tema.opus"      # medio tono abajo
 song-wizard transpose -1 "Música/Show"    # todos los temas de la carpeta
 ```
 
-El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `Título (+2).opus` al lado del original sin tocarlo. El tempo y la duración no cambian, así que sigue alineado con el click.
+El número es en semitonos: `+1` = medio tono, `+2` = un tono. Acepta decimales (`-0.5`) por si un tema está desafinado respecto de La 440. Genera `+2.opus` en la carpeta del tema sin tocar el tema (desde un stem, `drums +2.opus`). El tempo y la duración no cambian, así que sigue alineado con el click.
 
 ### Cambiar la velocidad
 
@@ -481,7 +505,7 @@ song-wizard speed 70 "tema (no guitar).wav"        # el tema sin tu instrumento,
 song-wizard speed 90 --semitones -2 "tema.opus"    # más lento y un tono abajo, en un solo paso
 ```
 
-El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `Título (80%).opus` (o `Título (90%, -2).opus`) al lado del original sin tocarlo.
+El número es el porcentaje de la velocidad original, de 25 a 200: menos de 100 es más lento, más de 100 más rápido. El tono no cambia, salvo que agregues `--semitones` (igual que en `transpose`). Genera `80%.opus` (o `90%, -2.opus`) en la carpeta del tema sin tocar el tema (desde un stem, `drums 80%.opus`).
 
 Sirve para sacar un tema de a poco: practicarlo al 70 %, después al 85 % y al final a velocidad normal. Para practicar con click, generá el click al tempo nuevo: si el tema va a 120 BPM, al 80 % va a 96. Cuanto más lento, más se nota que el audio está estirado, sobre todo en la batería.
 
@@ -498,7 +522,7 @@ song-wizard separate --stem piano  "tema.opus"    # piano
 song-wizard separate --stem drumkit "tema.opus"   # la batería en partes
 ```
 
-Genera, por ejemplo, `Título (drums).opus` y `Título (no drums).opus` al lado del original. Se pueden pedir varios a la vez y procesar una carpeta entera:
+Genera, por ejemplo, `drums.opus` y `no drums.opus` en la carpeta del tema. Se pueden pedir varios a la vez y procesar una carpeta entera:
 
 ```bash
 song-wizard separate --stem drums --stem bass "Música/Show"
@@ -510,14 +534,14 @@ Para tener **todos los stems** (por ejemplo, para mezclar en REAPER):
 song-wizard separate --stem all "tema.opus"
 ```
 
-Genera `Título (vocals).wav`, `(drums)`, `(bass)`, `(guitar)` y `(other)`, donde "other" es todo lo demás: teclados, sintes, coros, efectos. Los cinco suman exactamente el tema original: con todos los faders a 0 dB suena igual que la grabación. No genera los "no X", porque se arman silenciando una pista. Como los stems salen de modelos distintos, "other" puede tener algún resto de los otros instrumentos.
+Genera `vocals`, `drums`, `bass`, `guitar` y `other`, donde "other" es todo lo demás: teclados, sintes, coros, efectos. Los cinco suman exactamente el tema original: con todos los faders a 0 dB suena igual que la grabación. No genera los "no X", porque se arman silenciando una pista. Como los stems salen de modelos distintos, "other" puede tener algún resto de los otros instrumentos.
 
 - Cada instrumento se separa con el modelo que mejor lo hace: Mel-Band Roformer para la voz, Demucs `htdemucs_ft` para batería y bajo, y BS-Roformer SW (de 6 instrumentos) para la guitarra y el piano, que salen juntos de una sola pasada si se piden los dos.
 - Instrumento + resto suman **exactamente** el tema original, y todo queda alineado.
 - **El piano** es para temas con piano de verdad (acústico o eléctrico): los sintetizadores quedan en el resto, y en algunos temas se lleva otra cosa (por ejemplo, vientos). Por eso no entra en "Todos": se pide aparte (`--stem all --stem piano` da los dos).
 - La primera vez descarga los modelos: unos 2 GB para los cuatro instrumentos (el de voz pesa 870 MB y el de guitarra y piano, 670 MB; el piano no suma nada), y 420 MB más para la batería en partes.
 - La guitarra es la separación menos precisa: puede mezclarse algo de teclados o de otras guitarras. Hasta la 0.11 se separaba con Demucs `htdemucs_6s`, que además tomaba vientos y piano; los temas separados antes conservan esa guitarra hasta que se vuelva a separar.
-- **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `Título (kick).opus`, `(snare)`, `(toms)`, `(hihat)`, `(ride)`, `(crash)`, más `(drums rest)`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
+- **La batería en partes** (`--stem drumkit`, o "Batería en partes" en la interfaz) separa la batería en bombo, redoblante, toms, hi-hat, ride y crash, con MDX23C DrumSep: `kick.opus`, `snare`, `toms`, `hihat`, `ride`, `crash`, más `drums rest`, lo que queda de la batería, para que todo sume la batería exacta. Trabaja sobre la batería ya separada, así que si el tema no la tiene, la separa primero. En "practicar" aparece como "Batería en partes": cada pieza con su volumen, junto con los otros instrumentos (o con el tema sin batería). El modelo pesa 438 MB y tarda alrededor de un minuto por tema.
 - Se probaron también un modelo abierto de vientos (UVR `17_HP-Wind_Inst`) y el piano en temas sin piano: separan, pero no tan bien como el resto, así que por ahora no están.
 
 #### ¿Dónde corre la separación?
@@ -543,12 +567,12 @@ Los archivos son Opus, de 1 MB por minuto cada uno, más o menos: Practicar salt
 Los Opus se mandan por WhatsApp tal cual, pero no todos los reproductores los leen (el de Windows, algunos iPhone), y los WAV pesan mucho. Para compartirlos en MP3 o M4A, que cualquier celular reproduce:
 
 ```bash
-song-wizard convert "tema (no drums).opus"        # un archivo
+song-wizard convert "Tema/no drums.opus"          # un archivo
 song-wizard convert "Música/Show"                 # todos los stems y versiones de la carpeta
 song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
 ```
 
-- Genera `Título.mp3` al lado del original: MP3 a ~190 kbps, que cualquier teléfono reproduce. Un tema de 5 minutos queda en unos 7 MB. M4A ocupa lo mismo y suena apenas mejor; MP3 es el más compatible.
+- Genera un `.mp3` con el mismo nombre al lado (`no drums.mp3`): MP3 a ~190 kbps, que cualquier teléfono reproduce. Un tema de 5 minutos queda en unos 7 MB. M4A ocupa lo mismo y suena apenas mejor; MP3 es el más compatible.
 - Con una carpeta convierte los archivos sin pérdida (WAV, FLAC, AIFF) y los stems y versiones que hizo song-wizard en Opus, pero no los `.opus` bajados, para no recomprimirlos sin necesidad. Si nombrás un archivo, convierte cualquier formato.
 - Si el archivo tiene picos por encima de 0 dB (pasa con los stems), baja el volumen lo justo para que no se recorten, y avisa cuánto.
 - No pisa archivos que ya existen; `--overwrite` los reemplaza.
@@ -559,7 +583,7 @@ song-wizard convert --format m4a "tema.wav"       # M4A (AAC) en lugar de MP3
 ```bash
 song-wizard tag "001 - Banda - Tema.opus"                                  # muestra todos sus datos
 song-wizard tag "001 - Banda - Tema.opus" --set "artist=Banda" --set "album=En vivo" --unset genre
-song-wizard tag "001 - Banda - Tema (80%).mp3" --set "comment=la del show" --only
+song-wizard tag "001 - Banda - Tema/80%.mp3" --set "comment=la del show" --only
 ```
 
 Los datos son los que guarda el archivo y muestran los reproductores (el celular, WhatsApp, Reaper): título, artista, álbum, año, género y cualquier otro, con el nombre que quieras. Se cambian en el tema y en todo lo que se generó a partir de él (el `.wav` o `.mp3`, los stems, las versiones), todos o ninguno; las tomas grabadas en Reaper quedan como están. El audio no se toca. Con `--only`, cambia solo ese archivo: por ejemplo, una nota sobre una versión.
@@ -578,10 +602,10 @@ En la interfaz, "más › Datos del tema…" (o `E`) muestra todo lo que tiene e
 ### Renombrar un tema
 
 ```bash
-song-wizard rename "001 - Tema (Official Video).opus" "Tema"
+song-wizard rename "001 - Tema (Official Video)/001 - Tema (Official Video).opus" "Tema"
 ```
 
-Cambia el nombre del tema y de todo lo que se generó a partir de él: el `.wav` o el `.mp3`, los stems, las versiones transpuestas o con otra velocidad, las tomas grabadas en Reaper, la letra, el proyecto de Reaper (y los nombres de archivo que tiene adentro, para que siga abriendo), y sus líneas en `key.txt` y `bpm.txt`. Queda `001 - Tema.opus`, `001 - Tema (drums).opus`, etc. Se puede pasar cualquier archivo del tema, no solo el original.
+Cambia el nombre de la carpeta del tema y de los archivos que llevan su nombre: el tema en cada formato, el proyecto de Reaper (y los nombres que tiene adentro, para que siga abriendo, y los peaks de Reaper) y las hojas impresas. Los stems, versiones, tomas y datos conservan su nombre (`drums.opus`, `key.txt`), así que no se mueven. Queda `001 - Tema/001 - Tema.opus`. Se puede pasar cualquier archivo del tema, no solo el original.
 
 La numeración (`001 - `) se mantiene, salvo que el nombre nuevo traiga la suya (`"005 - Tema"`). Si alguno de los nombres nuevos ya existe, no renombra nada. Tampoco acepta los caracteres que Windows no permite en nombres de archivo (`\ / : * ? " < > |`).
 
@@ -599,7 +623,7 @@ song-wizard trim "001 - Tema.opus" --pad-start 2 --pad-end 1    # agrega 2 s de 
 
 Corta el principio o el final del tema (la intro o los créditos de un video), o le agrega silencio adelante o atrás. Los tiempos van en segundos (`12.5`) o en minutos y segundos (`0:12.5`); el silencio, en segundos, con decimales.
 
-Se hace sobre el tema y todo lo generado a partir de él a la vez, para que sigan alineados: sus otros formatos, los stems, las versiones transpuestas y los clicks, con el mismo corte; y las versiones a otra velocidad, con el corte en proporción (a 80 %, 10 s del tema son 12.5 s). El primer golpe del click de práctica y los tiempos de la letra se corren lo mismo, así que "practicar" sigue sincronizado. Las tomas grabadas en Reaper quedan como están, porque van alineadas al proyecto de Reaper; ese proyecto queda corrido, así que conviene rehacerlo (`reaper --redo`).
+Se hace sobre el tema y todo lo generado a partir de él a la vez, para que sigan alineados: sus otros formatos, los stems, las versiones transpuestas y los clicks, con el mismo corte; y las versiones a otra velocidad, con el corte en proporción (a 80 %, 10 s del tema son 12.5 s). Dónde caen los tiempos del tema (su tempo) y los tiempos de la letra se corren lo mismo, así que "practicar" sigue sincronizado. Las tomas grabadas en Reaper quedan como están, porque van alineadas al proyecto de Reaper; ese proyecto queda corrido, así que conviene rehacerlo (`reaper --redo`).
 
 El corte es exacto a la muestra, para que el tema y sus stems sigan alineados; los archivos comprimidos (como el `.opus`) se vuelven a codificar a una calidad alta, porque cortarlos sin hacerlo redondea a unos 20 ms. Primero escribe todos los archivos nuevos y solo si salen todos bien reemplaza los de antes, que van a la papelera. Pregunta antes, salvo con `--yes`.
 
@@ -608,14 +632,14 @@ En la interfaz, "más › Recortar…" muestra la forma de onda del tema con dos
 ### Borrar
 
 ```bash
-song-wizard delete "001 - Tema.opus"              # el tema con todo lo suyo
-song-wizard delete "001 - Tema (drums).opus"      # solo ese stem
-song-wizard delete --file "001 - Tema.mp3"        # solo esa copia
+song-wizard delete "001 - Tema/001 - Tema.opus"   # el tema con todo lo suyo
+song-wizard delete "001 - Tema/drums.opus"        # solo ese stem
+song-wizard delete --file "001 - Tema/001 - Tema.mp3"   # solo esa copia
 ```
 
 Todo va a la papelera del sistema (en WSL, a la Papelera de reciclaje de Windows si el archivo está en un disco de Windows), así que se puede recuperar. Si algo no se puede mandar a la papelera, se detiene y no borra nada más.
 
-- Un tema se va con todo lo que se generó a partir de él (sus otros formatos, stems, versiones y clicks) y con sus líneas en `key.txt`, `bpm.txt` y `click.txt`.
+- Un tema se va con su carpeta y todo lo que tiene (sus otros formatos, stems, versiones, clicks, datos y proyecto de Reaper).
 - Si era de una playlist, sale también de su registro: "buscar temas nuevos" (o volver a correr `download`) lo vuelve a bajar.
 - Un stem, una versión o un click se van solos; `--file` borra solo ese archivo aunque sea una copia del tema, como el `.mp3`.
 - Pide confirmación antes de borrar; `--yes` no pregunta.
@@ -628,7 +652,7 @@ song-wizard lyrics --from letra.txt "tema.opus"   # o la toma de un archivo
 song-wizard lyrics --export "tema.opus"   # la guarda lista para imprimir
 ```
 
-Busca la letra de cada tema en una base de letras abierta, por su artista y título (de [sus datos](#datos-del-tema), o si no tiene, del nombre del archivo "Artista - Tema") y su duración, y la guarda al lado del tema como `Tema.lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `rename` la renombra y `delete` la borra con él.
+Busca la letra de cada tema en una base de letras abierta, por su artista y título (de [sus datos](#datos-del-tema), o si no tiene, del nombre del archivo "Artista - Tema") y su duración, y la guarda en la carpeta del tema como `lyrics.json`. Si no la encuentra, se escribe o se pega a mano. Va con el tema: `delete` la borra con él.
 
 En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene) la muestra para trabajarla:
 
@@ -637,7 +661,7 @@ En la interfaz, el botón "letra" de cada tema (dice "letra ✓" si ya la tiene)
 - **Nota** (N): clic en una línea para escribirle un comentario ("entra la batería", "corte", "repetir 2 veces"). Tocando la nota se cambia, y si la dejás vacía se borra.
 - Esc suelta la herramienta y Ctrl+Z (o "deshacer") vuelve atrás.
 - **Escribir o pegar**: para corregir la letra o cargarla a mano. Las líneas que no cambies conservan sus colores y notas.
-- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `Tema.lyrics.html`. Arriba, "con acordes" o "con las notas del bajo" los pone sobre las palabras (ver [Hoja con acordes](#hoja-con-acordes)).
+- **Imprimir**: abre la letra con sus colores, notas y leyenda en otra pestaña, para imprimirla o guardarla como PDF; si es larga, va en dos columnas. `lyrics --export` guarda la misma hoja como `<tema>.lyrics.html`. Arriba, "con acordes" o "con las notas del bajo" los pone sobre las palabras (ver [Hoja con acordes](#hoja-con-acordes)).
 
 Todo se guarda solo. Buscar la letra de nuevo la reemplaza y se pierden los colores y las notas (la leyenda queda), por eso pregunta antes.
 
@@ -649,21 +673,21 @@ song-wizard reaper --redo "001 - Tema.opus"   # arma uno nuevo (el anterior va a
 song-wizard reaper --setting show             # qué cambió song-wizard en Reaper (restore lo vuelve atrás)
 ```
 
-Abre el proyecto de Reaper del tema, `Tema.rpp`, que queda al lado del tema. Si no existe, primero lo arma con lo que haya en ese momento:
+Abre el proyecto de Reaper del tema, `<tema>.rpp`, que queda en la carpeta del tema. Si no existe, primero lo arma con lo que haya en ese momento:
 
 - **Una pista por stem**, con el nombre del instrumento: los mismos con los que arranca el reproductor de práctica (todos los instrumentos, o el instrumento separado y el resto). Los demás stems y el tema original quedan como pistas silenciadas, para cambiar de una a otra. Si el tema no está separado, va el tema solo. Todas a 0 dB.
-- **El tempo y el compás** del click ajustado en "practicar" (o `align`), con decimales, y el audio corrido para que el primer golpe del tema caiga justo en un compás, con un compás de cuenta antes. Si el click no está ajustado, usa el tempo de `bpm.txt` sin alinear (o 120 BPM si no hay), y lo avisa. Si no cae exacto, se corrige en Reaper.
+- **El tempo y el compás del tema** (el click ajustado en "practicar", o `align`), con decimales, y el audio corrido para que el primer golpe del tema caiga justo en un compás, con un compás de cuenta antes. Si no se sabe dónde caen los tiempos, usa el tempo sin alinear (o 120 BPM si no hay), y lo avisa. Si no cae exacto, se corrige en Reaper.
 - **Pista "Click"** con el click de Reaper, que sigue el tempo del proyecto: si corregís el tempo en Reaper, el click lo sigue.
 - **Pista "Grabación"** lista para grabar (con Ctrl+R) desde las entradas 1 y 2, con el monitoreo (escuchar lo que entra) apagado; se prende en la pista si lo querés.
 - Los archivos van con su nombre, sin copiarlos: el proyecto sigue andando si movés la carpeta, también en Drive.
 
 Un proyecto que ya existe nunca se pisa, porque puede tener cambios hechos en Reaper. `--redo` (o "más › Rehacer proyecto de Reaper") manda el anterior a la papelera y arma uno nuevo, por ejemplo después de separar más instrumentos. Si Reaper no está instalado, el proyecto se crea igual, pero no se abre ("Abrir en Reaper" queda deshabilitado).
 
-**Las tomas.** Para que lo que grabes en Reaper aparezca con su tema en la biblioteca, las tomas tienen que llamarse `Tema (record 2026-11-01 19-05-12).wav`. Eso es una preferencia de Reaper que vale para todos tus proyectos (Options › Preferences › Recording › "Recorded filenames"), así que song-wizard la cambia la primera vez que creás o abrís un proyecto, con Reaper cerrado (Reaper guarda sus preferencias al cerrarse y pisaría el cambio). Te avisa cuando lo hace, con el valor de antes y el nuevo, y guarda una copia de las preferencias de Reaper como `reaper.ini.before-song-wizard`.
+**Las tomas.** Lo que grabes va a la carpeta del tema (donde está el proyecto), y para que aparezca con su tema en la biblioteca las tomas tienen que llamarse `record 2026-11-01 19-05-12.wav`. Eso es una preferencia de Reaper que vale para todos tus proyectos (Options › Preferences › Recording › "Recorded filenames"), así que song-wizard la cambia la primera vez que creás o abrís un proyecto, con Reaper cerrado (Reaper guarda sus preferencias al cerrarse y pisaría el cambio). Te avisa cuando lo hace, con el valor de antes y el nuevo, y guarda una copia de las preferencias de Reaper como `reaper.ini.before-song-wizard`.
 
 En la interfaz, el apartado **Reaper** (debajo de Trabajos) muestra siempre qué cambió, cuándo y cómo era antes, con un botón para restaurarlo. En la terminal: `song-wizard reaper --setting show`, y `--setting restore` para volver atrás. Restaurar vuelve solo esa preferencia a como estaba, sin tocar nada más de Reaper, y song-wizard no la vuelve a cambiar hasta que se lo pidas (`--setting apply`, o "volver a ajustarlo"). A mano: en esa preferencia de Reaper, poné el valor de antes.
 
-Las tomas siguen al tema: `rename` las renombra y `delete` las borra con él, igual que el proyecto.
+Las tomas siguen al tema: están en su carpeta, así que `delete` las borra con él, igual que el proyecto. Reaper guarda las imágenes de las ondas (`.reapeaks`) al lado de cada archivo o en una carpeta `peaks`: también dentro de la carpeta del tema.
 
 ### Setlist
 
@@ -761,7 +785,8 @@ Usan audio sintético generado en la misma prueba (tonos, acordes y una batería
 - `transpose`: el tono cambia lo pedido (un La 440 sube a 880 con +12), la duración no cambia y los picos por encima de 0 dB quedan intactos; con 0 semitonos devuelve el original.
 - `speed`: de 25 % a 200 %, la duración cambia exactamente lo pedido, el tono queda igual (y cambia lo pedido con `--semitones`) y los picos por encima de 0 dB quedan intactos; los golpes de un click caen en su lugar al tempo nuevo.
 - `convert`: baja el volumen solo de lo que pasa de 0 dB; en una carpeta saltea los archivos comprimidos; no pisa archivos sin `--overwrite`.
-- `key.txt` y `bpm.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa), la configuración, la carpeta de música y los registros de `archives` (también el que cada playlist guarda en su carpeta: lo toma otra compu, se actualiza al bajar y al borrar, se quita al olvidarla, una copia no se adueña, y uno dañado o raro se ignora).
+- Una carpeta por tema: los nombres de stems y versiones, encontrar el tema desde cualquiera de sus archivos, `tidy` (todo o nada, los `key.txt`/`bpm.txt`/`click.txt` viejos a un `key.txt` y un `tempo.txt` por tema ganando el click de práctica, el proyecto de Reaper y su carpeta `peaks`, los PDF quedan donde estaban, no con Reaper abierto, `--undo` vuelve a los mismos archivos exactos) y los comandos que rechazan una carpeta con el formato anterior.
+- `key.txt` y `tempo.txt` (también la tonalidad y el tempo puestos a mano, en inglés o en español, que volver a analizar no pisa; un tempo escrito a mano conserva dónde caen los tiempos), la configuración, la carpeta de música y los registros de `archives` (también el que cada playlist guarda en su carpeta: lo toma otra compu, se actualiza al bajar y al borrar, se quita al olvidarla, una copia no se adueña, y uno dañado o raro se ignora).
 - `lyrics`: elige la versión de duración más cercana, letra con tiempos, sin internet o sin resultados, pegar desde un archivo (conserva las marcas si el texto no cambió), validación de lo que guarda la página, la hoja para imprimir (con nombres como texto, nunca HTML), y que siga al tema al renombrarlo y borrarlo (la base de letras no se consulta en las pruebas).
 - `sheet`: nombres de acordes transpuestos y simplificados, cada acorde sobre la palabra justa, compases donde no se canta y para letras sin tiempos (renglones del mismo largo), las notas del bajo sin repeticiones, las opciones de la hoja (y las de por defecto ante algo inesperado), nombres escapados, exportar y renombrar, el setlist con acordes y la marca de agua.
 - `separate`: la batería en partes en la terminal, qué instrumentos entran en "Todos" (el piano no, salvo que se pida), y que guitarra y piano usen el mismo modelo (una sola pasada).

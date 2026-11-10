@@ -966,24 +966,21 @@ function findPath(path) {
 // Tempo of a selection for the click: its own if it was analyzed, else its song's; for a
 // version at another speed, "Title (80%).wav", the song's scaled by that much.
 function tempoOf(found) {
-  const own = bpmNumber(found.item.bpm);
-  if (own || !found.song || found.item === found.song) return own;
+  if (!found.song) return bpmNumber(found.item.bpm);
   const songBpm = bpmNumber(found.song.bpm);
-  // Every speed in the name counts: "(80%) (90%)" is 72% of the song.
-  const factor = [...found.item.name.matchAll(/\((\d+(?:\.\d+)?)%/g)].reduce((f, m) => f * parseFloat(m[1]) / 100, 1);
+  // Every speed in the name counts: "drums 80% 90%" is 72% of the song (the server works it out).
+  const factor = found.item === found.song ? 1 : (found.item.speed || 1);
   return songBpm ? Math.round(songBpm * factor * 10) / 10 : null;
 }
 
 // "song", "copy" (the song in another format: "Title.mp3"), "stem", "version" (transposed or
-// at another speed, stems included: "Title (drums) (80%).wav") or "click".
-const VERSION = /\((?:[+-]\d+(?:\.\d+)?|\d+(?:\.\d+)?%(?:, [+-]\d+(?:\.\d+)?)?)\)/;
+// at another speed, stems included: "drums 80%.wav") or "click".
 function kindOf(found) {
   if (!found.song) return "click";
   if (found.item === found.song) return "song";
-  const base = found.song.name.replace(/\.[^.]+$/, "");
-  const rest = found.item.name.replace(/\.[^.]+$/, "").slice(base.length);
-  if (!rest) return "copy";
-  return VERSION.test(rest) ? "version" : "stem";
+  // The server says what each file of the song is: copy, stem, version, click, take or other.
+  const kind = found.item.kind;
+  return kind === "copy" || kind === "version" ? kind : "stem";
 }
 
 // Actions that only make sense on some files, and why they're off otherwise. The command line
@@ -1074,13 +1071,14 @@ function renderLibrary() {
   box.replaceChildren();
   state.shown = [];  // every checkbox shown, in order (for shift+click)
   state.shownSongs = [];  // the songs in open folders, in order (for the keyboard)
-  const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing);
+  const visible = state.folders.filter((f) => f.songs.length || f.extras.length || f.missing || f.old);
   if (!visible.length) {
     box.append(el("p", { class: "empty" }, say("library.no_songs_yet_paste_url")));
     return;
   }
   for (const folder of visible) {
     if (folder.missing) { if (!filter) box.append(renderMissing(folder)); continue; }
+    if (folder.old) { if (!filter) box.append(renderOld(folder)); continue; }
     // Words in any order, accents and case aside: in the name, the folder or the song's data.
     const songs = folder.songs.filter((s) => !filter || matchesWords(filter, s.name, folder.name, ...Object.values(s.tags || {})));
     if (filter && !songs.length) continue;
@@ -1125,6 +1123,16 @@ function renderMissing(folder) {
             say("library.run_command_wsl_terminal_asks", { line: folder.missing.fstab }),
             folder.missing.command) }, say("library.how_connect")))
       : el("p", { class: "hint" }, say("library.i_cant_find_folder_if")));
+}
+
+// A folder whose songs are still loose in it, as before 0.42.0: one click puts each in its own
+// folder (all of them or none; "song-wizard tidy --undo" puts them back).
+function renderOld(folder) {
+  return el("details", { class: "folder missing", open: true },
+    el("summary", {}, el("h3", {}, folder.name), el("span", { class: "badge warn" }, say("library.old_layout"))),
+    folder.location ? el("div", { class: "location" }, `en ${folder.location}`) : null,
+    el("p", { class: "hint" }, say("library.old_layout_why", { n: folder.old }),
+      el("button", { class: "small primary", onclick: () => start({ action: "tidy", folder: folder.path }) }, say("library.tidy"))));
 }
 
 function renderSong(song) {
@@ -1268,7 +1276,7 @@ async function reaperSetting(what) {
 function showSettingChanged(s) {
   renderReaperSetting({ ...state.reaperSetting, ...s });
   $("reaper-changed-body").replaceChildren(
-    el("p", {}, 'Para que las tomas que grabes se llamen como su tema ("Tema (record 2026-11-01 19-05-12).wav") y aparezcan con él en la biblioteca, cambié esta preferencia de Reaper:'),
+    el("p", {}, 'Para que las tomas que grabes queden en la carpeta del tema ("record 2026-11-01 19-05-12.wav") y aparezcan con él en la biblioteca, cambié esta preferencia de Reaper:'),
     settingDetails(s),
     el("p", { class: "hint" }, say("reaper.undo_put_back_was_here")));
   $("reaper-changed").showModal();
@@ -1904,13 +1912,12 @@ async function openTrim(song) {
   $("trim-pad-start").value = 0;
   $("trim-pad-end").value = 0;
   $("trim-reaper").hidden = !song.reaper;
-  const files = [song.name, ...song.files.map((f) => f.name)];
-  const take = (n) => / \(record [^)]*\)(-\d+)?\.[^.]+$/.test(n);
-  const audio = (n) => /\.(opus|webm|wav|flac|mp3|m4a|ogg|aac|mkv|mp4|aiff?)$/i.test(n);
-  const cut = files.filter((n) => audio(n) && !take(n));
+  const files = [{ name: song.name, speed: 1 }, ...song.files];
+  const take = (f) => f.kind === "take";
+  const cut = files.filter((f) => !take(f));
   $("trim-files-title").textContent = say("trim.file_will_trimmed", { length: cut.length, v: cut.length === 1 ? "" : "s" });
-  $("trim-files").replaceChildren(...cut.map((n) => el("li", {}, n, /\(\d+(\.\d+)?%/.test(n) ? el("span", { class: "muted" }, say("trim.proportion_speed")) : null)),
-    ...files.filter(take).map((n) => el("li", { class: "muted" }, n, say("trim.reaper_take_left"))));
+  $("trim-files").replaceChildren(...cut.map((f) => el("li", {}, f.name, f.speed !== 1 ? el("span", { class: "muted" }, say("trim.proportion_speed")) : null)),
+    ...files.filter(take).map((f) => el("li", { class: "muted" }, f.name, say("trim.reaper_take_left"))));
   trimWave.clear();
   trimNav.clear();
   $("trim").showModal();
@@ -2083,16 +2090,16 @@ function setMasterVolume(value) {
   try { localStorage.setItem(MASTER_KEY, String(value)); } catch {}
 }
 
-function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
 // The sets of tracks this song can be practiced with, best first: every stem ("Todos"), the
 // drums in pieces (with the other stems, or with the song without drums), each instrument
 // separated alone with the rest of the song, or the song by itself.
 function trackSets(song) {
-  const base = song.name.replace(/\.[^.]+$/, "");
-  const stem = new RegExp(`^${escapeRegExp(base)} \\(((?:no )?(?:vocals|drums|bass|guitar|piano)|other|kick|snare|toms|hihat|ride|crash|drums rest)\\)\\.(wav|opus|mp3)$`, "i");
+  // Stems are named by what they are, in the song's folder: "drums.opus", "no drums.wav".
   const found = {};
-  for (const f of song.files) { const m = stem.exec(f.name); if (m) found[m[1].toLowerCase()] = f; }
+  for (const f of song.files) {
+    if (f.part && /\.(wav|opus|mp3)$/i.test(f.name) && !found[f.part.toLowerCase()]) found[f.part.toLowerCase()] = f;
+  }
   const sets = [];
   if (FULL_SET.every((k) => found[k])) {
     sets.push({ label: say("practice.all_instruments"), tracks: FULL_SET.map((k) => ({ name: STEM_NAMES[k], file: found[k] })) });
@@ -2735,7 +2742,7 @@ $("pc-beat-back").onclick = () => setClick({ first: practice.click.first - grid(
 $("pc-beat-fwd").onclick = () => setClick({ first: practice.click.first + grid().period });
 $("pc-ms-back").onclick = () => setClick({ first: practice.click.first - 0.01 });
 $("pc-ms-fwd").onclick = () => setClick({ first: practice.click.first + 0.01 });
-$("pc-detect").onclick = () => start({ action: "align", paths: [practice.song.path] });
+$("pc-detect").onclick = () => start({ action: "align", paths: [practice.song.path], force: true });
 $("pc-look-here").onclick = () => {
   const t = now(), length = Math.max(6, 3 * grid().period * grid().perBar);
   const from = Math.max(0, Math.min(t - length * 0.3, (practice.duration || t + length) - length));
@@ -2763,7 +2770,7 @@ for (const id of ["pc-countin", "pc-resume"]) {
   });
 }
 
-// After "Detectar" (or anything else) changes the song's click.txt, take the new values.
+// After "Detectar" (or anything else) changes the song's tempo.txt, take the new values.
 function syncPracticeClick() {
   if (!$("practice").open || !practice.song) return;
   for (const f of state.folders) for (const s of f.songs) {
@@ -3045,7 +3052,7 @@ function toggleNotesShown(part) {
   if (notesState.sel && notesState.sel.part === part) notesState.sel = null;
   renderNotes();
 }
-const partOf = (t) => !t.click && t.file && (/\((bass|vocals)\)\.(wav|opus|mp3)$/i.exec(t.file.name) || [])[1]?.toLowerCase();
+const partOf = (t) => !t.click && t.file && ["bass", "vocals"].includes(t.file.part) ? t.file.part : undefined;
 const noteName = (midi, octave = false) => {
   const m = midi + semitones();
   return NOTE_NAMES[((m % 12) + 12) % 12] + (octave ? Math.floor(m / 12) - 1 : "");
@@ -3214,12 +3221,12 @@ const drumsState = { data: null, listen: false, bus: null, noise: null,
   open: (() => { try { return localStorage.getItem(DRUMS_OPEN_KEY) === "1"; } catch { return false; } })(),
   volume: (() => { try { const v = parseFloat(localStorage.getItem(DRUMS_VOLUME_KEY)); return isNaN(v) ? 0.8 : v; } catch { return 0.8; } })() };
 const drumsSheetUrl = (path) => `/drums?path=${encodeURIComponent(path)}&lang=${LANG}`;
-const hasDrumStem = (song) => song.files.some((f) => /\((drums|kick|snare)\)\.(wav|opus|mp3)$/i.test(f.name));
+const hasDrumStem = (song) => song.files.some((f) => ["drums", "kick", "snare"].includes(f.part));
 // The drums' track; in the drum kit's set, its last piece.
 const drumsHost = () => {
   const lanes = (practice.lanes || []).filter((ui) => ui.track.file);
-  return lanes.find((ui) => /\(drums\)\.(wav|opus|mp3)$/i.test(ui.track.file.name))
-    || lanes.filter((ui) => /\((kick|snare|toms|hihat|ride|crash)\)\.(wav|opus|mp3)$/i.test(ui.track.file.name)).pop() || null;
+  return lanes.find((ui) => ui.track.file.part === "drums")
+    || lanes.filter((ui) => ["kick", "snare", "toms", "hihat", "ride", "crash"].includes(ui.track.file.part)).pop() || null;
 };
 const detectDrums = () => start({ action: "drums", paths: [practice.song.path] });
 

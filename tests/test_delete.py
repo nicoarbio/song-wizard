@@ -29,48 +29,48 @@ def trash(tmp_path, monkeypatch):
 @pytest.fixture
 def show(tmp_path):
     folder = tmp_path / "Show"
-    folder.mkdir()
-    synth.write(folder / "tone.wav", synth.sine(440, 1))
+    here = folder / "001 - Song"
+    here.mkdir(parents=True)
+    synth.write(here / "tone.wav", synth.sine(440, 1))
     # A downloaded song keeps its link in the "purl" tag, as yt-dlp writes it.
-    subprocess.run(["ffmpeg", "-v", "error", "-i", str(folder / "tone.wav"), "-c:a", "libopus",
-                    "-metadata", f"purl={LINK}", str(folder / "001 - Song.opus")], check=True)
-    os.remove(folder / "tone.wav")
-    for name in ["001 - Song.wav", "001 - Song (drums).wav", "001 - Song (80%).wav",
-                 "001 - Song (click 120 BPM 4-4).wav", "002 - Other.opus"]:
-        (folder / name).write_bytes(b"x")
-    for command in ("key", "bpm", "click"):
-        results.save(command, [(str(folder / "001 - Song.opus"), "a"), (str(folder / "001 - Song (drums).wav"), "b"),
-                               (str(folder / "002 - Other.opus"), "c")])
+    subprocess.run(["ffmpeg", "-v", "error", "-i", str(here / "tone.wav"), "-c:a", "libopus",
+                    "-metadata", f"purl={LINK}", str(here / "001 - Song.opus")], check=True)
+    os.remove(here / "tone.wav")
+    for name in ["001 - Song.wav", "drums.wav", "80%.wav", "click 120 BPM 4-4.wav"]:
+        (here / name).write_bytes(b"x")
+    results.save(here, "key", "a")
+    (folder / "002 - Other").mkdir()
+    (folder / "002 - Other" / "002 - Other.opus").write_bytes(b"x")
     archives.ARCHIVE_DIR.mkdir(parents=True)
     (archives.ARCHIVE_DIR / "PLx.txt").write_text("site abc123\nsite other1\n")
     return folder
 
 
 def test_source_link(show):
-    assert delete.source_link(str(show / "001 - Song.opus")) == LINK
-    assert delete.source_link(str(show / "001 - Song.wav")) is None
+    assert delete.source_link(str(show / "001 - Song" / "001 - Song.opus")) == LINK
+    assert delete.source_link(str(show / "001 - Song" / "001 - Song.wav")) is None
 
 
 def test_delete_song(show, trash):
-    delete.run(songs=[str(show / "001 - Song.opus")], yes=True)
-    assert sorted(os.listdir(show)) == ["002 - Other.opus", "bpm.txt", "click.txt", "key.txt"]
-    assert len(os.listdir(trash)) == 5
-    for command in ("key", "bpm", "click"):
-        assert results.read(str(show), command) == {"002 - Other.opus": "c"}
+    delete.run(songs=[str(show / "001 - Song" / "001 - Song.opus")], yes=True)
+    assert os.listdir(show) == ["002 - Other"]
+    assert os.listdir(trash) == ["001 - Song"]  # the whole folder, with its data
+    assert sorted(os.listdir(trash / "001 - Song"))[-1] == "key.txt"
     assert (archives.ARCHIVE_DIR / "PLx.txt").read_text() == "site other1\n"
 
 
 def test_delete_single_files(show, trash):
-    delete.run(files=[str(show / "001 - Song.wav")], songs=[str(show / "001 - Song (drums).wav")], yes=True)
-    assert sorted(os.listdir(trash)) == ["001 - Song (drums).wav", "001 - Song.wav"]
-    assert (show / "001 - Song.opus").exists() and (show / "001 - Song (80%).wav").exists()
-    assert results.read(str(show), "key") == {"001 - Song.opus": "a", "002 - Other.opus": "c"}
+    here = show / "001 - Song"
+    delete.run(files=[str(here / "001 - Song.wav")], songs=[str(here / "drums.wav")], yes=True)
+    assert sorted(os.listdir(trash)) == ["001 - Song.wav", "drums.wav"]
+    assert (here / "001 - Song.opus").exists() and (here / "80%.wav").exists()
+    assert results.read(here, "key") == "a"
     assert "abc123" in (archives.ARCHIVE_DIR / "PLx.txt").read_text()
 
 
 def test_needs_confirmation(show, trash):
     with pytest.raises(SystemExit):
-        delete.run(songs=[str(show / "001 - Song.opus")])
+        delete.run(songs=[str(show / "001 - Song" / "001 - Song.opus")])
     assert os.listdir(trash) == []
 
 
@@ -80,8 +80,7 @@ def test_trash_failure_touches_nothing_else(show, monkeypatch):
 
     monkeypatch.setattr(system, "trash", failing)
     with pytest.raises(SystemExit):
-        delete.run(songs=[str(show / "001 - Song.opus")], yes=True)
-    assert results.read(str(show), "key")["001 - Song.opus"] == "a"
+        delete.run(songs=[str(show / "001 - Song" / "001 - Song.opus")], yes=True)
     assert "abc123" in (archives.ARCHIVE_DIR / "PLx.txt").read_text()
 
 

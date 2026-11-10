@@ -40,11 +40,10 @@ def run(text=None, files=False):
             hand = f" ({results.HAND})"
             if song["key"]:
                 details.append(song["key"].split()[0] + (hand if song["key"].endswith(results.HAND) else ""))
-            if song["bpm"]:
-                details.append(song["bpm"].split("  ")[0] + (hand if song["bpm"].endswith(results.HAND) else ""))
-            if song["click"]:
+            if song["bpm"]:  # one tempo: with where the beats fall, if that's known
                 c = song["click"]
-                details.append(f"click {c['bpm']:.2f} BPM {c['meter']} from {c['first']:.3f} s")
+                tempo = f"{c['bpm']:.2f} BPM {c['meter']} from {c['first']:.3f} s" if c else song["bpm"].split("  ")[0]
+                details.append(tempo + (hand if song["bpm"].endswith(results.HAND) else ""))
             if song["files"] and not files:
                 details.append(f"+{len(song['files'])} file{'s' if len(song['files']) != 1 else ''}")
             print(f"  {song['name']}" + (f"  ·  {'  ·  '.join(details)}" if details else ""))

@@ -1,39 +1,29 @@
-"""Rename a song and everything made from it: its other formats, stems and versions, its lyrics,
-its REAPER project (and the files it points to), and its lines in key.txt and bpm.txt."""
+"""Rename a song: its folder, its main file (in every format), the files made to take elsewhere
+("<song>.rpp", "<song>.drums.mid"...) and REAPER's peaks of them. Stems and versions keep their
+short names ("drums.opus"), so they don't move."""
 
 import os
 import re
 
-from . import results
-from .audio import AUDIO_EXTS, base_of, die
+from . import song
+from .audio import die
 
 # Not allowed in file names on Windows (where the music folder is on WSL), nor "/" anywhere.
 FORBIDDEN = set('\\/:*?"<>|')
 NUMBER = re.compile(r"^\d+ - ")
 
 
-# Files that go with a song without being audio: its lyrics and their printable page, and its
-# REAPER project and the backup REAPER keeps of it.
-COMPANIONS = (".lyrics.json", ".lyrics.html", ".chords.json", ".chords.html", ".bass.html", ".notes.json", ".drums.json", ".drums.html", ".drums.mid", ".rpp", ".rpp-bak")
-# REAPER's waveform cache, next to each audio file it opened: "Title (drums).wav.reapeaks".
-PEAKS = ".reapeaks"
-
-
-def group(folder, base):
-    """Every file in the folder that belongs to this song: its audio files, its lyrics and its
-    REAPER project."""
-    names = os.listdir(folder)
-    audio = {n for n in names if os.path.splitext(n)[1].lower() in AUDIO_EXTS and base_of(n) == base}
-    companions = {(base + c).lower() for c in COMPANIONS}
-    return sorted(n for n in names
-                  if (n in audio or n.lower() in companions
-                      or (n.lower().endswith(PEAKS) and n[:-len(PEAKS)] in audio))
-                  and os.path.isfile(os.path.join(folder, n)))
+def group(here, base=None):
+    """The files in the song's folder named after it: [(name, the rest after the song's name)]."""
+    base = base or here.name
+    return [(n, n[len(base):]) for n in sorted(os.listdir(here))
+            if n.startswith(base + ".") and (here / n).is_file()]
 
 
 def new_base(old, new):
     """The new name, cleaned up. Keeps the "001 - " numbering unless the new name has its own."""
     new = new.strip()
+    from .audio import AUDIO_EXTS
     if os.path.splitext(new)[1].lower() in AUDIO_EXTS:
         new = os.path.splitext(new)[0].strip()
     bad = sorted(set(new) & FORBIDDEN)
@@ -41,7 +31,7 @@ def new_base(old, new):
         die(f'The name can\'t have {" ".join(bad)} (Windows doesn\'t allow them in file names).')
     if not new or new.endswith("."):
         die("The new name can't be empty or end with a dot.")
-    if base_of(new + ".wav") != new:
+    if song.parts(new + ".wav"):
         die(f'"{new}" looks like a file song-wizard makes (a stem or a version); pick another name.')
     number = NUMBER.match(old)
     if number and not NUMBER.match(new):
@@ -50,46 +40,45 @@ def new_base(old, new):
 
 
 def plan(path, new):
-    """[(old name, new name)] for the song at path, or exits explaining why not."""
-    folder, name = os.path.split(os.path.abspath(path))
-    if not os.path.isfile(path):
+    """(song folder, [(old name, new name)] inside it, old name, new name), or exits saying why."""
+    if not os.path.exists(path):
         die(f"{path}: not found")
-    old = base_of(name)
+    here = song.folder(path)
+    old = here.name
     new = new_base(old, new)
     if new == old:
         die("That's already its name.")
-    renames = [(n, new + n[len(old):]) for n in group(folder, old)]
-    sources = {os.path.join(folder, n) for n, _ in renames}
-    clashes = []
-    for _, target in renames:
-        target_path = os.path.join(folder, target)
-        # A case-only change ("song" -> "Song") on a case-insensitive disk finds the file itself.
-        if os.path.exists(target_path) and not any(os.path.samefile(target_path, s) for s in sources):
-            clashes.append(target)
-    if clashes:
-        die("Nothing renamed: these already exist:\n" + "\n".join(f"  {c}" for c in clashes))
-    return folder, renames, old, new
+    target = here.with_name(new)
+    # A case-only change ("song" -> "Song") on a case-insensitive disk finds the folder itself.
+    if target.exists() and not os.path.samefile(target, here):
+        die(f"Nothing renamed: {target} already exists.")
+    renames = [(n, new + rest) for n, rest in group(here)]
+    # REAPER's caches of them, if it keeps them in a "peaks" folder.
+    if (here / "peaks").is_dir():
+        renames += [(f"peaks/{n}", f"peaks/{new}{rest}") for n, rest in group(here / "peaks", here.name)]
+    return here, renames, old, new
 
 
 def run(path, new):
-    folder, renames, old_base, new_base = plan(path, new)
+    """Returns the song's main file in its new place."""
+    here, renames, old_base, new_base = plan(path, new)
     done = []
+    target = here.with_name(new_base)
     try:
-        for old, target in renames:
-            os.rename(os.path.join(folder, old), os.path.join(folder, target))
-            done.append((old, target))
+        for old, name in renames:
+            os.rename(here / old, here / name)
+            done.append((old, name))
+        os.rename(here, target)
     except OSError as e:
-        for old, target in reversed(done):
-            os.rename(os.path.join(folder, target), os.path.join(folder, old))
+        for old, name in reversed(done):
+            os.rename(here / name, here / old)
         die(f"Nothing renamed: {e}")
-    for old, target in renames:
-        print(f"  {old}  ->  {target}")
+    print(f"  {here.name}/  ->  {target.name}/")
+    for old, name in renames:
+        print(f"    {old}  ->  {name}")
     # A REAPER project points to the song's files by name: point it to the new names.
     from . import reaper
-    for _, target in renames:
-        if target.lower().endswith((".rpp", ".rpp-bak")) and reaper.rename_inside(
-                os.path.join(folder, target), old_base, new_base):
-            print(f"  updated the files {target} points to")
-    for command in ("key", "bpm", "click"):
-        if results.rename(folder, command, dict(renames)):
-            print(f"  updated {command}.txt")
+    for _, name in renames:
+        if name.lower().endswith((".rpp", ".rpp-bak")) and reaper.rename_inside(target / name, old_base, new_base):
+            print(f"  updated the files {name} points to")
+    return song.main_in(target)

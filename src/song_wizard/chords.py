@@ -14,14 +14,12 @@ import json
 import os
 import re
 import subprocess
-from pathlib import Path
 
-from . import __version__, align, results, weights
-from .audio import expand
+from . import __version__, align, weights
+from . import song as songfs
 from .audio import load as load_audio
 from .paths import MODELS_DIR
 
-SUFFIX = ".chords.json"
 MODEL_URL = ("https://raw.githubusercontent.com/jayg996/BTC-ISMIR19/2682317be668032e6e4b269ded36adaa2ad57df0/"
              "test/btc_model_large_voca.pt")
 MODEL_SHA256 = "1673d23f8f9a55ae7f9e8b80a51da616debb22675b8d8b67ea6ce0ef37b0ab51"
@@ -42,8 +40,7 @@ CHORD = re.compile(rf"^(?P<root>{NOTE})(?P<quality>maj|min|m|dim|aug|\+|°|ø|su
 
 
 def path_for(song):
-    song = Path(song)
-    return song.with_name(song.stem + SUFFIX)
+    return songfs.data(song, "chords")
 
 
 def understood(name):
@@ -175,12 +172,11 @@ def detect(song, click):
 
 
 def click_of(song):
-    text = results.read(os.path.dirname(song), "click").get(os.path.basename(song))
-    return align.parse(text)
+    return align.grid(song)
 
 
 def run(paths, force=False):
-    for song in expand(paths, skip_generated=True):
+    for song in songfs.expand(paths):
         name = os.path.basename(song)
         click = click_of(song)
         if click is None:
