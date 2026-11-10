@@ -393,6 +393,19 @@ def test_open_folder(server, launched):
     assert launched[-1] == ["open", str(root.resolve())]
 
 
+def test_open_the_download_folder(server, launched, tmp_path):
+    """"open" next to the download folder: the one picked, outside the music folder too (as a
+    download may go there); one that isn't there, a clear error."""
+    port, root = server
+    elsewhere = tmp_path / "Drive" / "Ensayos"
+    elsewhere.mkdir(parents=True)
+    assert request(port, "POST", "/api/open", {"to": str(elsewhere)})[0].status == 200
+    assert launched == [["open", str(elsewhere)]]
+    response, content = request(port, "POST", "/api/open", {"to": str(tmp_path / "nope")})
+    assert response.status == 400 and "error" in json.loads(content) and len(launched) == 1
+    assert request(port, "POST", "/api/open", {"to": "relative/path"})[0].status == 400
+
+
 def test_open_folder_refuses(server, launched):
     port, root = server
     (root / "song.opus").write_bytes(b"x")

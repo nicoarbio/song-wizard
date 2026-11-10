@@ -979,6 +979,16 @@ def make_handler(token, root, runner, port):
             if url.path == "/api/reaper":
                 return self.reaper(body)
             if url.path == "/api/open":
+                if body.get("to"):  # the folder picked for downloads: any one a download may go to
+                    try:
+                        to = folder_from(body["to"])
+                    except NeedsCommand as e:
+                        return self.json({"error": self.say(e.text, **e.values), "command": e.command}, HTTPStatus.BAD_REQUEST)
+                    except Said as e:
+                        return self.error(HTTPStatus.BAD_REQUEST, e.text, **e.values)
+                    if not system.open_folder(Path(to)):
+                        return self.error(HTTPStatus.NOT_IMPLEMENTED, "server.i_didnt_find_file_manager")
+                    return self.json({"opened": to})
                 return self.open_folder(body.get("path", ""))
             match = re.fullmatch(r"/api/jobs/(\d+)/cancel", url.path)
             if match:

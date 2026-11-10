@@ -68,7 +68,6 @@
   header h1 .version.retired { color: var(--warn); }
   header .brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
   header .brand img { flex: none; border-radius: 9px; }
-  header .root { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
   form.download { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 280px; min-width: 0; }
   form.download input[type=url] { flex: 1 1 220px; min-width: 0; }
   main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); gap: 16px; padding: 16px 20px 110px; max-width: 1400px; margin: 0 auto; }
@@ -414,14 +413,12 @@
     <img src="/static/logo.png" alt="" width="40" height="40">
     <div>
     <h1>song-wizard <button class="small version" id="version" data-text-title="header.check_new_version"></button> <button class="small primary" id="upgrade" hidden></button></h1>
-    <div class="root"><span id="root"></span> <button class="small" id="open-root" hidden data-text="library.open"></button></div>
     </div>
   </div>
   <form class="download" id="download">
     <input type="url" id="url" data-text-placeholder="header.paste_link_song_playlist" required>
-    <label class="muted"><input type="checkbox" id="wav"> <span data-text="header.also_wav"></span></label>
     <button class="primary" type="submit" data-text="header.download"></button>
-    <span class="dest muted"><span data-text="header.in"></span> <button type="button" class="small" id="dest" data-text-title="header.where_new_playlists_folder_goes" data-text="playlists.music"></button></span>
+    <span class="dest muted"><span data-text="header.in"></span> <button type="button" class="small" id="dest" data-text-title="header.where_new_playlists_folder_goes" data-text="playlists.music"></button> <button type="button" class="small" id="open-dest" data-text="library.open"></button></span>
   </form>
   <div class="prefs">
   <button type="button" class="small keys-open" data-text-title="header.see_change_keyboard_shortcuts" data-text="header.shortcuts"></button>
@@ -1472,6 +1469,8 @@ function renderDest() {
   const to = downloadTo();
   $("dest").textContent = to ? to.split(/[\\/]/).filter(Boolean).pop() : say("playlists.music");
   $("dest").title = to ? say("playlists.new_playlists_go", { to }) : say("playlists.new_playlists_go_your_music");
+  $("open-dest").title = to ? say("library.open_folder", { fileManager: state.fileManager || "" })
+                            : say("library.open_music_folder", { fileManager: state.fileManager || "" });
 }
 $("dest").onclick = () => askFolder({ title: say("playlists.where_do_new_playlists_go"), value: downloadTo(), allowDefault: true,
   note: say("playlists.each_new_playlist_saved_folder"),
@@ -3948,12 +3947,10 @@ async function refresh() {
   peaksCache.clear();  // a file can change under the same name (trimmed)
   try {
     const lib = await api("/api/library");
-    $("root").textContent = say("library.music_folder", { root: lib.root });
     state.fileManager = lib.fileManager;
     state.reaperInstalled = lib.reaper;
     loadReaperSetting();
-    $("open-root").hidden = false;
-    $("open-root").title = say("library.open_music_folder", { fileManager: lib.fileManager });
+    renderDest();
     state.folders = lib.folders;
     const existing = new Set(lib.folders.flatMap((f) => [
       ...f.songs.flatMap((s) => [s.path, ...s.files.map((x) => x.path)]), ...f.extras.map((x) => x.path)]));
@@ -4068,14 +4065,19 @@ const selectedPaths = () => [...state.selected];
 
 $("download").addEventListener("submit", (e) => {
   e.preventDefault();
-  reviewAndDownload({ action: "download", url: $("url").value, wav: $("wav").checked, to: downloadTo() || undefined });
+  reviewAndDownload({ action: "download", url: $("url").value, to: downloadTo() || undefined });
   $("url").value = "";
 });
 $("filter").addEventListener("input", renderLibrary);
 $("expand-all").onclick = () => setAllOpen(true);
 $("collapse-all").onclick = () => setAllOpen(false);
 $("reload").onclick = () => refresh().then(() => toast(say("version.library_refreshed")));
-$("open-root").onclick = () => openFolder("");
+// The folder downloads go to: the music folder, or the one picked next to it.
+$("open-dest").onclick = async () => {
+  if (!downloadTo()) return openFolder("");
+  try { await api("/api/open", { to: downloadTo() }); }
+  catch (e) { toast(say("library.couldnt_opened", { message: e.message })); }
+};
 $("report-open").onclick = openReport;
 
 // ---- Lyrics: highlights by color and notes per line, saved next to the song ----
