@@ -74,19 +74,36 @@ def items(bars, fold=True):
     return out
 
 
+def gap(duration, number):
+    """Time that passes in a voice without a rest drawn for it."""
+    return f"<forward><duration>{duration}</duration><voice>{number}</voice></forward>"
+
+
 def voice(content, parts, quarters, number, stem):
-    """One voice of a bar in MusicXML: per beat, each hit lasting until the next (rests only
-    before the first), beamed within the beat."""
-    out = []
-    for beat in range(quarters):
+    """One voice of a bar in MusicXML: per beat, each hit lasting until the next, beamed within
+    the beat. As drum charts are written, the kick's voice draws no rests at all, and the hands'
+    only where nothing plays: a beat with just the kick is the kick's. Two empty beats in a row,
+    from the bar's first or third, are one half rest."""
+    feet = number == 2
+    out, beat = [], 0
+    played = lambda b: any(b * 4 <= s < b * 4 + 4 for s, _ in content)
+    while beat < quarters:
         slots = [sorted(p for s, p in content if s == beat * 4 + i and p in parts) for i in range(4)]
         starts = [i for i in range(4) if slots[i]]
         if not starts:
-            out.append(f"<note><rest/><duration>4</duration><voice>{number}</voice><type>quarter</type></note>")
+            if feet or played(beat):
+                out.append(gap(4, number))
+            elif beat % 2 == 0 and beat + 1 < quarters and not played(beat + 1):
+                out.append(f"<note><rest/><duration>8</duration><voice>{number}</voice><type>half</type></note>")
+                beat += 1
+            else:
+                out.append(f"<note><rest/><duration>4</duration><voice>{number}</voice><type>quarter</type></note>")
+            beat += 1
             continue
         if starts[0]:
             kind, dot = TYPE[starts[0]]
-            out.append(f"<note><rest/><duration>{starts[0]}</duration><voice>{number}</voice><type>{kind}</type>"
+            out.append(gap(starts[0], number) if feet else
+                       f"<note><rest/><duration>{starts[0]}</duration><voice>{number}</voice><type>{kind}</type>"
                        f"{'<dot/>' if dot else ''}</note>")
         lengths = [(starts[k + 1] if k + 1 < len(starts) else 4) - s for k, s in enumerate(starts)]
         for k, (s, d) in enumerate(zip(starts, lengths)):
@@ -105,6 +122,7 @@ def voice(content, parts, quarters, number, stem):
                            f"<display-octave>{octave}</display-octave></unpitched><duration>{d}</duration>"
                            f"<voice>{number}</voice><type>{kind}</type>{'<dot/>' if dot else ''}<stem>{stem}</stem>"
                            + (f"<notehead>{head}</notehead>" if head else "") + (beams if j == 0 else "") + "</note>")
+        beat += 1
     return "".join(out)
 
 

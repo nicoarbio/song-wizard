@@ -253,3 +253,27 @@ def test_real_model(tmp_path):
     assert len(kicks) > 10 and len(snares) > 10
     assert sum(k in (0, 2) for k in kicks) / len(kicks) > 0.9
     assert sum(s in (1, 3) for s in snares) / len(snares) > 0.9
+
+
+def test_sheet_draws_only_the_rests_that_mean_silence():
+    """As drum charts are written: no rests in the kick's voice, and none in the hands' where the
+    kick plays; two empty beats from the first or third are one half rest."""
+    import re
+    # Bar 1: kick on 1 and 3, a crash on 1 only. Bar 2: a snare on 4 alone.
+    hits = [{"t": 0.0, "part": "kick"}, {"t": 0.0, "part": "crash"}, {"t": 1.0, "part": "kick"},
+            {"t": 3.5, "part": "snare"}]
+    xml = drumsheet.musicxml("Song", {"hits": hits, "click": CLICK})
+    first, second = re.findall(r"<measure .*?</measure>", xml)
+    voices = lambda m, v: re.findall(rf"<note>(?:(?!</note>).)*<voice>{v}</voice>(?:(?!</note>).)*</note>", m)
+    assert not any("<rest/>" in n for n in voices(first, 2) + voices(second, 2))  # the kick's: never
+    # Hands, bar 1: crash on 1; beat 2 empty (a rest), beat 3 has the kick (no rest), beat 4 empty (a rest).
+    assert [n.count("<rest/>") for n in voices(first, 1)] == [0, 1, 1]
+    # Bar 2: beats 1-2 one half rest, beat 3 a quarter rest, then the snare.
+    rests = [re.search(r"<type>(\w+)</type>", n)[1] for n in voices(second, 1) if "<rest/>" in n]
+    assert rests == ["half", "quarter"]
+    # Every voice still adds up to the bar.
+    for m in (first, second):
+        for v in (1, 2):
+            total = sum(int(d) for d in re.findall(rf"<duration>(\d+)</duration><voice>{v}</voice>", m))
+            chords = sum(int(d) for d in re.findall(rf"<chord/>(?:(?!</note>).)*<duration>(\d+)</duration><voice>{v}</voice>", m))
+            assert total - chords == 16, (m, v)
