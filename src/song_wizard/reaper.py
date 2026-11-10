@@ -1,7 +1,7 @@
 """A REAPER project for a song: "<song>.rpp" in its folder, with a track per stem (or the song
 itself), the project's tempo and meter from the song's tempo (tempo.txt) and the audio placed so
 the song's first beat falls on a bar line, REAPER's own click on a track of its own, and a track
-armed to record (with the drum kit's stems, if any, after those two). If the project exists it's just opened, never rewritten: it may have been edited
+armed to record (with the original song and the drum kit's stems, muted, after those two). If the project exists it's just opened, never rewritten: it may have been edited
 in REAPER.
 
 Takes recorded in REAPER go to the song's folder as "record 2026-11-01 19-05-12.wav". REAPER only has that setting globally (Preferences > Recording > recorded
@@ -73,8 +73,8 @@ def tracks_for(song):
     tracks = [(name(k), found[k], False) for k in playing]
     tracks += [(name(k), found[k], True) for k in order if k in found and k not in playing]
     tracks.append(("Tema original", song.name, bool(playing)))
-    # The drum kit goes last (build puts it after the click and the recording track), so the
-    # tracks used every time aren't under seven muted ones.
+    # The original song and the drum kit go last (build puts them after the click and the
+    # recording track, muted), so the tracks used every time aren't under them.
     tracks += [(name(k), found[k], True) for k in KIT if k in found]
     return tracks
 
@@ -257,14 +257,16 @@ def build(song):
              "  MASTER_FX 1",
              "  MASTER_SEL 0"]
     audio = lambda name, file, muted: track(name, item(file, start, duration(song.parent / file), source(file)), muted=muted)
-    # Instruments, the click and the recording track, and then the drum kit.
+    # The stems, the click and the recording track on top; then, muted, the original song and
+    # the drum kit (a song that isn't separated stays on top, playing: it's all there is).
+    below = lambda name, _, muted: name in KIT_NAMES or (name == "Tema original" and muted)
     for t in tracks:
-        if t[0] not in KIT_NAMES:
+        if not below(*t):
             lines += audio(*t)
     lines += track("Click", item("Click", 0, end, click_source(bpm, beats)))
     lines += track("Grabación", record=True)
     for t in tracks:
-        if t[0] in KIT_NAMES:
+        if below(*t):
             lines += audio(*t)
     lines.append(">")
     return "\n".join(lines) + "\n", note

@@ -57,12 +57,16 @@ def test_tracks_with_the_drum_kit(tmp_path):
     assert names[3:] == [(n, True) for n in ["Bombo", "Redoblante", "Toms", "Hi-hat", "Ride", "Crash", "Resto de la batería"]]
 
 
-def test_build_puts_the_drum_kit_after_the_recording_track(tmp_path):
-    """Instruments, click, recording and then the kit: the tracks used every time stay on top."""
-    song = make_song(tmp_path, ["drums", "no drums", "kick", "snare", "drums rest"])
-    text, _ = reaper.build(song)
-    assert [t["NAME"] for t in blocks(text)] == ['"Batería"', '"Sin batería"', '"Tema original"', '"Click"', '"Grabación"',
-                                                '"Bombo"', '"Redoblante"', '"Resto de la batería"']
+def test_build_puts_the_song_and_the_drum_kit_after_the_recording_track(tmp_path):
+    """Stems, click, recording and then, muted, the song and the kit: the tracks used every time
+    stay on top. A song that isn't separated stays on top, playing."""
+    song = make_song(tmp_path / "s", ["drums", "no drums", "kick", "snare", "drums rest"])
+    tracks = blocks(reaper.build(song)[0])
+    assert [t["NAME"] for t in tracks] == ['"Batería"', '"Sin batería"', '"Click"', '"Grabación"', '"Tema original"',
+                                          '"Bombo"', '"Redoblante"', '"Resto de la batería"']
+    assert all(t["MUTESOLO"].startswith("1") for t in tracks[4:])
+    tracks = blocks(reaper.build(make_song(tmp_path / "a"))[0])
+    assert [(t["NAME"], t["MUTESOLO"][0]) for t in tracks] == [('"Tema original"', "0"), ('"Click"', "0"), ('"Grabación"', "0")]
 
 
 def test_tracks_one_instrument_or_none(tmp_path):
@@ -84,11 +88,11 @@ def test_build_lines_up_the_first_beat(tmp_path):
     assert float(tracks[0]["POSITION"]) == pytest.approx(4 * bar - 0.5)
     assert tracks[0]["FILE"] == '"drums.wav"'
     # Names with double quotes go in single quotes: REAPER has no escaping.
-    assert tracks[2]["FILE"] == f"'{SONG}.wav'"
-    assert [t["NAME"] for t in tracks] == ['"Batería"', '"Sin batería"', '"Tema original"', '"Click"', '"Grabación"']
+    assert tracks[4]["FILE"] == f"'{SONG}.wav'"
+    assert [t["NAME"] for t in tracks] == ['"Batería"', '"Sin batería"', '"Click"', '"Grabación"', '"Tema original"']
     assert "BPM 123.4" in text and "PATTERNSTR ABBB" in text
     # Armed to record from inputs 1/2, monitoring off; every track at 0 dB.
-    assert tracks[-1]["REC"] == "1 1024 0 0 0 0 0 0"
+    assert tracks[3]["REC"] == "1 1024 0 0 0 0 0 0"
     assert set(re.findall(r"^    VOLPAN (.*)$", text, re.M)) == {"1 0 -1 -1 1"}
 
 
