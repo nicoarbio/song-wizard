@@ -91,6 +91,9 @@ def test_build_lines_up_the_first_beat(tmp_path):
     assert tracks[4]["FILE"] == f"'{SONG}.wav'"
     assert [t["NAME"] for t in tracks] == ['"Batería"', '"Sin batería"', '"Click"', '"Grabación"', '"Tema original"']
     assert "BPM 123.4" in text and "PATTERNSTR ABBB" in text
+    # Only the click loops its source (it can be stretched to the left in REAPER).
+    loops = re.findall(r"^      LOOP (\d)$", text, re.M)  # the items' (the project's has 2 spaces)
+    assert loops == ["0", "0", "1", "0"]  # drums, no drums, click, original song
     # Armed to record from inputs 1/2, monitoring off; every track at 0 dB.
     assert tracks[3]["REC"] == "1 1024 0 0 0 0 0 0"
     assert set(re.findall(r"^    VOLPAN (.*)$", text, re.M)) == {"1 0 -1 -1 1"}

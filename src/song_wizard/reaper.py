@@ -166,12 +166,12 @@ def track(name, item=None, muted=False, record=False):
     return lines
 
 
-def item(name, position, length, source):
+def item(name, position, length, source, loop=False):
     return ["<ITEM",
             f"  POSITION {position:.10f}",
             "  SNAPOFFS 0",
             f"  LENGTH {length:.10f}",
-            "  LOOP 0",
+            f"  LOOP {int(loop)}",
             "  ALLTAKES 0",
             "  FADEIN 1 0 0 1 0 0 0",
             "  FADEOUT 1 0 0 1 0 0 0",
@@ -263,7 +263,9 @@ def build(song):
     for t in tracks:
         if not below(*t):
             lines += audio(*t)
-    lines += track("Click", item("Click", 0, end, click_source(bpm, beats)))
+    # Looping its source, so stretching the click to the left (a longer count-in, made in REAPER)
+    # still clicks: without it the part before the source's start is silent.
+    lines += track("Click", item("Click", 0, end, click_source(bpm, beats), loop=True))
     lines += track("Grabación", record=True)
     for t in tracks:
         if below(*t):
