@@ -39,6 +39,38 @@ RECORD = ".song-wizard-tidy.json"
 PEAKS = song.PEAKS
 # A file changed this recently may still be copying in (or syncing): it's left for later.
 SETTLING = 30
+# Left in a folder while a download works on it: the library doesn't fold or number its songs
+# meanwhile (songs moved in from Singles come without a number, and looked added by hand). One
+# older than this was left by a download that died.
+BUSY = ".song-wizard-busy"
+BUSY_FOR = 3 * 3600
+
+
+def busy(folder):
+    try:
+        return time.time() - (Path(folder) / BUSY).stat().st_mtime < BUSY_FOR
+    except OSError:
+        return False
+
+
+class working:
+    """with working(folder): the folder is busy while the block runs."""
+
+    def __init__(self, folder):
+        # A folder that isn't there yet (a new playlist's) isn't one the library numbers.
+        self.mark = Path(folder) / BUSY if folder and Path(folder).is_dir() else None
+
+    def __enter__(self):
+        if self.mark:
+            try:
+                self.mark.write_text("a download is working here\n")
+            except OSError:
+                self.mark = None
+        return self
+
+    def __exit__(self, *exc):
+        if self.mark:
+            self.mark.unlink(missing_ok=True)
 
 
 def old_base(name):
@@ -112,7 +144,7 @@ def fold(container, settle=SETTLING):
     """Songs that are just a file in a folder of songs (added by hand, or just downloaded) go to
     their own folder. Returns their main files in their new place."""
     container = Path(container)
-    if needed(container):
+    if needed(container) or busy(container):
         return []
     groups, _ = loose(container)
     now, done = time.time(), []

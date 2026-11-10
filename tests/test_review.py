@@ -219,3 +219,43 @@ def test_brought_in_goes_after_the_last_in_the_playlists_order(library, monkeypa
     download.fetch(URL, decide=["ssssssssss1=move"])
     assert sorted(p.name for p in (library / "Show").iterdir() if p.is_dir()) == [
         "001 - Band - A", "002 - Band - B", "003 - Band - C", "004 - Mine", "005 - Band - New", "006 - Band - S"]
+
+
+def test_the_library_leaves_the_folder_alone_meanwhile(library, monkeypatch):
+    """A song moved in from Singles has no number until the download names it: the library,
+    refreshed meanwhile, used to number it as added by hand, under the download's feet."""
+    from song_wizard import layout, numbering, ui
+    show = library / "Show"
+    seen = []
+    real_bring = review.bring
+
+    def bring_and_look(*a, **k):
+        done = real_bring(*a, **k)
+        assert layout.busy(show)
+        assert numbering.tidy(show) == []  # what the library does when it refreshes
+        ui.library(library)
+        seen.append(sorted(p.name for p in show.iterdir() if p.is_dir()))
+        return done
+    monkeypatch.setattr(review, "bring", bring_and_look)
+    fake_ytdlp(monkeypatch, [("aaaaaaaaaa1", "A"), ("bbbbbbbbbb1", "B"), ("cccccccccc1", "C"), ("ssssssssss1", "S")])
+    download.fetch(URL, decide=["ssssssssss1=move"])
+    assert "Band - S" in seen[0]  # still without its number while the download works
+    assert (show / "005 - Band - S").is_dir() and not layout.busy(show)
+    assert not (show / layout.BUSY).exists()
+
+
+def test_one_song_that_fails_doesnt_stop_the_rest(library, monkeypatch, capsys):
+    from song_wizard import numbering
+    real = numbering.name
+
+    def flaky(path, *a, **k):
+        if "Band - S" in str(path):
+            raise SystemExit("in use")
+        return real(path, *a, **k)
+    monkeypatch.setattr(numbering, "name", flaky)
+    song(library / "Singles", "Band - T", "tttttttttt1")
+    fake_ytdlp(monkeypatch, [("aaaaaaaaaa1", "A"), ("bbbbbbbbbb1", "B"), ("cccccccccc1", "C"), ("ssssssssss1", "S"),
+                             ("tttttttttt1", "T")])
+    assert download.fetch(URL, decide=["ssssssssss1=move", "tttttttttt1=move"]) == 1
+    assert "left as it was (in use)" in capsys.readouterr().out
+    assert (library / "Show" / "006 - Band - T").is_dir()

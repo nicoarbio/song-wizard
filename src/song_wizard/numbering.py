@@ -71,6 +71,8 @@ def tidy(folder, wav=False):
     they came, named by their data, with their .wav if the playlist keeps them. Returns them."""
     from . import layout
     folder = Path(folder)
+    if layout.busy(folder):  # a download is bringing songs in: it numbers them itself
+        return []
     layout.fold(folder, settle=SETTLING)
     found = songs(folder)
     now = time.time()
