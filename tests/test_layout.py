@@ -129,3 +129,12 @@ def test_cli_and_a_second_time(show, tmp_path, monkeypatch, capsys):
     cli.main(["tidy", "--undo", str(show)])
     assert (show / "007 - New (drums).opus").exists() and (show / f"{A} (drums).opus").exists()
     assert next(f for f in ui.library(tmp_path) if f["name"] == "Show")["old"] == 3
+
+
+def test_projects_with_quotes_in_their_names(tmp_path):
+    """A name with an apostrophe, in double quotes (as REAPER writes it), and one with double
+    quotes, in single ones: both moved to the new names."""
+    text = ('  FILE "001 - Bon Jovi - Livin\' On A Prayer (vocals).opus"\r\n'
+            "  FILE '001 - Band \"Live\" (drums).wav'\r\n  NAME \"Voz\"\r\n")
+    names = {"001 - Bon Jovi - Livin' On A Prayer (vocals).opus": "vocals.opus", '001 - Band "Live" (drums).wav': "drums.wav"}
+    assert layout.rewrite_project(text, names) == '  FILE "vocals.opus"\r\n  FILE \'drums.wav\'\r\n  NAME "Voz"\r\n'

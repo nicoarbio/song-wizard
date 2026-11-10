@@ -208,7 +208,8 @@ def tempo_line(bpm_text, click_text):
 
 def rewrite_project(text, names):
     """A REAPER project's text with the files it names moved to their new names."""
-    pattern = re.compile(r'^(\s*(?:FILE|NAME)\s+)(["\'`])([^"\'`\r\n]*)(\2)', re.M)
+    # The name runs to the same quote that opened it: it can have the others ("Livin' On A Prayer").
+    pattern = re.compile(r'^(\s*(?:FILE|NAME)\s+)(["\'`])(.*?)(\2)(?=[ \t]*\r?$)', re.M)
     return pattern.sub(lambda m: m[1] + m[2] + names.get(m[3], m[3]) + m[4], text)
 
 

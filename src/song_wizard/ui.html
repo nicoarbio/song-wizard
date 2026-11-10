@@ -903,7 +903,10 @@ if (new URLSearchParams(location.search).has("t")) {
   history.replaceState(null, "", clean.pathname + clean.search + clean.hash);
 }
 const $ = (id) => document.getElementById(id);
-const state = { folders: [], selected: new Set(), closedFolders: new Set(), openJob: null, logs: {}, lastDone: new Set() };
+// Folded playlists are remembered in this browser, like open songs.
+const CLOSED_FOLDERS_KEY = "song-wizard:closed-folders";
+const state = { folders: [], selected: new Set(),
+  closedFolders: new Set((() => { try { return JSON.parse(localStorage.getItem(CLOSED_FOLDERS_KEY)) || []; } catch { return []; } })()), openJob: null, logs: {}, lastDone: new Set() };
 
 async function api(path, body) {
   const options = { headers: { "X-Lang": LANG } };  // the server answers in the page's language
@@ -1101,7 +1104,7 @@ function renderLibrary() {
     }});
     toggleAll.checked = !!allChecked;
     const n = folder.songs.length;
-    const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || filter },
+    const details = el("details", { class: "folder", open: !state.closedFolders.has(folder.path) || !!filter },
       el("summary", {}, toggleAll, el("h3", {}, folder.name), el("span", { class: "count" }, say("library.song", { n, v: n === 1 ? "" : "s" })),
         folder.playlist ? el("button", { class: "small open", title: say("library.looks_at_playlist_again_downloads", { title: folder.playlist.title }),
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); updatePlaylist(folder.playlist); } }, say("library.check_new_songs")) : null,
@@ -1109,7 +1112,11 @@ function renderLibrary() {
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openSetlist(folder.songs.map((song) => ({ song, folder })), folder.playlist ? folder.playlist.title : folder.name, folder); } }, say("library.setlist")),
         el("button", { class: "small", title: say("library.open_folder", { fileManager: state.fileManager }),
           onclick: (e) => { e.preventDefault(); e.stopPropagation(); openFolder(folder.path); } }, say("library.open"))));
-    details.addEventListener("toggle", () => details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path));
+    // While filtering every folder is forced open: that isn't the user folding/unfolding it.
+    if (!filter) details.addEventListener("toggle", () => {
+      details.open ? state.closedFolders.delete(folder.path) : state.closedFolders.add(folder.path);
+      try { localStorage.setItem(CLOSED_FOLDERS_KEY, JSON.stringify([...state.closedFolders])); } catch {}
+    });
     if (folder.location) details.append(el("div", { class: "location", title: say("library.playlist_outside_your_music_folder") }, `en ${folder.location}`));
     const list = el("ul", { class: "songs" });
     for (const song of songs) list.append(renderSong(song));
